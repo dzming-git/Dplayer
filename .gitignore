@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# Flask
+instance/
+.webassets-cache
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+dplayer.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Config - 用户配置不上传
+config.json
+
+# Cache and temp
+.cache/
+*.cache
+*.tmp
+*.temp
+
+# Static uploads (optional - uncomment if you want to ignore user uploads)
+# static/uploads/
+
+# Generated thumbnails (optional - uncomment if you want to ignore generated files)
+# static/thumbnails/*.gif
+# static/thumbnails/*.jpg
+
+# Environment
+.env
+.env.local

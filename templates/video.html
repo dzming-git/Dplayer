@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ video.title }} - DPlayer 视频站</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/video.css') }}">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <span class="logo-text">DPlayer</span>
+                </a>
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="搜索视频、标签...">
+                    <button onclick="performSearch()">搜索</button>
+                </div>
+                <div class="header-actions">
+                    <a href="/" class="nav-link">首页</a>
+                    <a href="#" class="nav-link">排行榜</a>
+                    <a href="#" class="nav-link">我的收藏</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="container">
+            <div class="video-page-layout">
+                <!-- 左侧：视频播放器 -->
+                <div class="video-player-section">
+                    <div class="player-container">
+                        <div id="dplayer"></div>
+                    </div>
+
+                    <div class="video-info-panel">
+                        <h1 class="video-title">{{ video.title }}</h1>
+                        <div class="video-stats">
+                            <div class="stat-item">
+                                <span class="stat-icon">👁</span>
+                                <span class="stat-value" id="viewCount">{{ "%.1f万"|format(video.view_count/10000) if video.view_count >= 10000 else video.view_count }}</span>
+                                <span class="stat-label">播放</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-icon">👍</span>
+                                <span class="stat-value" id="likeCount">{{ "%.1f万"|format(video.like_count/10000) if video.like_count >= 10000 else video.like_count }}</span>
+                                <span class="stat-label">点赞</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-icon">⬇</span>
+                                <span class="stat-value" id="downloadCount">{{ "%.1f万"|format(video.download_count/10000) if video.download_count >= 10000 else video.download_count }}</span>
+                                <span class="stat-label">下载</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-icon">⏱</span>
+                                <span class="stat-value">{{ video.duration }}秒</span>
+                                <span class="stat-label">时长</span>
+                            </div>
+                        </div>
+
+                        <div class="video-actions">
+                            <button class="action-btn like-btn" onclick="likeVideo('{{ video.hash }}')">
+                                <span class="btn-icon">👍</span>
+                                点赞
+                            </button>
+                            <button class="action-btn download-btn" onclick="downloadVideo('{{ video.hash }}')">
+                                <span class="btn-icon">⬇</span>
+                                下载视频
+                            </button>
+                            <button class="action-btn share-btn" onclick="shareVideo()">
+                                <span class="btn-icon">📤</span>
+                                分享
+                            </button>
+                        </div>
+
+                        <div class="video-description">
+                            <h3>视频简介</h3>
+                            <p>{{ video.description or '暂无简介' }}</p>
+                        </div>
+
+                        <div class="video-tags-section">
+                            <h3>标签</h3>
+                            <div class="tags-container">
+                                {% for tag in video.tags %}
+                                <a href="/tag/{{ tag.id }}" class="tag-link">{{ tag.name }}</a>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="video-meta-section">
+                            <h3>视频信息</h3>
+                            <div class="meta-grid">
+                                <div class="meta-row">
+                                    <span class="meta-label">视频ID:</span>
+                                    <span class="meta-value">{{ video.hash }}</span>
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">优先级:</span>
+                                    <span class="meta-value">{{ video.priority }}</span>
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">上传时间:</span>
+                                    <span class="meta-value">{{ video.created_at.strftime('%Y-%m-%d %H:%M') if video.created_at else '未知' }}</span>
+                                </div>
+                                {% if video.is_downloaded %}
+                                <div class="meta-row">
+                                    <span class="meta-label">本地存储:</span>
+                                    <span class="meta-value local-badge">已下载</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="priority-setting">
+                            <h3>设置优先级</h3>
+                            <div class="priority-control">
+                                <input type="range" id="prioritySlider" min="0" max="100" value="{{ video.priority }}">
+                                <span class="priority-display" id="priorityDisplay">{{ video.priority }}</span>
+                                <button class="save-priority-btn" onclick="savePriority('{{ video.hash }}')">
+                                    保存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：推荐视频 -->
+                <div class="recommended-section">
+                    <h3 class="section-title">相关推荐</h3>
+                    <div class="recommended-list">
+                        {% for rec_video in recommended_videos %}
+                        <div class="recommended-item" onclick="playVideo('{{ rec_video.hash }}')">
+                            <img src="{{ rec_video.thumbnail }}" alt="{{ rec_video.title }}" class="rec-thumbnail">
+                            <div class="rec-info">
+                                <h4 class="rec-title">{{ rec_video.title }}</h4>
+                                <div class="rec-meta">
+                                    <span>👁 {{ "%.1f万"|format(rec_video.view_count/10000) if rec_video.view_count >= 10000 else rec_video.view_count }}</span>
+                                    <span>👍 {{ "%.1f万"|format(rec_video.like_count/10000) if rec_video.like_count >= 10000 else rec_video.like_count }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 提示消息 -->
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/dplayer@1.26.0/dist/DPlayer.min.js"></script>
+    <script>
+        let dp = null;
+
+        function format_number(num) {
+            if (num >= 10000) {
+                return (num / 10000).toFixed(1) + '万';
+            }
+            return num;
+        }
+
+        function initPlayer(videoUrl) {
+            dp = new DPlayer({
+                container: document.getElementById('dplayer'),
+                video: {
+                    url: videoUrl,
+                    type: 'auto'
+                },
+                autoplay: false,
+                theme: '#00aeec',
+                loop: false,
+                lang: 'zh-cn',
+                screenshot: true,
+                hotkey: true,
+                preload: 'auto',
+                volume: 0.7,
+                playbackSpeed: [0.5, 0.75, 1, 1.25, 1.5, 2]
+            });
+
+            dp.on('error', function() {
+                showToast('视频加载失败');
+            });
+        }
+
+        function playVideo(videoHash) {
+            window.location.href = '/video/' + videoHash;
+        }
+
+        function likeVideo(videoHash) {
+            fetch('/api/video/' + videoHash + '/like', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('likeCount').textContent = format_number(data.like_count);
+                    showToast('点赞成功！');
+                }
+            })
+            .catch(error => {
+                console.error('点赞失败:', error);
+                showToast('点赞失败，请稍后重试');
+            });
+        }
+
+        function downloadVideo(videoHash) {
+            fetch('/api/video/' + videoHash + '/download', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('downloadCount').textContent =
+                        format_number(data.download_count);
+                    showToast('下载已开始：' + data.message);
+                    // 实际下载
+                    const link = document.createElement('a');
+                    link.href = data.download_url;
+                    link.download = 'video.mp4';
+                    link.click();
+                }
+            })
+            .catch(error => {
+                console.error('下载失败:', error);
+                showToast('下载失败，请稍后重试');
+            });
+        }
+
+        function shareVideo() {
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('链接已复制到剪贴板');
+            }).catch(() => {
+                showToast('复制失败，请手动复制链接');
+            });
+        }
+
+        function savePriority(videoHash) {
+            const priority = document.getElementById('prioritySlider').value;
+            fetch('/api/video/' + videoHash + '/priority', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ priority: priority })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('优先级已更新为：' + priority);
+                }
+            })
+            .catch(error => {
+                console.error('更新失败:', error);
+                showToast('更新失败，请稍后重试');
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (query) {
+                window.location.href = '/search?q=' + encodeURIComponent(query);
+            }
+        }
+
+        // 优先级滑块实时显示
+        document.getElementById('prioritySlider').addEventListener('input', function() {
+            document.getElementById('priorityDisplay').textContent = this.value;
+        });
+
+        // 页面加载时初始化播放器
+        window.onload = function() {
+            const videoUrl = '{{ video.url }}';
+            initPlayer(videoUrl);
+
+            // 搜索框回车事件
+            document.getElementById('searchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+        };
+    </script>
+</body>
+</html>

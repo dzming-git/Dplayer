@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频管理 - DPlayer 视频站</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/manage.css') }}">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <span class="logo-text">DPlayer</span>
+                </a>
+                <div class="header-actions">
+                    <a href="/" class="nav-link">首页</a>
+                    <a href="/manage" class="nav-link active">视频管理</a>
+                    <a href="#" class="nav-link">排行榜</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="container">
+            <!-- 添加视频表单 -->
+            <section class="add-video-section">
+                <div class="section-header">
+                    <h2>添加视频</h2>
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="url">通过URL添加</button>
+                        <button class="tab-btn" data-tab="upload">上传本地文件</button>
+                    </div>
+                </div>
+
+                <!-- URL添加表单 -->
+                <div class="tab-content active" id="urlTab">
+                    <form class="add-form" id="urlForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>视频标题 *</label>
+                                <input type="text" name="title" required placeholder="输入视频标题">
+                            </div>
+                            <div class="form-group">
+                                <label>视频URL *</label>
+                                <input type="url" name="url" required placeholder="输入视频URL (http:// 或 https://)">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>缩略图URL</label>
+                                <input type="url" name="thumbnail" placeholder="输入缩略图URL">
+                            </div>
+                            <div class="form-group">
+                                <label>视频时长 (秒)</label>
+                                <input type="number" name="duration" min="0" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>优先级 (0-100)</label>
+                                <input type="number" name="priority" min="0" max="100" value="0" placeholder="0">
+                            </div>
+                            <div class="form-group">
+                                <label>标签 (用逗号分隔)</label>
+                                <input type="text" name="tags" placeholder="例如: 动作, 冒险, 动画">
+                            </div>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>视频简介</label>
+                            <textarea name="description" rows="3" placeholder="输入视频简介"></textarea>
+                        </div>
+                        <button type="submit" class="submit-btn">添加视频</button>
+                    </form>
+                </div>
+
+                <!-- 上传表单 -->
+                <div class="tab-content" id="uploadTab">
+                    <form class="add-form" id="uploadForm" enctype="multipart/form-data">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>视频标题 *</label>
+                                <input type="text" name="title" required placeholder="输入视频标题">
+                            </div>
+                            <div class="form-group">
+                                <label>选择视频文件 *</label>
+                                <input type="file" name="video" required accept=".mp4,.webm,.mov,.avi">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>选择缩略图</label>
+                                <input type="file" name="thumbnail" accept=".png,.jpg,.jpeg,.gif">
+                            </div>
+                            <div class="form-group">
+                                <label>优先级 (0-100)</label>
+                                <input type="number" name="priority" min="0" max="100" value="0" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>标签 (用逗号分隔)</label>
+                            <input type="text" name="tags" placeholder="例如: 动作, 冒险, 动画">
+                        </div>
+                        <div class="form-group full-width">
+                            <label>视频简介</label>
+                            <textarea name="description" rows="3" placeholder="输入视频简介"></textarea>
+                        </div>
+                        <button type="submit" class="submit-btn">上传视频</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 扫描配置 -->
+            <section class="scan-section">
+                <div class="section-header">
+                    <h2>扫描本地视频</h2>
+                </div>
+                <div class="scan-info">
+                    <p>当前配置的扫描目录：</p>
+                    <ul class="scan-dirs">
+                        <li>M:/bang (递归扫描)</li>
+                    </ul>
+                </div>
+                <div class="scan-actions">
+                    <button class="scan-btn" onclick="checkDependencies()">
+                        <span class="scan-icon">🔧</span>
+                        <span class="btn-text-full">检查依赖</span>
+                        <span class="btn-text-short">检查</span>
+                    </button>
+                    <button class="scan-btn" onclick="scanVideos()">
+                        <span class="scan-icon">🔍</span>
+                        <span class="btn-text-full">扫描本地视频</span>
+                        <span class="btn-text-short">扫描</span>
+                    </button>
+                    <button class="scan-btn secondary" onclick="forceRescan()">
+                        <span class="scan-icon">🔄</span>
+                        <span class="btn-text-full">强制重新扫描</span>
+                        <span class="btn-text-short">重扫</span>
+                    </button>
+                    <button class="scan-btn secondary" onclick="regenerateThumbnails()">
+                        <span class="scan-icon">🖼️</span>
+                        <span class="btn-text-full">重新生成缩略图</span>
+                        <span class="btn-text-short">生成预览</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 清空数据 -->
+            <section class="clear-section">
+                <div class="section-header">
+                    <h2>清空数据</h2>
+                </div>
+                <div class="clear-warning">
+                    <p class="warning-text">⚠️ 警告：此操作将删除所有视频数据，包括：</p>
+                    <ul class="warning-list">
+                        <li>所有视频记录</li>
+                        <li>播放量、点赞数、下载数</li>
+                        <li>标签关联数据</li>
+                    </ul>
+                    <p class="warning-note">此操作不可恢复！请谨慎操作。</p>
+                </div>
+                <div class="clear-actions">
+                    <input type="text" id="clearConfirm" placeholder="输入确认文本: CLEAR_ALL_VIDEOS">
+                    <button class="clear-btn" onclick="clearAllVideos()">
+                        <span class="clear-icon">🗑️</span>
+                        清空所有数据
+                    </button>
+                </div>
+            </section>
+
+            <!-- 视频列表 -->
+            <section class="video-list-section">
+                <div class="section-header">
+                    <h2>视频列表 (共 {{ videos|length }} 个)</h2>
+                    <div class="search-box">
+                        <input type="text" id="videoSearch" placeholder="搜索视频...">
+                    </div>
+                </div>
+
+                <div class="video-table-container">
+                    <table class="video-table">
+                        <thead>
+                            <tr>
+                                <th>缩略图</th>
+                                <th>标题</th>
+                                <th>hash</th>
+                                <th>优先级</th>
+                                <th>播放/点赞/下载</th>
+                                <th>标签</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="videoTableBody">
+                            {% for video in videos %}
+                            <tr class="video-row" data-title="{{ video.title|lower }}">
+                                <td class="thumbnail-cell">
+                                    <img src="{{ video.thumbnail }}" alt="{{ video.title }}" class="table-thumbnail">
+                                </td>
+                                <td class="title-cell">
+                                    <div class="video-title">{{ video.title }}</div>
+                                    <div class="video-meta">
+                                        <span>👁 {{ "%.1f万"|format(video.view_count/10000) if video.view_count >= 10000 else video.view_count }}</span>
+                                        <span>⏱ {{ video.duration }}秒</span>
+                                        {% if video.is_downloaded %}
+                                        <span class="local-badge">本地</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="hash-cell">
+                                    <code class="hash-code">{{ video.hash[:16] }}...</code>
+                                    <button class="copy-btn" onclick="copyHash('{{ video.hash }}')">复制</button>
+                                </td>
+                                <td class="priority-cell">
+                                    <span class="priority-badge priority-{{ video.priority // 25 }}">{{ video.priority }}</span>
+                                </td>
+                                <td class="stats-cell">
+                                    <div class="stat-item">👁 {{ video.view_count }}</div>
+                                    <div class="stat-item">👍 {{ video.like_count }}</div>
+                                    <div class="stat-item">⬇ {{ video.download_count }}</div>
+                                </td>
+                                <td class="tags-cell">
+                                    <div class="tag-list">
+                                        {% for tag in video.tags[:3] %}
+                                        <span class="tag-badge">{{ tag.name }}</span>
+                                        {% endfor %}
+                                        {% if video.tags|length > 3 %}
+                                        <span class="tag-more">+{{ video.tags|length - 3 }}</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="action-cell">
+                                    <button class="action-btn play-btn" onclick="playVideo('{{ video.hash }}')">播放</button>
+                                    <button class="action-btn delete-btn" onclick="deleteVideo('{{ video.hash }}')">删除</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 提示消息 -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        function format_number(num) {
+            if (num >= 10000) {
+                return (num / 10000).toFixed(1) + '万';
+            }
+            return num;
+        }
+
+        function scanVideos() {
+            const btn = event.target.closest('.scan-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="scan-icon">⏳</span> 扫描中...';
+
+            fetch('/api/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`扫描完成！${data.message}`);
+                    location.reload();
+                } else {
+                    showToast('扫描失败');
+                }
+            })
+            .catch(error => {
+                console.error('扫描失败:', error);
+                showToast('扫描失败，请稍后重试');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="scan-icon">🔍</span> 扫描本地视频';
+            });
+        }
+
+        function checkDependencies() {
+            fetch('/api/dependencies/check')
+            .then(response => response.json())
+            .then(data => {
+                let message = '依赖检查结果：\n\n';
+                for (const [key, dep] of Object.entries(data.dependencies)) {
+                    const status = dep.installed ? '✓ 已安装' : '✗ 未安装';
+                    const version = dep.version ? ` (${dep.version})` : '';
+                    message += `${dep.name}: ${status}${version}\n`;
+                }
+
+                if (!data.success) {
+                    message += '\n⚠️ 部分依赖未安装，预览图功能可能无法使用！\n\n';
+                    message += '请运行以下命令安装依赖：\n';
+                    message += 'pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple';
+                }
+
+                alert(message);
+            })
+            .catch(error => {
+                console.error('检查依赖失败:', error);
+                showToast('检查依赖失败');
+            });
+        }
+
+        function forceRescan() {
+            if (!confirm('强制重新扫描将删除所有扫描目录中的现有视频并重新添加，确定继续吗？')) {
+                return;
+            }
+
+            const btn = event.target.closest('.scan-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="scan-icon">⏳</span> 扫描中...';
+
+            fetch('/api/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ force_rescan: true })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`强制重扫完成！${data.message}`);
+                    location.reload();
+                } else {
+                    showToast('扫描失败');
+                }
+            })
+            .catch(error => {
+                console.error('扫描失败:', error);
+                showToast('扫描失败，请稍后重试');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="scan-icon">🔄</span> 强制重新扫描';
+            });
+        }
+
+        let currentTaskId = null;
+        let progressInterval = null;
+
+        // 页面加载时恢复任务状态
+        function restoreTaskState() {
+            const savedTaskId = localStorage.getItem('thumbnailTaskId');
+            const savedStartTime = localStorage.getItem('thumbnailTaskStartTime');
+
+            if (savedTaskId && savedStartTime) {
+                const startTime = parseInt(savedStartTime);
+                const elapsed = (Date.now() - startTime) / 1000; // 已经过的秒数
+
+                // 如果任务开始时间超过1小时，认为已过期
+                if (elapsed > 3600) {
+                    console.log('[恢复] 任务已过期，清除状态');
+                    localStorage.removeItem('thumbnailTaskId');
+                    localStorage.removeItem('thumbnailTaskStartTime');
+                    return;
+                }
+
+                console.log('[恢复] 找到进行中的任务:', savedTaskId);
+                currentTaskId = savedTaskId;
+
+                // 恢复进度显示
+                checkTaskProgress();
+            }
+        }
+
+        function regenerateThumbnails() {
+            if (!confirm('重新生成缩略图可能需要较长时间，确定继续吗？')) {
+                return;
+            }
+
+            console.log('[开始] 点击生成预览按钮');
+
+            const btn = event.target.closest('.scan-btn');
+            btn.disabled = true;
+
+            // 保存原始HTML
+            const originalHTML = btn.innerHTML;
+
+            // 显示进度
+            btn.innerHTML = `
+                <span class="scan-icon">🖼️</span>
+                <span class="btn-text-full">重新生成缩略图</span>
+                <span class="btn-text-short">生成预览</span>
+                <span class="progress-display" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-size: 13px; font-weight: 600;">0/0</span>
+            `;
+
+            showToast('正在初始化...');
+
+            fetch('/api/thumbnails/regenerate', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('[响应]', data);
+
+                if (data.success) {
+                    currentTaskId = data.task_id;
+                    console.log('[任务ID]', currentTaskId);
+
+                    // 保存到localStorage
+                    localStorage.setItem('thumbnailTaskId', data.task_id);
+                    localStorage.setItem('thumbnailTaskStartTime', Date.now().toString());
+
+                    // 初始化进度显示
+                    updateProgressDisplay(0, data.total);
+                    startProgressPolling(btn);
+                    showToast(data.message);
+                } else {
+                    showToast('生成失败: ' + (data.message || '未知错误'));
+                    resetButton(btn, originalHTML);
+                }
+            })
+            .catch(error => {
+                console.error('[错误]', error);
+                showToast('生成失败，请稍后重试');
+                resetButton(btn, originalHTML);
+            });
+        }
+
+        function checkTaskProgress() {
+            // 查询当前任务状态
+            if (!currentTaskId) return;
+
+            const btn = document.querySelector('.scan-btn[onclick*="regenerateThumbnails"]');
+            if (!btn) {
+                console.warn('[恢复] 未找到生成预览按钮');
+                return;
+            }
+
+            console.log('[恢复] 查询任务状态:', currentTaskId);
+
+            fetch(`/api/thumbnails/progress/${currentTaskId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const progress = data.data;
+
+                    // 恢复按钮状态
+                    const originalHTML = btn.innerHTML;
+                    btn.innerHTML = `
+                        <span class="scan-icon">🖼️</span>
+                        <span class="btn-text-full">重新生成缩略图</span>
+                        <span class="btn-text-short">生成预览</span>
+                        <span class="progress-display" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-size: 13px; font-weight: 600;">${progress.current}/${progress.total} (${Math.round(progress.current/progress.total*100)}%)</span>
+                    `;
+                    btn.disabled = true;
+
+                    showToast(`恢复任务: 正在生成预览图 (${progress.current}/${progress.total})`);
+
+                    // 如果任务还在运行，继续轮询
+                    if (progress.status === 'running') {
+                        startProgressPolling(btn);
+                    } else if (progress.status === 'completed') {
+                        showToast(`任务已完成! 成功生成 ${progress.success_count}/${progress.total} 个缩略图`);
+                        setTimeout(() => {
+                            localStorage.removeItem('thumbnailTaskId');
+                            localStorage.removeItem('thumbnailTaskStartTime');
+                            location.reload();
+                        }, 2000);
+                    } else if (progress.status === 'error') {
+                        showToast(`任务失败: ${progress.message}`);
+                        localStorage.removeItem('thumbnailTaskId');
+                        localStorage.removeItem('thumbnailTaskStartTime');
+                        resetButton(btn);
+                    }
+                } else {
+                    // 任务不存在，清除localStorage
+                    console.log('[恢复] 任务不存在，清除状态');
+                    localStorage.removeItem('thumbnailTaskId');
+                    localStorage.removeItem('thumbnailTaskStartTime');
+                }
+            })
+            .catch(error => {
+                console.error('[恢复] 查询失败:', error);
+                localStorage.removeItem('thumbnailTaskId');
+                localStorage.removeItem('thumbnailTaskStartTime');
+            });
+        }
+
+        function startProgressPolling(btn) {
+            console.log('[轮询] 开始轮询进度');
+
+            // 清除旧的定时器
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+
+            // 每500毫秒查询一次进度
+            progressInterval = setInterval(() => {
+                if (currentTaskId) {
+                    checkProgress(btn);
+                }
+            }, 500);
+        }
+
+        function checkProgress(btn) {
+            console.log('[查询]', currentTaskId);
+
+            fetch(`/api/thumbnails/progress/${currentTaskId}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('[进度数据]', data);
+
+                if (data.success) {
+                    const progress = data.data;
+                    const current = progress.current;
+                    const total = progress.total;
+                    const percentage = Math.round((current / total) * 100);
+                    const status = progress.status;
+
+                    // 更新按钮上的进度
+                    updateProgressDisplay(current, total);
+
+                    console.log(`[进度] ${current}/${total} (${percentage}%) - ${status}`);
+
+                    // 检查是否完成
+                    if (status === 'completed' || status === 'error') {
+                        clearInterval(progressInterval);
+
+                        setTimeout(() => {
+                            if (status === 'completed') {
+                                const successCount = progress.success_count || 0;
+                                showToast(`完成! 成功生成 ${successCount}/${total} 个缩略图`);
+                                setTimeout(() => location.reload(), 2000);
+                            } else {
+                                showToast(`失败: ${progress.message || '未知错误'}`);
+                            }
+                            resetButton(btn);
+                        }, 1000);
+                    }
+                } else {
+                    console.error('[查询失败]', data.message);
+                    // 如果任务不存在，清除localStorage
+                    localStorage.removeItem('thumbnailTaskId');
+                    localStorage.removeItem('thumbnailTaskStartTime');
+                    resetButton(btn);
+                }
+            })
+            .catch(error => {
+                console.error('[查询错误]', error);
+            });
+        }
+
+        function updateProgressDisplay(current, total) {
+            const btn = document.querySelector('.scan-btn[onclick*="regenerateThumbnails"]');
+            if (!btn) return;
+
+            const progressEl = btn.querySelector('.progress-display');
+            if (progressEl) {
+                const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+                progressEl.textContent = `${current}/${total} (${percentage}%)`;
+
+                // 添加动画效果
+                progressEl.style.animation = 'none';
+                progressEl.offsetHeight; // 触发重绘
+                progressEl.style.animation = 'pulse 0.3s ease-in-out';
+            }
+        }
+
+        function resetButton(btn, originalHTML) {
+            if (originalHTML) {
+                btn.innerHTML = originalHTML;
+            } else {
+                btn.innerHTML = `
+                    <span class="scan-icon">🖼️</span>
+                    <span class="btn-text-full">重新生成缩略图</span>
+                    <span class="btn-text-short">生成预览</span>
+                `;
+            }
+            btn.disabled = false;
+            currentTaskId = null;
+
+            // 清除localStorage
+            localStorage.removeItem('thumbnailTaskId');
+            localStorage.removeItem('thumbnailTaskStartTime');
+        }
+
+        function playVideo(videoHash) {
+            window.location.href = '/video/' + videoHash;
+        }
+
+        function copyHash(hash) {
+            navigator.clipboard.writeText(hash).then(() => {
+                showToast('Hash已复制到剪贴板');
+            }).catch(() => {
+                showToast('复制失败');
+            });
+        }
+
+        function deleteVideo(videoHash) {
+            if (!confirm('确定要删除这个视频吗？')) {
+                return;
+            }
+
+            fetch('/api/video/' + videoHash, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('视频已删除');
+                    location.reload();
+                } else {
+                    showToast(data.message || '删除失败');
+                }
+            })
+            .catch(error => {
+                console.error('删除失败:', error);
+                showToast('删除失败，请稍后重试');
+            });
+        }
+
+        function clearAllVideos() {
+            const confirmText = document.getElementById('clearConfirm').value.trim();
+
+            if (confirmText !== 'CLEAR_ALL_VIDEOS') {
+                showToast('请输入正确的确认文本: CLEAR_ALL_VIDEOS');
+                return;
+            }
+
+            if (!confirm('确定要清空所有视频数据吗？此操作不可恢复！')) {
+                return;
+            }
+
+            const btn = event.target.closest('.clear-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="clear-icon">⏳</span> 清空中...';
+
+            fetch('/api/videos/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ confirm_text: confirmText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    location.reload();
+                } else {
+                    showToast(data.message || '清空失败');
+                }
+            })
+            .catch(error => {
+                console.error('清空失败:', error);
+                showToast('清空失败，请稍后重试');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="clear-icon">🗑️</span> 清空所有数据';
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // 标签切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById(this.dataset.tab + 'Tab').classList.add('active');
+            });
+        });
+
+        // URL表单提交
+        document.getElementById('urlForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+
+            fetch('/api/video/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    this.reset();
+                    location.reload();
+                } else {
+                    showToast(data.message || '添加失败');
+                }
+            })
+            .catch(error => {
+                console.error('添加失败:', error);
+                showToast('添加失败，请稍后重试');
+            });
+        });
+
+        // 上传表单提交
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch('/api/video/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    this.reset();
+                    location.reload();
+                } else {
+                    showToast(data.message || '上传失败');
+                }
+            })
+            .catch(error => {
+                console.error('上传失败:', error);
+                showToast('上传失败，请稍后重试');
+            });
+        });
+
+        // 搜索功能
+        document.getElementById('videoSearch').addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            document.querySelectorAll('.video-row').forEach(row => {
+                const title = row.dataset.title;
+                row.style.display = title.includes(query) ? '' : 'none';
+            });
+        });
+
+        // 页面加载时恢复任务状态
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[加载] 页面加载完成，检查是否有进行中的任务...');
+            restoreTaskState();
+        });
+    </script>
+</body>
+</html>

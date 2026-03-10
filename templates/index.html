@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPlayer 视频站</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <span class="logo-text">DPlayer</span>
+                </a>
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="搜索视频、标签...">
+                    <button onclick="performSearch()">搜索</button>
+                </div>
+                <div class="header-actions">
+                    <a href="/" class="nav-link active">首页</a>
+                    <a href="#" class="nav-link">排行榜</a>
+                    <a href="#" class="nav-link">我的收藏</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 标签导航 -->
+    <div class="tags-bar">
+        <div class="container">
+            <a href="/" class="tag-item {% if not current_tag %}active{% endif %}">全部</a>
+            {% for tag in tags %}
+            <a href="/tag/{{ tag.id }}" class="tag-item {% if current_tag and current_tag.id == tag.id %}active{% endif %}">
+                {{ tag.name }}
+                <span class="tag-count">({{ tag.video_count() }})</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="container">
+            <!-- 推荐视频网格 -->
+            <section class="video-section">
+                <div class="section-header">
+                    <h2>{% if current_tag %}{{ current_tag.name }}{% else %}推荐视频{% endif %}</h2>
+                    <button class="refresh-btn" onclick="refreshVideos()">
+                        <span class="refresh-icon">↻</span> 换一批
+                    </button>
+                </div>
+
+                <div class="video-grid" id="videoGrid">
+                    {% for video in videos %}
+                    <div class="video-card" onclick="playVideo('{{ video.hash }}')">
+                        <div class="video-thumbnail">
+                            <img src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy">
+                            <div class="video-duration">
+                                <span class="duration-badge">{{ video.duration }}秒</span>
+                            </div>
+                            <div class="video-overlay">
+                                <span class="play-icon">▶</span>
+                            </div>
+                        </div>
+                        <div class="video-info">
+                            <h3 class="video-title" title="{{ video.title }}">{{ video.title }}</h3>
+                            <div class="video-meta">
+                                <span class="meta-item">
+                                    <span class="meta-icon">👁</span>
+                                    {{ "%.1f万"|format(video.view_count/10000) if video.view_count >= 10000 else video.view_count }}
+                                </span>
+                                <span class="meta-item">
+                                    <span class="meta-icon">👍</span>
+                                    {{ "%.1f万"|format(video.like_count/10000) if video.like_count >= 10000 else video.like_count }}
+                                </span>
+                                <span class="meta-item">
+                                    <span class="meta-icon">⬇</span>
+                                    {{ "%.1f万"|format(video.download_count/10000) if video.download_count >= 10000 else video.download_count }}
+                                </span>
+                            </div>
+                            <div class="video-tags">
+                                {% for tag in video.tags[:3] %}
+                                <span class="tag-badge">{{ tag.name }}</span>
+                                {% endfor %}
+                            </div>
+                            <div class="video-priority">
+                                优先级: <span class="priority-value">{{ video.priority }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 搜索结果弹窗 -->
+    <div id="searchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>搜索结果</h3>
+                <button class="close-btn" onclick="closeSearchModal()">×</button>
+            </div>
+            <div class="modal-body" id="searchResults">
+                <!-- 搜索结果将在这里显示 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function format_number(num) {
+            if (num >= 10000) {
+                return (num / 10000).toFixed(1) + '万';
+            }
+            return num;
+        }
+
+        function playVideo(videoHash) {
+            window.location.href = '/video/' + videoHash;
+        }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            fetch('/search?q=' + encodeURIComponent(query))
+                .then(response => response.json())
+                .then(data => {
+                    displaySearchResults(data.videos);
+                })
+                .catch(error => {
+                    console.error('搜索失败:', error);
+                    alert('搜索失败，请稍后重试');
+                });
+        }
+
+        function displaySearchResults(videos) {
+            const resultsDiv = document.getElementById('searchResults');
+            if (videos.length === 0) {
+                resultsDiv.innerHTML = '<p class="no-results">没有找到相关视频</p>';
+            } else {
+                resultsDiv.innerHTML = videos.map(video => `
+                    <div class="search-result-item" onclick="playVideo('${video.hash}'); closeSearchModal();">
+                        <img src="${video.thumbnail}" alt="${video.title}" class="result-thumbnail">
+                        <div class="result-info">
+                            <h4 class="result-title">${video.title}</h4>
+                            <div class="result-meta">
+                                <span>👁 ${format_number(video.view_count)}</span>
+                                <span>👍 ${format_number(video.like_count)}</span>
+                            </div>
+                            <div class="result-tags">
+                                ${video.tags.map(tag => `<span class="tag-badge">${tag}</span>`).join(' ')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('searchModal').style.display = 'block';
+        }
+
+        function closeSearchModal() {
+            document.getElementById('searchModal').style.display = 'none';
+        }
+
+        function refreshVideos() {
+            location.reload();
+        }
+
+        // 搜索框回车事件
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('searchModal');
+            if (event.target === modal) {
+                closeSearchModal();
+            }
+        };
+    </script>
+</body>
+</html>
