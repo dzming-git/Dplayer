@@ -21,7 +21,7 @@
                 <div class="header-actions">
                     <a href="/" class="nav-link active">首页</a>
                     <a href="#" class="nav-link">排行榜</a>
-                    <a href="#" class="nav-link">我的收藏</a>
+                    <a href="/favorites" class="nav-link">我的收藏</a>
                 </div>
             </div>
         </div>
@@ -58,7 +58,7 @@
                         <div class="video-thumbnail">
                             <img src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy">
                             <div class="video-duration">
-                                <span class="duration-badge">{{ video.duration }}秒</span>
+                                <span class="duration-badge">{{ video.duration|format_duration }}</span>
                             </div>
                             <div class="video-overlay">
                                 <span class="play-icon">▶</span>
@@ -81,8 +81,10 @@
                                 </span>
                             </div>
                             <div class="video-tags">
-                                {% for tag in video.tags[:3] %}
-                                <span class="tag-badge">{{ tag.name }}</span>
+                                {% for vt in video.tags[:3] %}
+                                {% if vt.tag %}
+                                <span class="tag-badge">{{ vt.tag.name }}</span>
+                                {% endif %}
                                 {% endfor %}
                             </div>
                             <div class="video-priority">
@@ -154,7 +156,7 @@
                                 <span>👍 ${format_number(video.like_count)}</span>
                             </div>
                             <div class="result-tags">
-                                ${video.tags.map(tag => `<span class="tag-badge">${tag}</span>`).join(' ')}
+                                ${video.tags.map(tag => `<span class="tag-badge">${tag.name}</span>`).join(' ')}
                             </div>
                         </div>
                     </div>
@@ -169,7 +171,75 @@
         }
 
         function refreshVideos() {
-            location.reload();
+            // 使用AJAX获取新的推荐视频
+            fetch('/api/videos/recommend?limit=12')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.videos && data.videos.length > 0) {
+                        updateVideoGrid(data.videos);
+                    }
+                })
+                .catch(error => {
+                    console.error('刷新失败:', error);
+                    alert('刷新失败，请稍后重试');
+                });
+        }
+
+        function updateVideoGrid(videos) {
+            const videoGrid = document.getElementById('videoGrid');
+            if (!videoGrid) return;
+
+            videoGrid.innerHTML = videos.map(video => `
+                <div class="video-card" onclick="playVideo('${video.hash}')">
+                    <div class="video-thumbnail">
+                        <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+                        <div class="video-duration">
+                            <span class="duration-badge">${formatDuration(video.duration)}</span>
+                        </div>
+                        <div class="video-overlay">
+                            <span class="play-icon">▶</span>
+                        </div>
+                    </div>
+                    <div class="video-info">
+                        <h3 class="video-title" title="${video.title}">${video.title}</h3>
+                        <div class="video-meta">
+                            <span class="meta-item">
+                                <span class="meta-icon">👁</span>
+                                ${format_number(video.view_count)}
+                            </span>
+                            <span class="meta-item">
+                                <span class="meta-icon">👍</span>
+                                ${format_number(video.like_count)}
+                            </span>
+                            <span class="meta-item">
+                                <span class="meta-icon">⬇</span>
+                                ${format_number(video.download_count)}
+                            </span>
+                        </div>
+                        <div class="video-tags">
+                            ${video.tags.slice(0, 3).map(tag => `<span class="tag-badge">${tag.name}</span>`).join('')}
+                        </div>
+                        <div class="video-priority">
+                            优先级: <span class="priority-value">${video.priority}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatDuration(seconds) {
+            if (seconds === null || seconds === undefined) {
+                return "未知时长";
+            }
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+
+            if (hours > 0) {
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            } else {
+                return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
         }
 
         // 搜索框回车事件
@@ -178,6 +248,29 @@
                 performSearch();
             }
         });
+
+        // 检查是否是收藏页面，如果是则加载收藏视频
+        const isFavoritesPage = window.location.pathname === '/favorites';
+        if (isFavoritesPage) {
+            loadFavorites();
+        }
+
+        function loadFavorites() {
+            fetch('/api/favorites')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.videos && data.videos.length > 0) {
+                        updateVideoGrid(data.videos);
+                        document.querySelector('.section-header h2').textContent = '我的收藏';
+                    } else {
+                        document.getElementById('videoGrid').innerHTML = '<p style="text-align:center;padding:40px;color:#999;">暂无收藏的视频</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('加载收藏失败:', error);
+                    document.getElementById('videoGrid').innerHTML = '<p style="text-align:center;padding:40px;color:#999;">加载失败</p>';
+                });
+        }
 
         // 点击模态框外部关闭
         window.onclick = function(event) {

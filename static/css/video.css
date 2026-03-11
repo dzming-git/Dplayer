@@ -95,6 +95,19 @@
     background: #ff5252;
 }
 
+.favorite-btn {
+    background: #ff8585;
+    color: white;
+}
+
+.favorite-btn:hover {
+    background: #ff6b6b;
+}
+
+.favorite-btn.active {
+    background: #e53935;
+}
+
 .download-btn {
     background: #00aeec;
     color: white;
@@ -153,11 +166,116 @@
     border-radius: 16px;
     font-size: 14px;
     transition: all 0.3s;
+    cursor: pointer;
+    display: inline-block;
 }
 
 .tag-link:hover {
     background: #00aeec;
     color: white;
+}
+
+.tag-link[onclick*="return false;"] {
+    cursor: default;
+}
+
+.tag-link[onclick*="return false;"]:hover {
+    background: #f1f2f3;
+    color: #61666d;
+}
+
+/* 添加标签按钮 */
+.add-tag-area {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+}
+
+.add-tag-btn {
+    width: 32px;
+    height: 32px;
+    border: 2px dashed #d0d7de;
+    background: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    font-size: 20px;
+    color: #61666d;
+}
+
+.add-tag-btn:hover {
+    border-color: #00aeec;
+    color: #00aeec;
+    background: #f0f8ff;
+}
+
+.plus-icon {
+    line-height: 1;
+    font-weight: 300;
+}
+
+/* 新标签输入框 */
+.new-tag-input-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.new-tag-input {
+    padding: 6px 16px;
+    background: #f1f2f3;
+    border: 1px solid #00aeec;
+    border-radius: 16px;
+    font-size: 14px;
+    color: #18191c;
+    outline: none;
+    min-width: 120px;
+    transition: all 0.3s;
+}
+
+.new-tag-input:focus {
+    background: white;
+    box-shadow: 0 0 0 3px rgba(0, 174, 236, 0.1);
+}
+
+.new-tag-input::placeholder {
+    color: #9499a0;
+}
+
+.confirm-tag-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: #00aeec;
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.confirm-tag-btn:hover {
+    background: #0099cc;
+    transform: scale(1.1);
 }
 
 .meta-grid {

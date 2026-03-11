@@ -53,7 +53,7 @@ class Video(db.Model):
             'download_count': self.download_count,
             'priority': self.priority,
             'is_downloaded': self.is_downloaded,
-            'tags': [tag.name for tag in self.tags],
+            'tags': [vt.tag.to_dict() for vt in self.tags if vt.tag is not None],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -111,7 +111,7 @@ class UserInteraction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False)
     user_session = db.Column(db.String(100), nullable=False)  # 用户会话ID（简单模拟用户）
-    interaction_type = db.Column(db.String(20), nullable=False)  # 交互类型: view, like, download, share
+    interaction_type = db.Column(db.String(20), nullable=False)  # 交互类型: view, like, download, share, favorite
     interaction_score = db.Column(db.Float, default=0.0)  # 交互评分（用于推荐算法）
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

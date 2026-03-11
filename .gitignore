@@ -60,12 +60,27 @@ config.json
 *.tmp
 *.temp
 
-# Static uploads (optional - uncomment if you want to ignore user uploads)
-# static/uploads/
+# Static uploads
+static/uploads/
 
-# Generated thumbnails (optional - uncomment if you want to ignore generated files)
-# static/thumbnails/*.gif
-# static/thumbnails/*.jpg
+# Generated thumbnails
+static/thumbnails/*.gif
+static/thumbnails/*.jpg
+
+# Documentation and summary files (development artifacts)
+*_SUMMARY.md
+*FIXES.md
+*EXPLANATION.md
+*ANALYSIS.md
+*GUIDE.md
+
+# Test and diagnostic scripts
+test_*.py
+check_*.py
+fix_*.py
+diagnose_*.py
+create_*.py
+update_*.py
 
 # Environment
 .env

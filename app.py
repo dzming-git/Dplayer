@@ -33,6 +33,21 @@ def format_number(num):
         return f"{num / 10000:.1f}万"
     return str(num)
 
+@app.template_filter('format_duration')
+def format_duration(seconds):
+    """格式化视频时长显示"""
+    if not seconds or seconds <= 0:
+        return "00:00"
+    
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{minutes:02d}:{secs:02d}"
+
 # 添加本地视频文件路由
 @app.route('/local_video/<path:video_path>')
 def serve_local_video(video_path):
@@ -71,6 +86,54 @@ def serve_local_video(video_path):
         )
     except Exception as e:
         print(f'视频服务错误: {e}')
+        abort(500, str(e))
+
+# 懒加载缩略图路由
+@app.route('/thumbnail/<video_hash>')
+def serve_lazy_thumbnail(video_hash):
+    """懒加载缩略图：如果不存在则生成"""
+    try:
+        # 查询视频
+        video = Video.query.filter_by(hash=video_hash).first_or_404()
+
+        # 缩略图文件路径（使用视频hash作为文件名）
+        thumbnail_dir = os.path.join('static', 'thumbnails')
+        gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
+        jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
+
+        # 检查是否已存在缩略图
+        if os.path.exists(gif_path):
+            return send_file(gif_path, mimetype='image/gif')
+        elif os.path.exists(jpg_path):
+            return send_file(jpg_path, mimetype='image/jpeg')
+
+        # 不存在则生成
+        if video.local_path and os.path.exists(video.local_path):
+            # 确保目录存在
+            os.makedirs(thumbnail_dir, exist_ok=True)
+
+            # 尝试生成GIF预览图
+            gif_success = generate_video_gif(video.local_path, gif_path, num_frames=6, duration=500)
+
+            if gif_success:
+                return send_file(gif_path, mimetype='image/gif')
+
+            # 如果GIF生成失败，生成静态缩略图
+            jpg_success = generate_video_thumbnail(video.local_path, jpg_path)
+
+            if jpg_success:
+                return send_file(jpg_path, mimetype='image/jpeg')
+
+        # 如果生成失败，返回默认缩略图
+        default_thumbnail = os.path.join('static', 'thumbnails', 'default.png')
+        if os.path.exists(default_thumbnail):
+            return send_file(default_thumbnail, mimetype='image/png')
+
+        # 如果连默认缩略图都没有，返回404
+        abort(404, "缩略图不可用")
+
+    except Exception as e:
+        print(f'缩略图服务错误: {e}')
         abort(500, str(e))
 
 # 视频上传目录
@@ -437,18 +500,9 @@ def add_local_videos(video_files, default_tags=None, default_priority=0):
                 # 获取视频时长
                 video_duration = get_video_duration(video_file)
 
-                # 生成GIF预览图（循环播放的多帧）
-                gif_path = f'/static/thumbnails/{video_hash}.gif'
-                full_gif_path = os.path.join('static', 'thumbnails', f'{video_hash}.gif')
-                gif_success = generate_video_gif(video_file, full_gif_path, num_frames=6, duration=500)
-
-                # 如果GIF生成失败，生成静态缩略图
-                thumbnail_path = f'/static/thumbnails/{video_hash}.jpg'
-                full_thumbnail_path = os.path.join('static', 'thumbnails', f'{video_hash}.jpg')
-                thumbnail_success = False
-
-                if not gif_success:
-                    thumbnail_success = generate_video_thumbnail(video_file, full_thumbnail_path)
+                # 懒加载缩略图：使用视频hash作为缩略图路径，但不立即生成
+                # 缩略图会在首次访问时按需生成
+                thumbnail_path = f'/thumbnail/{video_hash}'
 
                 # 创建视频记录
                 video = Video(
@@ -456,7 +510,7 @@ def add_local_videos(video_files, default_tags=None, default_priority=0):
                     title=title,
                     description=f'本地视频: {file_name}',
                     url=video_url,  # 使用本地服务URL
-                    thumbnail=gif_path if gif_success else (thumbnail_path if thumbnail_success else '/static/thumbnails/default.png'),
+                    thumbnail=thumbnail_path,  # 使用懒加载路径
                     duration=video_duration,
                     priority=default_priority,
                     is_downloaded=True,
@@ -634,6 +688,20 @@ def api_get_videos():
     })
 
 
+@app.route('/api/videos/recommend', methods=['GET'])
+def api_get_recommended_videos():
+    """获取推荐视频列表API"""
+    limit = request.args.get('limit', 12, type=int)
+    user_session = get_user_session()
+
+    recommended_videos = get_recommended_videos(user_session, limit=limit)
+
+    return jsonify({
+        'videos': [v.to_dict() for v in recommended_videos],
+        'total': len(recommended_videos)
+    })
+
+
 @app.route('/api/video/<video_hash>', methods=['GET'])
 def api_get_video(video_hash):
     """获取单个视频详情API"""
@@ -720,10 +788,8 @@ def regenerate_thumbnail(video_hash):
         if not gif_success:
             thumbnail_success = generate_video_thumbnail(video.local_path, thumbnail_path)
 
-        if gif_success:
-            video.thumbnail = f'/static/thumbnails/{video_hash}.gif'
-        elif thumbnail_success:
-            video.thumbnail = f'/static/thumbnails/{video_hash}.jpg'
+        # 懒加载机制：数据库中始终使用懒加载路径，不更新为静态路径
+        # video.thumbnail 保持为 f'/thumbnail/{video_hash}'
 
         # 更新时长
         video_duration = get_video_duration(video.local_path)
@@ -735,7 +801,7 @@ def regenerate_thumbnail(video_hash):
         return jsonify({
             'success': True,
             'message': '缩略图和时长已更新',
-            'thumbnail': video.thumbnail,
+            'thumbnail': f'/thumbnail/{video_hash}',  # 返回懒加载路径
             'duration': video.duration,
             'is_gif': gif_success
         })
@@ -754,6 +820,129 @@ def api_get_tags():
     return jsonify({
         'tags': [tag.to_dict() for tag in tags]
     })
+
+
+@app.route('/api/video/<video_hash>/tags', methods=['GET', 'PUT'])
+def manage_video_tags(video_hash):
+    """获取或更新视频标签"""
+    video = Video.query.filter_by(hash=video_hash).first_or_404()
+
+    if request.method == 'GET':
+        # 获取视频标签
+        return jsonify({
+            'tags': [vt.tag.to_dict() for vt in video.tags if vt.tag is not None],
+            'tag_names': [vt.tag.name for vt in video.tags if vt.tag is not None]
+        })
+    else:
+        # 更新视频标签
+        data = request.get_json()
+        tag_names = data.get('tags', [])
+
+        # 删除现有标签关联
+        VideoTag.query.filter_by(video_id=video.id).delete()
+
+        # 添加新标签
+        for tag_name in tag_names:
+            if not tag_name.strip():
+                continue
+
+            tag = Tag.query.filter_by(name=tag_name.strip()).first()
+            if not tag:
+                # 创建新标签
+                category = '类型'
+                tag = Tag(name=tag_name.strip(), category=category)
+                db.session.add(tag)
+                db.session.flush()
+
+            # 创建关联
+            video_tag = VideoTag(video_id=video.id, tag_id=tag.id)
+            db.session.add(video_tag)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '标签已更新',
+            'tags': [vt.tag.to_dict() for vt in video.tags if vt.tag is not None]
+        })
+
+
+@app.route('/api/video/<video_hash>/favorite', methods=['POST'])
+def toggle_favorite(video_hash):
+    """切换视频收藏状态"""
+    video = Video.query.filter_by(hash=video_hash).first_or_404()
+    user_session = get_user_session()
+
+    # 查找是否已收藏
+    interaction = UserInteraction.query.filter_by(
+        video_id=video.id,
+        user_session=user_session,
+        interaction_type='favorite'
+    ).first()
+
+    if interaction:
+        # 已收藏，取消收藏
+        db.session.delete(interaction)
+        favorited = False
+    else:
+        # 未收藏，添加收藏
+        interaction = UserInteraction(
+            video_id=video.id,
+            user_session=user_session,
+            interaction_type='favorite',
+            interaction_score=5.0
+        )
+        db.session.add(interaction)
+        favorited = True
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'favorited': favorited,
+        'message': '已收藏' if favorited else '已取消收藏'
+    })
+
+
+@app.route('/api/video/<video_hash>/is-favorite', methods=['GET'])
+def is_favorite(video_hash):
+    """检查视频是否已收藏"""
+    video = Video.query.filter_by(hash=video_hash).first_or_404()
+    user_session = get_user_session()
+
+    interaction = UserInteraction.query.filter_by(
+        video_id=video.id,
+        user_session=user_session,
+        interaction_type='favorite'
+    ).first()
+
+    return jsonify({
+        'is_favorite': interaction is not None
+    })
+
+
+@app.route('/favorites')
+def favorites_page():
+    """收藏页面"""
+    user_session = get_user_session()
+
+    # 获取用户收藏的视频
+    favorite_interactions = UserInteraction.query.filter_by(
+        user_session=user_session,
+        interaction_type='favorite'
+    ).order_by(UserInteraction.created_at.desc()).all()
+
+    favorite_videos = []
+    for interaction in favorite_interactions:
+        if interaction.video:
+            favorite_videos.append(interaction.video)
+
+    popular_tags = get_popular_tags(limit=10)
+    return render_template('index.html',
+                         videos=favorite_videos,
+                         tags=popular_tags,
+                         current_tag=None,
+                         is_favorites_page=True)
 
 
 @app.route('/api/config', methods=['GET'])
@@ -1069,11 +1258,11 @@ def regenerate_all_thumbnails():
                         thumbnail_success = generate_video_thumbnail(video.local_path, thumbnail_path)
 
                     if gif_success:
-                        video.thumbnail = f'/static/thumbnails/{video.hash}.gif'
+                        # 懒加载机制：不更新数据库中的 thumbnail 字段
                         gif_count += 1
                         print(f"  [成功] GIF生成成功")
                     elif thumbnail_success:
-                        video.thumbnail = f'/static/thumbnails/{video.hash}.jpg'
+                        # 懒加载机制：不更新数据库中的 thumbnail 字段
                         print(f"  [成功] JPG生成成功")
                     else:
                         print(f"  [失败] 预览图生成失败")

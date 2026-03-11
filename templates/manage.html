@@ -223,8 +223,10 @@
                                 </td>
                                 <td class="tags-cell">
                                     <div class="tag-list">
-                                        {% for tag in video.tags[:3] %}
-                                        <span class="tag-badge">{{ tag.name }}</span>
+                                        {% for vt in video.tags[:3] %}
+                                        {% if vt.tag %}
+                                        <span class="tag-badge">{{ vt.tag.name }}</span>
+                                        {% endif %}
                                         {% endfor %}
                                         {% if video.tags|length > 3 %}
                                         <span class="tag-more">+{{ video.tags|length - 3 }}</span>

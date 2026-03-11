@@ -57,7 +57,7 @@
                             </div>
                             <div class="stat-item">
                                 <span class="stat-icon">⏱</span>
-                                <span class="stat-value">{{ video.duration }}秒</span>
+                                <span class="stat-value">{{ video.duration|format_duration }}</span>
                                 <span class="stat-label">时长</span>
                             </div>
                         </div>
@@ -70,6 +70,10 @@
                             <button class="action-btn download-btn" onclick="downloadVideo('{{ video.hash }}')">
                                 <span class="btn-icon">⬇</span>
                                 下载视频
+                            </button>
+                            <button class="action-btn favorite-btn" id="favoriteBtn" onclick="toggleFavorite('{{ video.hash }}')">
+                                <span class="btn-icon">❤</span>
+                                <span id="favoriteText">收藏</span>
                             </button>
                             <button class="action-btn share-btn" onclick="shareVideo()">
                                 <span class="btn-icon">📤</span>
@@ -84,10 +88,17 @@
 
                         <div class="video-tags-section">
                             <h3>标签</h3>
-                            <div class="tags-container">
-                                {% for tag in video.tags %}
-                                <a href="/tag/{{ tag.id }}" class="tag-link">{{ tag.name }}</a>
+                            <div class="tags-container" id="tagsContainer">
+                                {% for vt in video.tags %}
+                                {% if vt.tag %}
+                                <a href="/tag/{{ vt.tag.id }}" class="tag-link" data-tag-id="{{ vt.tag.id }}">{{ vt.tag.name }}</a>
+                                {% endif %}
                                 {% endfor %}
+                            </div>
+                            <div class="add-tag-area" id="addTagArea">
+                                <button class="add-tag-btn" id="addTagBtn" onclick="showAddTagInput()" title="添加标签">
+                                    <span class="plus-icon">+</span>
+                                </button>
                             </div>
                         </div>
 
@@ -270,6 +281,180 @@
             }, 3000);
         }
 
+        function toggleFavorite(videoHash) {
+            fetch('/api/video/' + videoHash + '/favorite', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const favoriteBtn = document.getElementById('favoriteBtn');
+                    const favoriteText = document.getElementById('favoriteText');
+                    if (data.favorited) {
+                        favoriteBtn.classList.add('active');
+                        favoriteText.textContent = '已收藏';
+                        showToast('已收藏！');
+                    } else {
+                        favoriteBtn.classList.remove('active');
+                        favoriteText.textContent = '收藏';
+                        showToast('已取消收藏');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('收藏失败:', error);
+                showToast('操作失败，请稍后重试');
+            });
+        }
+
+        function checkFavoriteStatus(videoHash) {
+            fetch('/api/video/' + videoHash + '/is-favorite')
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_favorite) {
+                    const favoriteBtn = document.getElementById('favoriteBtn');
+                    const favoriteText = document.getElementById('favoriteText');
+                    favoriteBtn.classList.add('active');
+                    favoriteText.textContent = '已收藏';
+                }
+            })
+            .catch(error => {
+                console.error('检查收藏状态失败:', error);
+            });
+        }
+
+        function showAddTagInput() {
+            const addTagArea = document.getElementById('addTagArea');
+            const addTagBtn = document.getElementById('addTagBtn');
+
+            // 隐藏加号按钮
+            addTagBtn.style.display = 'none';
+
+            // 创建输入框和确认按钮
+            const inputHtml = `
+                <div class="new-tag-input-wrapper">
+                    <input type="text" class="new-tag-input" id="newTagInput" placeholder="输入新标签" autofocus>
+                    <button class="confirm-tag-btn" onclick="confirmAddTag('{{ video.hash }}')">✓</button>
+                </div>
+            `;
+
+            // 插入到加号按钮后面
+            const inputWrapper = document.createElement('div');
+            inputWrapper.innerHTML = inputHtml;
+            inputWrapper.id = 'newTagWrapper';
+            addTagArea.appendChild(inputWrapper.firstElementChild);
+
+            // 聚焦输入框
+            document.getElementById('newTagInput').focus();
+
+            // 添加事件监听
+            const input = document.getElementById('newTagInput');
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    confirmAddTag('{{ video.hash }}');
+                } else if (e.key === 'Escape') {
+                    cancelAddTag();
+                }
+            });
+
+            input.addEventListener('blur', function() {
+                // 延迟判断，避免点击确认按钮时触发
+                setTimeout(function() {
+                    const inputExists = document.getElementById('newTagInput');
+                    if (inputExists && document.activeElement !== input) {
+                        const inputValue = input.value.trim();
+                        if (inputValue === '') {
+                            cancelAddTag();
+                        }
+                    }
+                }, 200);
+            });
+        }
+
+        function confirmAddTag(videoHash) {
+            const input = document.getElementById('newTagInput');
+            const newTagName = input.value.trim();
+
+            if (!newTagName) {
+                cancelAddTag();
+                return;
+            }
+
+            // 获取当前所有标签
+            const tagsContainer = document.getElementById('tagsContainer');
+            const existingTagElements = Array.from(tagsContainer.querySelectorAll('.tag-link'));
+            const existingTags = existingTagElements.map(el => el.textContent.trim());
+
+            // 检查是否已存在
+            if (existingTags.includes(newTagName)) {
+                showToast('标签已存在');
+                input.value = '';
+                input.focus();
+                return;
+            }
+
+            // 获取所有标签名称（包括新标签）
+            const allTags = [...existingTags, newTagName];
+
+            // 保存到服务器
+            fetch('/api/video/' + videoHash + '/tags', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tags: allTags })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // 更新标签链接
+                    tagsContainer.innerHTML = data.tags.map(tag => {
+                        return `<a href="/tag/${tag.id}" class="tag-link" data-tag-id="${tag.id}">${tag.name}</a>`;
+                    }).join('');
+
+                    showToast('标签已添加');
+                    cancelAddTag();
+                } else {
+                    throw new Error(data.message || '服务器返回错误');
+                }
+            })
+            .catch(error => {
+                console.error('添加标签失败:', error);
+                showToast('添加失败: ' + error.message);
+
+                // 恢复原始标签显示（保留原有的tag_id）
+                tagsContainer.innerHTML = existingTagElements.map(el => {
+                    const tagId = el.dataset.tagId || '';
+                    const tagName = el.textContent.trim();
+                    if (tagId) {
+                        return `<a href="/tag/${tagId}" class="tag-link" data-tag-id="${tagId}">${tagName}</a>`;
+                    } else {
+                        return `<span class="tag-link" onclick="return false;">${tagName}</span>`;
+                    }
+                }).join('');
+                cancelAddTag();
+            });
+        }
+
+        function cancelAddTag() {
+            // 移除输入框
+            const newTagWrapper = document.getElementById('newTagWrapper');
+            if (newTagWrapper) {
+                newTagWrapper.remove();
+            }
+
+            // 显示加号按钮
+            const addTagBtn = document.getElementById('addTagBtn');
+            if (addTagBtn) {
+                addTagBtn.style.display = 'inline-flex';
+            }
+        }
+
         function performSearch() {
             const query = document.getElementById('searchInput').value.trim();
             if (query) {
@@ -286,6 +471,9 @@
         window.onload = function() {
             const videoUrl = '{{ video.url }}';
             initPlayer(videoUrl);
+
+            // 检查收藏状态
+            checkFavoriteStatus('{{ video.hash }}');
 
             // 搜索框回车事件
             document.getElementById('searchInput').addEventListener('keypress', function(e) {
