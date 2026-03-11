@@ -1531,40 +1531,15 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
         else:
             videos_without_thumbnails.append(video)
 
-    # 优先从有缩略图的视频中选择
-    video_scores = []
-    for video in videos_with_thumbnails:
-        # 基础分数：优先级和播放量
-        score = (video.priority or 0) * 0.3 + (video.view_count or 0) * 0.0001
-
-        # 添加较小的随机因子（已有缩略图的视频不需要太大随机性）
-        random_factor = random.random() * 5
-        score += random_factor
-
-        # 根据用户偏好加分
-        if user_preferences:
-            for pref in user_preferences:
-                if any(tag.tag_id == pref.tag_id for tag in video.tags):
-                    score += pref.preference_score * 5
-
-        video_scores.append((video, score))
-
-    # 排序并取推荐
-    video_scores.sort(key=lambda x: x[1], reverse=True)
-    recommended = [v for v, s in video_scores[:limit]]
-
-    # 如果推荐不够，从没有缩略图的视频中补充
-    if len(recommended) < limit:
-        additional_needed = limit - len(recommended)
-
-        # 对没有缩略图的视频计算分数（给更高的随机性）
-        additional_scores = []
-        for video in videos_without_thumbnails:
-            # 基础分数
+    # 如果有缩略图的视频数量足够，只从有缩略图的视频中选择
+    if len(videos_with_thumbnails) >= limit:
+        video_scores = []
+        for video in videos_with_thumbnails:
+            # 基础分数：优先级和播放量
             score = (video.priority or 0) * 0.3 + (video.view_count or 0) * 0.0001
 
-            # 更大的随机因子，确保用户能看到不同的视频
-            random_factor = random.random() * 15
+            # 添加随机因子
+            random_factor = random.random() * 5
             score += random_factor
 
             # 根据用户偏好加分
@@ -1573,11 +1548,47 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
                     if any(tag.tag_id == pref.tag_id for tag in video.tags):
                         score += pref.preference_score * 5
 
-            additional_scores.append((video, score))
+            video_scores.append((video, score))
 
-        # 排序并补充
-        additional_scores.sort(key=lambda x: x[1], reverse=True)
-        recommended.extend([v for v, s in additional_scores[:additional_needed]])
+        # 排序并取推荐
+        video_scores.sort(key=lambda x: x[1], reverse=True)
+        recommended = [v for v, s in video_scores[:limit]]
+    else:
+        # 有缩略图的视频不够，混合推荐
+        # 先取出所有有缩略图的视频
+        recommended = videos_with_thumbnails.copy()
+
+        # 需要补充的数量
+        additional_needed = limit - len(recommended)
+
+        # 从没有缩略图的视频中选择（尽量少选）
+        if additional_needed > 0 and len(videos_without_thumbnails) > 0:
+            additional_scores = []
+            for video in videos_without_thumbnails:
+                # 基础分数
+                score = (video.priority or 0) * 0.3 + (video.view_count or 0) * 0.0001
+
+                # 添加随机因子
+                random_factor = random.random() * 15
+                score += random_factor
+
+                # 根据用户偏好加分
+                if user_preferences:
+                    for pref in user_preferences:
+                        if any(tag.tag_id == pref.tag_id for tag in video.tags):
+                            score += pref.preference_score * 5
+
+                additional_scores.append((video, score))
+
+            # 排序并补充
+            additional_scores.sort(key=lambda x: x[1], reverse=True)
+            recommended.extend([v for v, s in additional_scores[:additional_needed]])
+
+        # 如果还不够，随机从有缩略图的视频中重复选择
+        if len(recommended) < limit and len(videos_with_thumbnails) > 0:
+            remaining_needed = limit - len(recommended)
+            random.shuffle(videos_with_thumbnails)
+            recommended.extend(videos_with_thumbnails[:remaining_needed])
 
     return recommended
 
