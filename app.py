@@ -116,17 +116,25 @@ def serve_lazy_thumbnail(video_hash):
 
         # 第一次检查：文件是否已存在（快速路径）
         if os.path.exists(gif_path):
-            return send_file(gif_path, mimetype='image/gif')
+            response = send_file(gif_path, mimetype='image/gif')
+            response.cache_control.max_age = 3600  # 缓存1小时
+            return response
         elif os.path.exists(jpg_path):
-            return send_file(jpg_path, mimetype='image/jpeg')
+            response = send_file(jpg_path, mimetype='image/jpeg')
+            response.cache_control.max_age = 3600  # 缓存1小时
+            return response
 
         # 获取锁，防止并发生成
         with lock:
             # 第二次检查：锁内再次检查（可能其他线程已生成）
             if os.path.exists(gif_path):
-                return send_file(gif_path, mimetype='image/gif')
+                response = send_file(gif_path, mimetype='image/gif')
+                response.cache_control.max_age = 3600  # 缓存1小时
+                return response
             elif os.path.exists(jpg_path):
-                return send_file(jpg_path, mimetype='image/jpeg')
+                response = send_file(jpg_path, mimetype='image/jpeg')
+                response.cache_control.max_age = 3600  # 缓存1小时
+                return response
 
             # 查询视频
             video = Video.query.filter_by(hash=video_hash).first_or_404()
@@ -145,7 +153,9 @@ def serve_lazy_thumbnail(video_hash):
 
             if jpg_success:
                 print(f'[缩略图] 静态缩略图生成成功: {video.title}')
-                return send_file(jpg_path, mimetype='image/jpeg')
+                response = send_file(jpg_path, mimetype='image/jpeg')
+                response.cache_control.max_age = 3600  # 缓存1小时
+                return response
 
             # 如果静态图也失败，尝试生成GIF（较慢）
             print(f'[缩略图] 静态图失败，尝试生成GIF: {video.title}')
@@ -153,7 +163,9 @@ def serve_lazy_thumbnail(video_hash):
 
             if gif_success:
                 print(f'[缩略图] GIF生成成功: {video.title}')
-                return send_file(gif_path, mimetype='image/gif')
+                response = send_file(gif_path, mimetype='image/gif')
+                response.cache_control.max_age = 3600  # 缓存1小时
+                return response
 
             print(f'[缩略图] 生成失败，返回默认图: {video.title}')
 
@@ -170,7 +182,10 @@ def serve_default_thumbnail():
     """返回默认缩略图"""
     default_thumbnail = os.path.join('static', 'thumbnails', 'default.png')
     if os.path.exists(default_thumbnail):
-        return send_file(default_thumbnail, mimetype='image/png')
+        response = send_file(default_thumbnail, mimetype='image/png')
+        # 设置较短的缓存时间，让浏览器能够重新请求
+        response.cache_control.max_age = 5  # 5秒后过期
+        return response
     abort(404, "缩略图不可用")
 
 # 视频上传目录
@@ -757,6 +772,36 @@ def api_get_recommended_videos():
         'total': len(recommended_videos),
         'excluded_count': len(exclude_ids_list)
     })
+
+
+@app.route('/api/thumbnail/<video_hash>/status', methods=['GET'])
+def check_thumbnail_status(video_hash):
+    """检查缩略图是否已生成"""
+    try:
+        video = Video.query.filter_by(hash=video_hash).first_or_404()
+
+        thumbnail_dir = os.path.join('static', 'thumbnails')
+        gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
+        jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
+
+        # 检查缩略图状态
+        if os.path.exists(gif_path):
+            status = 'ready'
+            format = 'gif'
+        elif os.path.exists(jpg_path):
+            status = 'ready'
+            format = 'jpg'
+        else:
+            status = 'generating'  # 正在生成或等待生成
+            format = None
+
+        return jsonify({
+            'status': status,
+            'format': format,
+            'thumbnail_url': f'/thumbnail/{video_hash}' if status == 'ready' else None
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/video/<video_hash>', methods=['GET'])
