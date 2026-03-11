@@ -54,7 +54,7 @@
 
                 <div class="video-grid" id="videoGrid">
                     {% for video in videos %}
-                    <div class="video-card" onclick="playVideo('{{ video.hash }}')">
+                    <div class="video-card" onclick="playVideo('{{ video.hash }}')" data-video-id="{{ video.id }}">
                         <div class="video-thumbnail">
                             <img src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy">
                             <div class="video-duration">
@@ -170,13 +170,39 @@
             document.getElementById('searchModal').style.display = 'none';
         }
 
+        let displayedVideoIds = []; // 跟踪已显示的视频ID
+
         function refreshVideos() {
+            // 获取当前页面所有视频的ID
+            const currentVideoCards = document.querySelectorAll('.video-card');
+            const currentVideoIds = Array.from(currentVideoCards).map(card => card.getAttribute('data-video-id')).filter(id => id);
+
+            // 构建排除的视频ID列表
+            let excludeIds = [...displayedVideoIds, ...currentVideoIds];
+
+            // 如果已经显示了太多视频，重置排除列表（避免没有视频可显示）
+            if (excludeIds.length > 50) {
+                excludeIds = [];
+                displayedVideoIds = [];
+            }
+
             // 使用AJAX获取新的推荐视频
-            fetch('/api/videos/recommend?limit=12')
+            fetch(`/api/videos/recommend?limit=12&exclude_ids=${excludeIds.join(',')}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.videos && data.videos.length > 0) {
+                        // 记录新显示的视频ID
+                        data.videos.forEach(video => {
+                            if (!displayedVideoIds.includes(video.id)) {
+                                displayedVideoIds.push(video.id);
+                            }
+                        });
+
                         updateVideoGrid(data.videos);
+                    } else {
+                        // 如果没有更多视频，重置并重新获取
+                        displayedVideoIds = [];
+                        refreshVideos();
                     }
                 })
                 .catch(error => {
@@ -190,7 +216,7 @@
             if (!videoGrid) return;
 
             videoGrid.innerHTML = videos.map(video => `
-                <div class="video-card" onclick="playVideo('${video.hash}')">
+                <div class="video-card" onclick="playVideo('${video.hash}')" data-video-id="${video.id}">
                     <div class="video-thumbnail">
                         <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
                         <div class="video-duration">

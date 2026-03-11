@@ -690,15 +690,35 @@ def api_get_videos():
 
 @app.route('/api/videos/recommend', methods=['GET'])
 def api_get_recommended_videos():
-    """获取推荐视频列表API"""
+    """获取推荐视频列表API - 支持换一批功能"""
     limit = request.args.get('limit', 12, type=int)
     user_session = get_user_session()
 
-    recommended_videos = get_recommended_videos(user_session, limit=limit)
+    # 检查是否需要排除已显示的视频
+    exclude_ids = request.args.get('exclude_ids', '')
+    exclude_ids_list = [int(id_str) for id_str in exclude_ids.split(',') if id_str.strip()] if exclude_ids else []
+
+    # 获取推荐视频
+    recommended_videos = get_recommended_videos(user_session, limit=limit * 2)  # 获取更多候选视频
+
+    # 过滤掉已显示的视频
+    if exclude_ids_list:
+        recommended_videos = [v for v in recommended_videos if v.id not in exclude_ids_list]
+
+    # 如果过滤后不够，获取更多视频补充
+    if len(recommended_videos) < limit:
+        all_video_ids = [v.id for v in recommended_videos] + exclude_ids_list
+        additional_videos = Video.query.filter(~Video.id.in_(all_video_ids)).all()
+        random.shuffle(additional_videos)
+        recommended_videos.extend(additional_videos[:limit - len(recommended_videos)])
+
+    # 只返回需要的数量
+    recommended_videos = recommended_videos[:limit]
 
     return jsonify({
         'videos': [v.to_dict() for v in recommended_videos],
-        'total': len(recommended_videos)
+        'total': len(recommended_videos),
+        'excluded_count': len(exclude_ids_list)
     })
 
 
@@ -1417,7 +1437,13 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
         if exclude_video_id and video.id == exclude_video_id:
             continue
 
+        # 基础分数：优先级和播放量
         score = (video.priority or 0) * 0.3 + (video.view_count or 0) * 0.0001
+
+        # 添加随机因子，确保每次推荐结果不同
+        # 随机因子范围：0-10，大幅影响排序
+        random_factor = random.random() * 10
+        score += random_factor
 
         # 根据用户偏好加分
         if user_preferences:
@@ -1427,15 +1453,9 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
 
         video_scores.append((video, score))
 
-    # 排序并取前N个
+    # 按分数排序
     video_scores.sort(key=lambda x: x[1], reverse=True)
     recommended = [v for v, s in video_scores[:limit]]
-
-    # 如果推荐不够，随机补充
-    if len(recommended) < limit:
-        remaining_videos = [v for v in videos if v not in recommended]
-        random.shuffle(remaining_videos)
-        recommended.extend(remaining_videos[:limit - len(recommended)])
 
     return recommended
 
