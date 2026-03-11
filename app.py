@@ -9,6 +9,7 @@ import json
 import glob
 from urllib.parse import quote
 import threading
+import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
@@ -16,11 +17,23 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dplayer.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB 最大上传
 
+
 # 配置文件路径
 CONFIG_FILE = 'config.json'
 
 # 全局进度字典
 progress_store = {}
+
+# 缩略图生成锁（防止并发生成同一个缩略图）
+thumbnail_locks = {}
+thumbnail_locks_lock = threading.Lock()
+
+def get_thumbnail_lock(video_hash):
+    """获取视频的缩略图生成锁"""
+    with thumbnail_locks_lock:
+        if video_hash not in thumbnail_locks:
+            thumbnail_locks[video_hash] = threading.Lock()
+        return thumbnail_locks[video_hash]
 
 # 初始化数据库
 db.init_app(app)
@@ -93,48 +106,72 @@ def serve_local_video(video_path):
 def serve_lazy_thumbnail(video_hash):
     """懒加载缩略图：如果不存在则生成"""
     try:
-        # 查询视频
-        video = Video.query.filter_by(hash=video_hash).first_or_404()
+        # 获取缩略图生成锁
+        lock = get_thumbnail_lock(video_hash)
 
         # 缩略图文件路径（使用视频hash作为文件名）
         thumbnail_dir = os.path.join('static', 'thumbnails')
         gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
         jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
 
-        # 检查是否已存在缩略图
+        # 第一次检查：文件是否已存在（快速路径）
         if os.path.exists(gif_path):
             return send_file(gif_path, mimetype='image/gif')
         elif os.path.exists(jpg_path):
             return send_file(jpg_path, mimetype='image/jpeg')
 
-        # 不存在则生成
-        if video.local_path and os.path.exists(video.local_path):
+        # 获取锁，防止并发生成
+        with lock:
+            # 第二次检查：锁内再次检查（可能其他线程已生成）
+            if os.path.exists(gif_path):
+                return send_file(gif_path, mimetype='image/gif')
+            elif os.path.exists(jpg_path):
+                return send_file(jpg_path, mimetype='image/jpeg')
+
+            # 查询视频
+            video = Video.query.filter_by(hash=video_hash).first_or_404()
+
             # 确保目录存在
             os.makedirs(thumbnail_dir, exist_ok=True)
 
-            # 尝试生成GIF预览图
-            gif_success = generate_video_gif(video.local_path, gif_path, num_frames=6, duration=500)
+            # 检查视频文件是否存在
+            if not video.local_path or not os.path.exists(video.local_path):
+                print(f'[缩略图] 视频文件不存在: {video.local_path}')
+                return serve_default_thumbnail()
 
-            if gif_success:
-                return send_file(gif_path, mimetype='image/gif')
-
-            # 如果GIF生成失败，生成静态缩略图
+            # 优先生成静态缩略图（更快，减少等待时间）
+            print(f'[缩略图] 开始生成静态缩略图: {video.title}')
             jpg_success = generate_video_thumbnail(video.local_path, jpg_path)
 
             if jpg_success:
+                print(f'[缩略图] 静态缩略图生成成功: {video.title}')
                 return send_file(jpg_path, mimetype='image/jpeg')
 
-        # 如果生成失败，返回默认缩略图
-        default_thumbnail = os.path.join('static', 'thumbnails', 'default.png')
-        if os.path.exists(default_thumbnail):
-            return send_file(default_thumbnail, mimetype='image/png')
+            # 如果静态图也失败，尝试生成GIF（较慢）
+            print(f'[缩略图] 静态图失败，尝试生成GIF: {video.title}')
+            gif_success = generate_video_gif(video.local_path, gif_path, num_frames=6, duration=500)
 
-        # 如果连默认缩略图都没有，返回404
-        abort(404, "缩略图不可用")
+            if gif_success:
+                print(f'[缩略图] GIF生成成功: {video.title}')
+                return send_file(gif_path, mimetype='image/gif')
+
+            print(f'[缩略图] 生成失败，返回默认图: {video.title}')
+
+        # 如果生成失败，返回默认缩略图
+        return serve_default_thumbnail()
 
     except Exception as e:
         print(f'缩略图服务错误: {e}')
-        abort(500, str(e))
+        import traceback
+        traceback.print_exc()
+        return serve_default_thumbnail()
+
+def serve_default_thumbnail():
+    """返回默认缩略图"""
+    default_thumbnail = os.path.join('static', 'thumbnails', 'default.png')
+    if os.path.exists(default_thumbnail):
+        return send_file(default_thumbnail, mimetype='image/png')
+    abort(404, "缩略图不可用")
 
 # 视频上传目录
 UPLOAD_FOLDER = 'static/uploads'
@@ -1422,7 +1459,7 @@ def add_video_url():
 
 
 def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
-    """获取推荐视频"""
+    """获取推荐视频 - 优先推荐已有缩略图的视频"""
     # 获取用户偏好的标签
     user_preferences = UserPreference.query.filter_by(user_session=user_session).order_by(
         UserPreference.preference_score.desc()
@@ -1431,18 +1468,32 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
     # 获取所有视频
     videos = Video.query.all()
 
-    # 推荐算法：计算每个视频的推荐分数
-    video_scores = []
+    # 预先检查哪些视频有缩略图
+    thumbnail_dir = os.path.join('static', 'thumbnails')
+    videos_with_thumbnails = []
+    videos_without_thumbnails = []
+
     for video in videos:
         if exclude_video_id and video.id == exclude_video_id:
             continue
 
+        video_hash = video.hash
+        has_thumbnail = (os.path.exists(os.path.join(thumbnail_dir, f'{video_hash}.gif')) or
+                         os.path.exists(os.path.join(thumbnail_dir, f'{video_hash}.jpg')))
+
+        if has_thumbnail:
+            videos_with_thumbnails.append(video)
+        else:
+            videos_without_thumbnails.append(video)
+
+    # 优先从有缩略图的视频中选择
+    video_scores = []
+    for video in videos_with_thumbnails:
         # 基础分数：优先级和播放量
         score = (video.priority or 0) * 0.3 + (video.view_count or 0) * 0.0001
 
-        # 添加随机因子，确保每次推荐结果不同
-        # 随机因子范围：0-10，大幅影响排序
-        random_factor = random.random() * 10
+        # 添加较小的随机因子（已有缩略图的视频不需要太大随机性）
+        random_factor = random.random() * 5
         score += random_factor
 
         # 根据用户偏好加分
@@ -1453,9 +1504,35 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
 
         video_scores.append((video, score))
 
-    # 按分数排序
+    # 排序并取推荐
     video_scores.sort(key=lambda x: x[1], reverse=True)
     recommended = [v for v, s in video_scores[:limit]]
+
+    # 如果推荐不够，从没有缩略图的视频中补充
+    if len(recommended) < limit:
+        additional_needed = limit - len(recommended)
+
+        # 对没有缩略图的视频计算分数（给更高的随机性）
+        additional_scores = []
+        for video in videos_without_thumbnails:
+            # 基础分数
+            score = (video.priority or 0) * 0.3 + (video.view_count or 0) * 0.0001
+
+            # 更大的随机因子，确保用户能看到不同的视频
+            random_factor = random.random() * 15
+            score += random_factor
+
+            # 根据用户偏好加分
+            if user_preferences:
+                for pref in user_preferences:
+                    if any(tag.tag_id == pref.tag_id for tag in video.tags):
+                        score += pref.preference_score * 5
+
+            additional_scores.append((video, score))
+
+        # 排序并补充
+        additional_scores.sort(key=lambda x: x[1], reverse=True)
+        recommended.extend([v for v, s in additional_scores[:additional_needed]])
 
     return recommended
 
@@ -1551,8 +1628,61 @@ def check_dependencies():
     })
 
 
+def generate_missing_thumbnails_async():
+    """后台任务：预生成缺失的缩略图"""
+    print('[缩略图预生成] 后台任务启动')
+
+    try:
+        # 等待一段时间，避免影响应用启动
+        time.sleep(10)
+
+        thumbnail_dir = os.path.join('static', 'thumbnails')
+        videos = Video.query.filter(Video.local_path.isnot(None)).all()
+
+        for i, video in enumerate(videos, 1):
+            # 检查是否已有缩略图
+            video_hash = video.hash
+            gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
+            jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
+
+            if os.path.exists(gif_path) or os.path.exists(jpg_path):
+                continue
+
+            # 检查视频文件是否存在
+            if not video.local_path or not os.path.exists(video.local_path):
+                continue
+
+            # 生成缩略图
+            try:
+                print(f'[缩略图预生成] {i}/{len(videos)}: {video.title}')
+
+                # 优先生成静态缩略图
+                jpg_success = generate_video_thumbnail(video.local_path, jpg_path)
+
+                if not jpg_success:
+                    # 静态图失败则尝试GIF
+                    gif_success = generate_video_gif(video.local_path, gif_path, num_frames=6, duration=500)
+
+                # 每生成一个缩略图后休息一下，避免占用过多资源
+                time.sleep(0.1)
+
+            except Exception as e:
+                print(f'[缩略图预生成] 失败: {video.title}, 错误: {e}')
+                continue
+
+        print('[缩略图预生成] 后台任务完成')
+
+    except Exception as e:
+        print(f'[缩略图预生成] 后台任务异常: {e}')
+
 if __name__ == '__main__':
     PORT = 80
     print(f'Starting Flask server on 0.0.0.0:{PORT}')
     init_db()  # 初始化数据库
+
+    # 启动缩略图预生成后台任务
+    thumbnail_thread = threading.Thread(target=generate_missing_thumbnails_async, daemon=True)
+    thumbnail_thread.start()
+    print('[系统] 缩略图预生成后台任务已启动')
+
     app.run(host='0.0.0.0', port=PORT, debug=True)
