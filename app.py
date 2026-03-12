@@ -10,6 +10,9 @@ import glob
 from urllib.parse import quote
 import threading
 import time
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
@@ -27,6 +30,272 @@ progress_store = {}
 # 缩略图生成锁（防止并发生成同一个缩略图）
 thumbnail_locks = {}
 thumbnail_locks_lock = threading.Lock()
+
+# ========== 日志配置 ==========
+
+# 自定义日志级别
+CRITICAL_LEVEL = 60  # 致命
+ERROR_LEVEL = 50     # 错误
+NOTICE_LEVEL = 30    # 通知（介于INFO和WARNING之间）
+DEBUG_LEVEL = 10     # 调试
+
+# 为Python logging模块添加自定义级别
+logging.addLevelName(CRITICAL_LEVEL, 'CRITICAL')
+logging.addLevelName(NOTICE_LEVEL, 'NOTICE')
+
+# 定义日志类型和文件
+LOG_DIR = 'logs'
+LOG_TYPES = {
+    'maintenance': '维护日志',
+    'runtime': '运行日志',
+    'operation': '操作日志',
+    'debug': '调试日志'
+}
+
+LOG_FILES = {
+    'maintenance': os.path.join(LOG_DIR, 'maintenance.log'),
+    'runtime': os.path.join(LOG_DIR, 'runtime.log'),
+    'operation': os.path.join(LOG_DIR, 'operation.log'),
+    'debug': os.path.join(LOG_DIR, 'debug.log')
+}
+
+LOG_BACKUP_COUNT = 5  # 保留5个备份
+LOG_MAX_SIZE = 10 * 1024 * 1024  # 每个日志文件最大10MB
+
+# 确保日志目录存在
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+# 定义自定义日志记录器类
+class TypedLogger:
+    """带类型的日志记录器"""
+    def __init__(self, log_type, name):
+        self.log_type = log_type
+        self.logger = logging.getLogger(f'{log_type}.{name}')
+
+    def _log(self, level, msg, *args, **kwargs):
+        """内部日志方法"""
+        self.logger.log(level, msg, *args, **kwargs)
+
+    def critical(self, msg, *args, **kwargs):
+        """致命日志"""
+        self._log(CRITICAL_LEVEL, msg, *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        """错误日志"""
+        self._log(ERROR_LEVEL, msg, *args, **kwargs)
+
+    def notice(self, msg, *args, **kwargs):
+        """通知日志"""
+        self._log(NOTICE_LEVEL, msg, *args, **kwargs)
+
+    def debug(self, msg, *args, **kwargs):
+        """调试日志"""
+        self._log(DEBUG_LEVEL, msg, *args, **kwargs)
+
+# 配置日志系统
+def setup_logging():
+    """配置日志系统"""
+    # 创建日志格式
+    formatter = logging.Formatter(
+        '[%(asctime)s] %(levelname)s [%(filename)s:%(lineno)d] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # 为每种日志类型创建独立的处理器
+    loggers = {}
+
+    for log_type, log_file in LOG_FILES.items():
+        # 创建RotatingFileHandler（自动轮转）
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=LOG_MAX_SIZE,
+            backupCount=LOG_BACKUP_COUNT,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(logging.DEBUG)  # 接收所有级别的日志
+
+        # 创建该类型的日志记录器
+        type_logger = logging.getLogger(log_type)
+        type_logger.setLevel(logging.DEBUG)
+        type_logger.addHandler(file_handler)
+
+        # 防止传播到根日志记录器
+        type_logger.propagate = False
+
+        # 创建控制台处理器（只在运行日志中使用）
+        if log_type == 'runtime':
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(formatter)
+            console_handler.setLevel(logging.DEBUG)
+            type_logger.addHandler(console_handler)
+
+        loggers[log_type] = type_logger
+
+    # Flask专用日志记录器
+    flask_logger = logging.getLogger('werkzeug')
+    flask_logger.setLevel(logging.WARNING)  # 只记录WARNING及以上级别的请求
+
+    return loggers
+
+# 初始化日志系统
+loggers = setup_logging()
+
+# 创建各个类型的日志记录器实例
+maint_log = TypedLogger('maintenance', 'app')      # 维护日志
+runtime_log = TypedLogger('runtime', 'app')        # 运行日志
+operation_log = TypedLogger('operation', 'app')    # 操作日志
+debug_log = TypedLogger('debug', 'app')            # 调试日志
+
+# 向后兼容：保留logger变量指向运行日志
+logger = runtime_log
+
+# ========== 日志轮转管理 ==========
+def get_log_files():
+    """获取所有日志文件列表，按类型分组"""
+    if not os.path.exists(LOG_DIR):
+        return {}
+
+    log_groups = {}
+
+    # 获取所有日志文件
+    all_files = []
+    for filename in os.listdir(LOG_DIR):
+        filepath = os.path.join(LOG_DIR, filename)
+        if os.path.isfile(filepath):
+            stat = os.stat(filepath)
+            all_files.append({
+                'filename': filename,
+                'filepath': filepath,
+                'size': stat.st_size,
+                'modified': datetime.fromtimestamp(stat.st_mtime).isoformat()
+            })
+
+    # 按日志类型分组
+    for log_type, log_file in LOG_FILES.items():
+        base_filename = os.path.basename(log_file)
+
+        # 找到该类型的所有日志文件（包括备份）
+        type_files = []
+        for file_info in all_files:
+            if file_info['filename'].startswith(base_filename):
+                type_files.append(file_info)
+
+        # 按修改时间倒序排序
+        type_files.sort(key=lambda x: x['modified'], reverse=True)
+
+        if type_files:
+            log_groups[log_type] = {
+                'type': log_type,
+                'name': LOG_TYPES[log_type],
+                'files': type_files,
+                'count': len(type_files),
+                'total_size': sum(f['size'] for f in type_files)
+            }
+
+    return log_groups
+
+def get_log_lines(log_file, line_count=100, search=None, level=None):
+    """
+    读取日志文件的最后N行，支持搜索和过滤
+
+    Args:
+        log_file: 日志文件路径
+        line_count: 读取的行数
+        search: 搜索关键词
+        level: 日志级别过滤（INFO, WARNING, ERROR等）
+    """
+    try:
+        lines = []
+        with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+            all_lines = f.readlines()
+
+        # 从后往前读取
+        for line in reversed(all_lines):
+            # 搜索过滤
+            if search and search.lower() not in line.lower():
+                continue
+
+            # 级别过滤
+            if level and f'[{level}]' not in line:
+                continue
+
+            lines.append(line.strip())
+            if len(lines) >= line_count:
+                break
+
+        return list(reversed(lines))
+    except Exception as e:
+        logger.error(f"读取日志文件失败: {e}")
+        return []
+
+def parse_log_line(line):
+    """解析单行日志，提取结构化信息"""
+    try:
+        # 日志格式: [2025-03-12 14:30:45] CRITICAL [app.py:123] message
+        if not line.startswith('['):
+            return {'raw': line}
+
+        # 提取时间戳
+        end_time = line.find(']')
+        if end_time == -1:
+            return {'raw': line}
+        timestamp = line[1:end_time]
+
+        # 提取级别
+        start_level = end_time + 2
+        end_level = line.find(' ', start_level)
+        if end_level == -1:
+            return {'raw': line}
+        level = line[start_level:end_level]
+
+        # 提取文件位置
+        start_file = line.find('[', end_level)
+        end_file = line.find(']', start_file)
+        if start_file == -1 or end_file == -1:
+            return {'raw': line}
+        location = line[start_file+1:end_file]  # app.py:123
+
+        # 分离文件名和行号
+        if ':' in location:
+            filename, lineno = location.rsplit(':', 1)
+        else:
+            filename = location
+            lineno = '0'
+
+        # 提取消息
+        message = line[end_file+1:].strip()
+
+        # 标准化级别名称
+        level_map = {
+            'CRITICAL': '致命',
+            'ERROR': '错误',
+            'NOTICE': '通知',
+            'DEBUG': '调试',
+            'INFO': '通知',  # 向后兼容
+            'WARNING': '错误',  # 向后兼容
+            'DEBUG': '调试'
+        }
+
+        normalized_level = level_map.get(level, level)
+
+        return {
+            'timestamp': timestamp,
+            'level': normalized_level,
+            'level_code': level,
+            'filename': filename,
+            'lineno': lineno,
+            'message': message,
+            'raw': line
+        }
+    except Exception as e:
+        return {'raw': line}
+
+# 缩略图生成队列和信号量（限制并发生成数量）
+MAX_CONCURRENT_THUMBNAIL_GENERATION = 2  # 最多同时生成2个缩略图
+thumbnail_semaphore = threading.Semaphore(MAX_CONCURRENT_THUMBNAIL_GENERATION)
+thumbnail_generation_queue = {}
 
 def get_thumbnail_lock(video_hash):
     """获取视频的缩略图生成锁"""
@@ -65,11 +334,24 @@ def format_duration(seconds):
 @app.route('/local_video/<path:video_path>')
 def serve_local_video(video_path):
     """提供本地视频文件"""
-    # 解码路径
+    # 解码URL编码的路径
     try:
-        video_path = video_path.encode('utf-8').decode('utf-8')
+        print(f'[DEBUG] 原始video_path: {video_path}')
+        from urllib.parse import unquote
+        import html
+
+        video_path = unquote(video_path)
+        print(f'[DEBUG] URL解码后: {video_path}')
+
+        # 如果包含HTML实体（如 &amp;），也需要解码
+        if '&amp;' in video_path or '&lt;' in video_path or '&gt;' in video_path:
+            video_path = html.unescape(video_path)
+            print(f'[DEBUG] HTML实体解码后: {video_path}')
+
         # 规范化路径
         video_path = os.path.normpath(video_path).replace('\\', '/')
+        print(f'[DEBUG] 规范化后: {video_path}')
+        print(f'[DEBUG] 文件存在: {os.path.exists(video_path)}')
 
         # 检查路径是否允许访问
         scan_dirs = config.get('scan_directories', [])
@@ -106,15 +388,12 @@ def serve_local_video(video_path):
 def serve_lazy_thumbnail(video_hash):
     """懒加载缩略图：如果不存在则生成"""
     try:
-        # 获取缩略图生成锁
-        lock = get_thumbnail_lock(video_hash)
-
         # 缩略图文件路径（使用视频hash作为文件名）
         thumbnail_dir = os.path.join('static', 'thumbnails')
         gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
         jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
 
-        # 第一次检查：文件是否已存在（快速路径）
+        # 第一次检查：文件是否已存在（快速路径，不获取锁）
         if os.path.exists(gif_path):
             response = send_file(gif_path, mimetype='image/gif')
             response.cache_control.max_age = 3600  # 缓存1小时
@@ -124,8 +403,14 @@ def serve_lazy_thumbnail(video_hash):
             response.cache_control.max_age = 3600  # 缓存1小时
             return response
 
-        # 获取锁，防止并发生成
-        with lock:
+        # 获取信号量，限制并发生成数量
+        print(f'[缩略图] 等待信号量: {video_hash}')
+        with thumbnail_semaphore:
+            print(f'[缩略图] 获取信号量: {video_hash}')
+
+            # 获取缩略图生成锁
+            lock = get_thumbnail_lock(video_hash)
+
             # 第二次检查：锁内再次检查（可能其他线程已生成）
             if os.path.exists(gif_path):
                 response = send_file(gif_path, mimetype='image/gif')
@@ -337,10 +622,11 @@ def generate_video_frames(video_path, num_frames=6, size=(320, 180)):
     Returns:
         帧列表，失败返回None
     """
-    try:
-        import cv2
-        import numpy as np
+    import cv2
+    import numpy as np
 
+    cap = None
+    try:
         print(f'[DEBUG] 开始处理视频: {video_path}')
         print(f'[DEBUG] 文件是否存在: {os.path.exists(video_path)}')
 
@@ -357,7 +643,6 @@ def generate_video_frames(video_path, num_frames=6, size=(320, 180)):
 
         if total_frames == 0:
             print(f'[ERROR] 视频帧数为0: {video_path}')
-            cap.release()
             return None
 
         # 计算要截取的帧位置（均匀分布）
@@ -381,7 +666,6 @@ def generate_video_frames(video_path, num_frames=6, size=(320, 180)):
             else:
                 print(f'[WARNING] 读取第 {i+1} 帧失败 (位置: {frame_pos})')
 
-        cap.release()
         print(f'[DEBUG] 成功提取 {len(frames)} 帧')
         return frames if frames else None
     except ImportError as e:
@@ -393,6 +677,11 @@ def generate_video_frames(video_path, num_frames=6, size=(320, 180)):
         import traceback
         traceback.print_exc()
         return None
+    finally:
+        # 确保释放资源
+        if cap is not None:
+            cap.release()
+            print(f'[DEBUG] 已释放视频捕获器')
 
 
 def generate_video_gif(video_path, output_path, num_frames=6, size=(320, 180), duration=500):
@@ -469,8 +758,9 @@ def generate_video_thumbnail(video_path, output_path, time_offset=5, size=(320, 
     Returns:
         是否成功
     """
+    import cv2
+    cap = None
     try:
-        import cv2
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             return False
@@ -490,7 +780,6 @@ def generate_video_thumbnail(video_path, output_path, time_offset=5, size=(320, 
 
         # 读取帧
         ret, frame = cap.read()
-        cap.release()
 
         if not ret:
             return False
@@ -504,6 +793,10 @@ def generate_video_thumbnail(video_path, output_path, time_offset=5, size=(320, 
     except Exception as e:
         print(f'生成缩略图失败 {video_path}: {str(e)}')
         return False
+    finally:
+        # 确保释放资源
+        if cap is not None:
+            cap.release()
 
 
 def add_local_videos(video_files, default_tags=None, default_priority=0):
@@ -540,14 +833,15 @@ def add_local_videos(video_files, default_tags=None, default_priority=0):
                     if not existing_video.is_downloaded:
                         existing_video.is_downloaded = True
                         existing_video.local_path = video_file
-                        existing_video.url = f'/local_video/{video_file.replace(chr(92), "/")}'  # 更新为本地服务URL
+                        normalized_path = video_file.replace('\\', '/')
+                        existing_video.url = f'/local_video/{quote(normalized_path, safe=":/")}'  # 更新为本地服务URL
                         db.session.commit()
                     continue
 
                 # 生成本地视频的URL（用于播放）
-                # 将反斜杠转换为正斜杠，并URL编码
-                normalized_path = video_file.replace(chr(92), "/")
-                video_url = f'/local_video/{normalized_path}'
+                # 将反斜杠转换为正斜杠，并进行URL编码以处理特殊字符
+                normalized_path = video_file.replace('\\', '/')
+                video_url = f'/local_video/{quote(normalized_path, safe=":/")}'
 
                 # 获取视频时长
                 video_duration = get_video_duration(video_file)
@@ -1112,9 +1406,31 @@ def clear_videos():
 
 @app.route('/manage')
 def manage_page():
-    """视频管理页面"""
-    videos = Video.query.order_by(Video.created_at.desc()).all()
-    return render_template('manage.html', videos=videos)
+    """视频管理页面 - 支持分页"""
+    # 获取分页参数
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    # 限制每页数量范围
+    per_page = max(10, min(100, per_page))
+
+    # 分页查询
+    pagination = Video.query.order_by(Video.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    return render_template('manage.html',
+                         videos=pagination.items,
+                         page=page,
+                         per_page=per_page,
+                         total=pagination.total,
+                         pages=pagination.pages)
+
+
+@app.route('/logs')
+def logs_page():
+    """日志管理页面"""
+    return render_template('logs.html')
 
 
 @app.route('/api/video/upload', methods=['POST'])
@@ -1209,6 +1525,38 @@ def delete_video(video_hash):
         'success': True,
         'message': '视频已删除'
     })
+
+
+@app.route('/api/check-file', methods=['POST'])
+def check_file():
+    """检查文件是否存在"""
+    data = request.get_json()
+    file_path = data.get('path')
+
+    if not file_path:
+        return jsonify({
+            'success': False,
+            'message': '缺少文件路径'
+        })
+
+    try:
+        exists = os.path.exists(file_path)
+
+        if exists:
+            size = os.path.getsize(file_path)
+        else:
+            size = 0
+
+        return jsonify({
+            'success': True,
+            'exists': exists,
+            'size': size
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'检查文件失败: {str(e)}'
+        })
 
 
 @app.route('/api/scan', methods=['POST'])
@@ -1373,7 +1721,7 @@ def regenerate_all_thumbnails():
                     # 更新时长
                     video_duration = get_video_duration(video.local_path)
                     if video_duration:
-                        video.duration = video.duration
+                        video.duration = video_duration
 
                     success_count += 1
 
@@ -1381,6 +1729,13 @@ def regenerate_all_thumbnails():
                     progress = (i / total) * 100
                     progress_store[task_id]['progress'] = progress
                     print(f"  [进度条] {progress:.1f}%")
+
+                    # 每处理完一个视频后短暂休息，避免CPU和磁盘I/O占用过高
+                    # 每处理5个视频后稍长的休息
+                    if i % 5 == 0:
+                        time.sleep(0.5)  # 每5个视频休息0.5秒
+                    else:
+                        time.sleep(0.1)  # 每个视频休息0.1秒
 
                 except Exception as e:
                     error_msg = f'{video.title}: {str(e)}'
@@ -1730,6 +2085,261 @@ def generate_missing_thumbnails_async():
 
     except Exception as e:
         print(f'[缩略图预生成] 后台任务异常: {e}')
+
+# ========== 日志管理API ==========
+
+@app.route('/api/logs', methods=['GET'])
+def api_get_logs():
+    """获取日志文件列表，按类型分组"""
+    try:
+        log_groups = get_log_files()
+        return jsonify({
+            'success': True,
+            'log_groups': log_groups,
+            'log_types': LOG_TYPES,
+            'total_types': len(LOG_TYPES)
+        })
+    except Exception as e:
+        runtime_log.error(f"获取日志列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'获取日志列表失败: {str(e)}'
+        }), 500
+
+@app.route('/api/logs/<path:filepath>', methods=['GET'])
+def api_get_log_content(filepath):
+    """获取指定日志文件的内容"""
+    try:
+        # 安全检查：只允许读取logs目录下的文件
+        if '..' in filepath or filepath.startswith('/'):
+            return jsonify({
+                'success': False,
+                'message': '无效的文件路径'
+            }), 400
+
+        full_path = os.path.join(LOG_DIR, filepath)
+
+        # 检查文件是否存在
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({
+                'success': False,
+                'message': '文件不存在'
+            }), 404
+
+        # 获取参数
+        lines = request.args.get('lines', 100, type=int)
+        search = request.args.get('search', '')
+        level = request.args.get('level', '')
+
+        # 标准化级别名称
+        level_map_reverse = {
+            '致命': 'CRITICAL',
+            '错误': 'ERROR',
+            '通知': 'NOTICE',
+            '调试': 'DEBUG'
+        }
+        level_code = level_map_reverse.get(level, level) if level else ''
+
+        # 读取日志行
+        log_lines = get_log_lines(full_path, line_count=lines, search=search, level=level_code)
+
+        # 解析日志
+        parsed_logs = [parse_log_line(line) for line in log_lines]
+
+        return jsonify({
+            'success': True,
+            'filename': filepath,
+            'lines': len(parsed_logs),
+            'logs': parsed_logs
+        })
+    except Exception as e:
+        runtime_log.error(f"读取日志内容失败: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'读取日志失败: {str(e)}'
+        }), 500
+
+@app.route('/api/logs/download/<path:filepath>', methods=['GET'])
+def api_download_log(filepath):
+    """下载日志文件"""
+    try:
+        # 安全检查
+        if '..' in filepath or filepath.startswith('/'):
+            return jsonify({
+                'success': False,
+                'message': '无效的文件路径'
+            }), 400
+
+        full_path = os.path.join(LOG_DIR, filepath)
+
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({
+                'success': False,
+                'message': '文件不存在'
+            }), 404
+
+        return send_file(
+            full_path,
+            as_attachment=True,
+            download_name=os.path.basename(filepath),
+            mimetype='text/plain'
+        )
+    except Exception as e:
+        runtime_log.error(f"下载日志失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'下载失败: {str(e)}'
+        }), 500
+
+@app.route('/api/logs/clear', methods=['POST'])
+def api_clear_logs():
+    """清空所有日志文件"""
+    try:
+        if not os.path.exists(LOG_DIR):
+            return jsonify({
+                'success': True,
+                'message': '日志目录不存在'
+            })
+
+        # 删除所有日志文件
+        deleted_count = 0
+        for log_type, log_file in LOG_FILES.items():
+            base_filename = os.path.basename(log_file)
+
+            for filename in os.listdir(LOG_DIR):
+                if filename.startswith(base_filename):
+                    filepath = os.path.join(LOG_DIR, filename)
+                    try:
+                        os.remove(filepath)
+                        deleted_count += 1
+                    except Exception as e:
+                        runtime_log.error(f"删除日志文件失败 {filename}: {e}")
+
+        runtime_log.notice(f"清空了 {deleted_count} 个日志文件")
+
+        return jsonify({
+            'success': True,
+            'message': f'成功清空 {deleted_count} 个日志文件',
+            'deleted_count': deleted_count
+        })
+    except Exception as e:
+        runtime_log.error(f"清空日志失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'清空失败: {str(e)}'
+        }), 500
+
+@app.route('/api/logs/clear/<log_type>', methods=['POST'])
+def api_clear_log_by_type(log_type):
+    """清空指定类型的日志文件"""
+    try:
+        if log_type not in LOG_TYPES:
+            return jsonify({
+                'success': False,
+                'message': f'无效的日志类型: {log_type}'
+            }), 400
+
+        if not os.path.exists(LOG_DIR):
+            return jsonify({
+                'success': True,
+                'message': '日志目录不存在'
+            })
+
+        log_file = LOG_FILES[log_type]
+        base_filename = os.path.basename(log_file)
+
+        # 删除该类型的所有日志文件
+        deleted_count = 0
+        for filename in os.listdir(LOG_DIR):
+            if filename.startswith(base_filename):
+                filepath = os.path.join(LOG_DIR, filename)
+                try:
+                    os.remove(filepath)
+                    deleted_count += 1
+                except Exception as e:
+                    runtime_log.error(f"删除日志文件失败 {filename}: {e}")
+
+        runtime_log.notice(f"清空了 {LOG_TYPES[log_type]} 的 {deleted_count} 个日志文件")
+
+        return jsonify({
+            'success': True,
+            'message': f'成功清空 {LOG_TYPES[log_type]} 的 {deleted_count} 个日志文件',
+            'deleted_count': deleted_count,
+            'log_type': log_type
+        })
+    except Exception as e:
+        runtime_log.error(f"清空日志失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'清空失败: {str(e)}'
+        }), 500
+
+@app.route('/api/logs/size', methods=['GET'])
+def api_get_logs_size():
+    """获取日志目录总大小"""
+    try:
+        if not os.path.exists(LOG_DIR):
+            return jsonify({
+                'success': True,
+                'total_size': 0,
+                'total_size_mb': 0,
+                'file_count': 0,
+                'by_type': {}
+            })
+
+        total_size = 0
+        file_count = 0
+        by_type = {}
+
+        for log_type, log_file in LOG_FILES.items():
+            base_filename = os.path.basename(log_file)
+            type_size = 0
+            type_count = 0
+
+            for filename in os.listdir(LOG_DIR):
+                if filename.startswith(base_filename):
+                    filepath = os.path.join(LOG_DIR, filename)
+                    if os.path.isfile(filepath):
+                        size = os.path.getsize(filepath)
+                        type_size += size
+                        total_size += size
+                        type_count += 1
+                        file_count += 1
+
+            by_type[log_type] = {
+                'name': LOG_TYPES[log_type],
+                'size': type_size,
+                'size_mb': round(type_size / (1024 * 1024), 2),
+                'count': type_count
+            }
+
+        return jsonify({
+            'success': True,
+            'total_size': total_size,
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'file_count': file_count,
+            'by_type': by_type
+        })
+    except Exception as e:
+        runtime_log.error(f"获取日志大小失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'获取日志大小失败: {str(e)}'
+        }), 500
+
+        return jsonify({
+            'success': True,
+            'total_size': total_size,
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'file_count': file_count
+        })
+    except Exception as e:
+        logger.error(f"获取日志大小失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     PORT = 80

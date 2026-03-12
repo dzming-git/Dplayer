@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>日志管理 - DPlayer 视频站</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/manage.css') }}">
+    <style>
+        .log-viewer-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .log-title h2 {
+            margin: 0;
+            color: #262626;
+        }
+
+        .log-type-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .log-type-btn {
+            padding: 6px 16px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .log-type-btn:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .log-type-btn.active {
+            background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+            color: #fff;
+            border-color: #1890ff;
+            box-shadow: 0 2px 4px rgba(24, 144, 255, 0.3);
+        }
+
+        .log-type-btn.active:hover {
+            color: #fff;
+        }
+
+        /* 日志类型按钮图标 */
+        .log-type-btn {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .log-type-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+        }
+
+        .log-info {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .log-stats {
+            font-size: 14px;
+            color: #595959;
+            background: #f5f5f5;
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+
+        .log-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .log-search-box {
+            display: flex;
+            gap: 8px;
+            position: relative;
+        }
+
+        .log-search-box input {
+            padding: 8px 32px 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        .log-search-box input:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        .search-clear-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #8c8c8c;
+            cursor: pointer;
+            font-size: 16px;
+            display: none;
+            padding: 4px;
+        }
+
+        .search-clear-btn:hover {
+            color: #595959;
+        }
+
+        .search-clear-btn.show {
+            display: block;
+        }
+
+        .log-filter-select {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .log-filter-select:focus {
+            outline: none;
+            border-color: #1890ff;
+        }
+
+        .log-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            color: #1890ff;
+            border-color: #1890ff;
+        }
+
+        .btn-primary {
+            background: #1890ff;
+            color: #fff;
+            border-color: #1890ff;
+        }
+
+        .btn-primary:hover {
+            background: #40a9ff;
+            border-color: #40a9ff;
+            color: #fff;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: #fff;
+            border-color: #ff4d4f;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+            border-color: #ff7875;
+            color: #fff;
+        }
+
+        .log-content {
+            background: #fff;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .log-file-selector {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-bottom: 1px solid #e8e8e8;
+            background: #fafafa;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+        }
+
+        .log-file-selector::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .log-file-selector::-webkit-scrollbar-thumb {
+            background: #d9d9d9;
+            border-radius: 2px;
+        }
+
+        .log-file-btn {
+            padding: 6px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .log-file-btn:hover {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+
+        .log-file-btn:active {
+            transform: scale(0.98);
+        }
+
+        .log-file-btn.active {
+            background: #1890ff;
+            color: #fff;
+            border-color: #1890ff;
+        }
+
+        .log-lines {
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .log-line {
+            padding: 6px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .log-line:last-child {
+            border-bottom: none;
+        }
+
+        .log-line:hover {
+            background: #fafafa;
+        }
+
+        .log-time {
+            color: #8c8c8c;
+            min-width: 150px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .log-level {
+            min-width: 70px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .log-level.致命 {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 2px 8px;
+            border-radius: 2px;
+        }
+
+        .log-level.错误 {
+            color: #ff4d4f;
+            background: #fff2f0;
+            padding: 2px 8px;
+            border-radius: 2px;
+        }
+
+        .log-level.通知 {
+            color: #52c41a;
+            background: #f6ffed;
+            padding: 2px 8px;
+            border-radius: 2px;
+        }
+
+        .log-level.调试 {
+            color: #8c8c8c;
+            background: #f5f5f5;
+            padding: 2px 8px;
+            border-radius: 2px;
+        }
+
+        .log-level.警告 {
+            color: #faad14;
+            background: #fffbe6;
+            padding: 2px 8px;
+            border-radius: 2px;
+        }
+
+        .log-location {
+            color: #1890ff;
+            min-width: 120px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .log-location:hover {
+            text-decoration: underline;
+        }
+
+        .log-message {
+            flex: 1;
+            color: #262626;
+            word-break: break-all;
+        }
+
+        .log-message .highlight {
+            background: #fffbe6;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        /* 移动端日志详情按钮 */
+        .log-detail-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #1890ff;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 6px;
+            margin-left: 8px;
+        }
+
+        .log-detail-toggle:hover {
+            text-decoration: underline;
+        }
+
+        .log-detail-panel {
+            display: none;
+            padding: 8px 0;
+            font-size: 11px;
+            color: #595959;
+            border-top: 1px dashed #e8e8e8;
+            margin-top: 6px;
+        }
+
+        .log-detail-panel.show {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #8c8c8c;
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 40px;
+            color: #ff4d4f;
+        }
+
+        .no-logs {
+            text-align: center;
+            padding: 40px;
+            color: #8c8c8c;
+        }
+
+        /* 自定义滚动条 */
+        .log-lines::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .log-lines::-webkit-scrollbar-track {
+            background: #f5f5f5;
+        }
+
+        .log-lines::-webkit-scrollbar-thumb {
+            background: #d9d9d9;
+            border-radius: 4px;
+        }
+
+        .log-lines::-webkit-scrollbar-thumb:hover {
+            background: #bfbfbf;
+        }
+
+        @media (max-width: 768px) {
+            .log-viewer-container {
+                padding: 12px;
+                gap: 12px;
+            }
+
+            .log-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .log-title h2 {
+                font-size: 18px;
+            }
+
+            .log-type-selector {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .log-type-btn {
+                padding: 10px 8px;
+                font-size: 13px;
+                text-align: center;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .log-info {
+                justify-content: center;
+            }
+
+            .log-stats {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
+            .log-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .log-search-box {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .log-search-box input {
+                width: 100%;
+                min-width: unset;
+                font-size: 16px; /* 防止iOS自动缩放 */
+                padding: 12px;
+            }
+
+            .log-filter-select {
+                width: 100%;
+                font-size: 16px;
+                padding: 12px;
+            }
+
+            .log-actions {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+            }
+
+            .log-actions .btn {
+                padding: 12px 8px;
+                font-size: 14px;
+            }
+
+            .log-content {
+                border-radius: 6px;
+            }
+
+            .log-file-selector {
+                padding: 10px;
+                gap: 6px;
+            }
+
+            .log-file-btn {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .log-lines {
+                max-height: 500px;
+                font-size: 12px;
+                line-height: 1.5;
+            }
+
+            .log-line {
+                padding: 8px;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .log-time {
+                min-width: 120px;
+                font-size: 11px;
+            }
+
+            .log-level {
+                min-width: 55px;
+                font-size: 11px;
+            }
+
+            .log-location {
+                min-width: 100px;
+                font-size: 11px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .log-message {
+                font-size: 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .log-viewer-container {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .log-title h2 {
+                font-size: 16px;
+            }
+
+            .log-type-selector {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+            }
+
+            .log-type-btn {
+                padding: 8px 6px;
+                font-size: 12px;
+                min-height: 40px;
+            }
+        }
+
+        /* 超小屏幕优化 */
+        @media (max-width: 360px) {
+            .log-type-selector {
+                grid-template-columns: 1fr;
+            }
+
+            .log-type-btn {
+                width: 100%;
+                padding: 10px;
+            }
+
+            .log-stats {
+                font-size: 11px;
+                padding: 5px 10px;
+            }
+
+            .log-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .log-actions .btn-danger {
+                grid-column: span 2;
+            }
+
+            .log-lines {
+                max-height: 400px;
+                font-size: 11px;
+            }
+
+            .log-line {
+                padding: 6px;
+                gap: 6px;
+                display: block;
+            }
+
+            .log-time {
+                min-width: unset;
+                display: inline-block;
+                margin-right: 6px;
+                font-size: 10px;
+            }
+
+            .log-level {
+                min-width: unset;
+                display: inline-block;
+                margin-right: 6px;
+                padding: 2px 6px;
+                border-radius: 2px;
+                background: #f5f5f5;
+            }
+
+            .log-location {
+                min-width: unset;
+                display: none; /* 在小屏幕上隐藏位置信息 */
+            }
+
+            .log-message {
+                display: block;
+                margin-top: 4px;
+                font-size: 11px;
+                padding-left: 0;
+            }
+
+            .log-detail-toggle {
+                display: inline-block;
+            }
+        }
+
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            .log-file-btn {
+                padding: 10px 16px; /* 增大触摸目标 */
+            }
+
+            .log-file-btn:active {
+                background: #e6f7ff;
+                transform: scale(0.98);
+            }
+
+            .btn {
+                padding: 12px 20px;
+                min-height: 44px; /* 最小触摸目标尺寸 */
+            }
+
+            .btn:active {
+                transform: scale(0.98);
+            }
+
+            .log-line {
+                padding: 12px;
+            }
+
+            .log-location {
+                display: none; /* 触摸设备默认隐藏位置 */
+            }
+        }
+
+        /* 横屏手机优化 */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .log-lines {
+                max-height: 250px;
+            }
+
+            .log-header {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .log-controls {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .log-search-box {
+                flex-direction: row;
+                flex: 1;
+            }
+
+            .log-actions {
+                flex: 0 0 auto;
+            }
+        }
+
+        /* 移动端底部操作栏 */
+        .mobile-bottom-bar {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e8e8e8;
+            padding: 8px 12px;
+            z-index: 1000;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .mobile-bottom-bar .btn {
+            padding: 8px 12px;
+            font-size: 13px;
+            min-height: 44px;
+            flex: 1;
+            margin: 0 4px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-bottom-bar .btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 快捷键提示 */
+        .keyboard-hint {
+            display: none;
+            font-size: 11px;
+            color: #8c8c8c;
+            margin-left: 8px;
+        }
+
+        @media (min-width: 769px) {
+            .keyboard-hint {
+                display: inline;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .mobile-bottom-bar {
+                display: flex;
+                gap: 8px;
+            }
+
+            /* 为底部栏留出空间 */
+            .log-viewer-container {
+                padding-bottom: 70px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .mobile-bottom-bar {
+                padding: 6px 8px;
+            }
+
+            .mobile-bottom-bar .btn {
+                font-size: 12px;
+                padding: 8px 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <span class="logo-text">DPlayer</span>
+                </a>
+                <div class="header-actions">
+                    <a href="/" class="nav-link">首页</a>
+                    <a href="/manage" class="nav-link">视频管理</a>
+                    <a href="/logs" class="nav-link active">日志管理</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="container">
+            <div class="log-viewer-container">
+                <!-- 日志头部 -->
+                <div class="log-header">
+                    <div class="log-title">
+                        <h2>系统日志</h2>
+                    </div>
+                    <div class="log-type-selector" id="logTypeSelector">
+                        <!-- 日志类型按钮将通过JS动态生成 -->
+                    </div>
+                    <div class="log-info">
+                        <div class="log-stats" id="logStats">
+                            加载中...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 日志控制区 -->
+                <div class="log-controls">
+                    <div class="log-search-box">
+                        <input type="text" id="searchInput" placeholder="搜索日志..." onkeyup="handleSearch(event)" oninput="handleSearchInput(event)">
+                        <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()">×</button>
+                        <select id="levelFilter" class="log-filter-select" onchange="filterLogs()">
+                            <option value="">所有级别</option>
+                            <option value="致命">致命</option>
+                            <option value="错误">错误</option>
+                            <option value="警告">警告</option>
+                            <option value="通知">通知</option>
+                            <option value="调试">调试</option>
+                        </select>
+                        <select id="linesLimit" class="log-filter-select" onchange="loadLogs()">
+                            <option value="50">最近50行</option>
+                            <option value="100" selected>最近100行</option>
+                            <option value="200">最近200行</option>
+                            <option value="500">最近500行</option>
+                            <option value="1000">最近1000行</option>
+                        </select>
+                        <span class="keyboard-hint">按 Enter 搜索</span>
+                    </div>
+                    <div class="log-actions">
+                        <button class="btn" onclick="loadLogs()">刷新</button>
+                        <button class="btn" onclick="downloadCurrentLog()">下载</button>
+                        <button class="btn btn-danger" onclick="clearLogs()">清空日志</button>
+                    </div>
+                </div>
+
+                <!-- 日志内容区 -->
+                <div class="log-content">
+                    <div class="log-file-selector" id="logFileSelector">
+                        <!-- 日志文件按钮将通过JS动态生成 -->
+                    </div>
+                    <div class="log-lines" id="logLines">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 移动端底部操作栏 -->
+    <div class="mobile-bottom-bar">
+        <button class="btn" onclick="loadLogs()">刷新</button>
+        <button class="btn" onclick="downloadCurrentLog()">下载</button>
+        <button class="btn" onclick="loadLogs();document.getElementById('searchInput').focus()">搜索</button>
+        <button class="btn btn-danger" onclick="clearLogs()">清空</button>
+    </div>
+
+    <!-- 提示消息 -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        let currentLogType = 'runtime'; // 默认显示运行日志
+        let currentLogFile = 'runtime.log';
+        let currentLogs = [];
+        let logTypes = {};
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLogStats();
+            loadLogTypes();
+            loadLogFiles();
+
+            // 自动刷新（每30秒）
+            setInterval(() => {
+                loadLogs();
+                loadLogStats();
+            }, 30000);
+        });
+
+        // 加载日志类型
+        async function loadLogTypes() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+
+                if (data.success) {
+                    logTypes = data.log_types;
+                    renderLogTypeSelector(data.log_types);
+                    loadLogs(); // 加载默认类型的日志
+                }
+            } catch (error) {
+                console.error('加载日志类型失败:', error);
+            }
+        }
+
+        // 渲染日志类型选择器
+        function renderLogTypeSelector(types) {
+            const selector = document.getElementById('logTypeSelector');
+            selector.innerHTML = '';
+
+            Object.keys(types).forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = `log-type-btn ${type === currentLogType ? 'active' : ''}`;
+                btn.textContent = types[type];
+                btn.onclick = () => switchLogType(type);
+                selector.appendChild(btn);
+            });
+        }
+
+        // 切换日志类型
+        function switchLogType(type) {
+            currentLogType = type;
+            currentLogFile = `${type}.log`;
+            renderLogTypeSelector(logTypes);
+            loadLogFiles();
+            loadLogs();
+        }
+
+        // 加载日志统计信息
+        async function loadLogStats() {
+            try {
+                const response = await fetch('/api/logs/size');
+                const data = await response.json();
+
+                if (data.success) {
+                    const currentTypeStats = data.by_type[currentLogType] || {};
+                    document.getElementById('logStats').innerHTML = `
+                        ${logTypes[currentLogType]}: ${currentTypeStats.size_mb || 0} MB (${currentTypeStats.count || 0} 个文件) | 总计: ${data.total_size_mb} MB
+                    `;
+                }
+            } catch (error) {
+                console.error('加载日志统计失败:', error);
+            }
+        }
+
+        // 加载日志文件列表
+        async function loadLogFiles() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+
+                if (data.success && data.log_groups[currentLogType]) {
+                    const group = data.log_groups[currentLogType];
+                    const selector = document.getElementById('logFileSelector');
+                    selector.innerHTML = '';
+
+                    group.files.forEach(file => {
+                        const btn = document.createElement('button');
+                        btn.className = `log-file-btn ${file.filename === currentLogFile ? 'active' : ''}`;
+                        btn.textContent = `${file.filename} (${formatFileSize(file.size)})`;
+                        btn.onclick = () => switchLogFile(file.filename);
+                        selector.appendChild(btn);
+                    });
+                }
+            } catch (error) {
+                console.error('加载日志文件列表失败:', error);
+            }
+        }
+
+        // 切换日志文件
+        function switchLogFile(filename) {
+            currentLogFile = filename;
+            loadLogFiles();
+            loadLogs();
+        }
+
+        // 加载日志内容
+        async function loadLogs() {
+            const lines = document.getElementById('linesLimit').value;
+            const search = document.getElementById('searchInput').value;
+            const level = document.getElementById('levelFilter').value;
+
+            const container = document.getElementById('logLines');
+            container.innerHTML = '<div class="loading">加载中...</div>';
+
+            try {
+                const url = `/api/logs/${currentLogFile}?lines=${lines}`;
+                const params = new URLSearchParams();
+                if (search) params.append('search', search);
+                if (level) params.append('level', level);
+
+                const response = await fetch(`${url}&${params.toString()}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentLogs = data.logs;
+                    renderLogs(data.logs, search);
+                } else {
+                    container.innerHTML = `<div class="error-message">${data.message}</div>`;
+                }
+            } catch (error) {
+                console.error('加载日志失败:', error);
+                container.innerHTML = '<div class="error-message">加载日志失败</div>';
+            }
+        }
+
+        // 渲染日志
+        function renderLogs(logs, searchTerm = '') {
+            const container = document.getElementById('logLines');
+
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="no-logs">没有找到日志</div>';
+                return;
+            }
+
+            container.innerHTML = logs.map((log, index) => {
+                const levelClass = log.level || '';
+                const location = log.location ? `${log.filename}:${log.lineno}` : 'unknown';
+                const message = highlightSearch(log.message, searchTerm);
+                const logId = `log-${index}`;
+                const toggleId = `toggle-${index}`;
+
+                return `
+                    <div class="log-line">
+                        <span class="log-time">${log.timestamp || ''}</span>
+                        <span class="log-level ${levelClass}">${log.level || ''}</span>
+                        <span class="log-location" title="${location}">${location}</span>
+                        <button class="log-detail-toggle" id="${toggleId}" onclick="toggleLogDetail('${logId}', '${toggleId}')">详情</button>
+                        <span class="log-message">${message}</span>
+                        <div class="log-detail-panel" id="${logId}">
+                            <div><strong>位置:</strong> ${location}</div>
+                            <div><strong>级别:</strong> ${log.level || ''}</div>
+                            <div><strong>时间:</strong> ${log.timestamp || ''}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 切换日志详情
+        function toggleLogDetail(logId, toggleId) {
+            const panel = document.getElementById(logId);
+            const toggle = document.getElementById(toggleId);
+
+            if (panel.classList.contains('show')) {
+                panel.classList.remove('show');
+                toggle.textContent = '详情';
+            } else {
+                panel.classList.add('show');
+                toggle.textContent = '收起';
+            }
+        }
+
+        // 高亮搜索词
+        function highlightSearch(text, searchTerm) {
+            if (!searchTerm) {
+                return escapeHtml(text);
+            }
+
+            const escaped = escapeHtml(text);
+            const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+            return escaped.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 正则转义
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // 搜索处理
+        function handleSearch(event) {
+            if (event.key === 'Enter') {
+                loadLogs();
+            }
+        }
+
+        // 搜索输入处理（显示/隐藏清空按钮）
+        function handleSearchInput(event) {
+            const value = event.target.value;
+            const clearBtn = document.getElementById('searchClearBtn');
+
+            if (value.length > 0) {
+                clearBtn.classList.add('show');
+            } else {
+                clearBtn.classList.remove('show');
+            }
+        }
+
+        // 清空搜索
+        function clearSearch() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = '';
+            document.getElementById('searchClearBtn').classList.remove('show');
+            loadLogs();
+        }
+
+        // 过滤日志（级别）
+        function filterLogs() {
+            loadLogs();
+        }
+
+        // 下载当前日志文件
+        async function downloadCurrentLog() {
+            try {
+                const url = `/api/logs/download/${currentLogFile}`;
+                window.open(url, '_blank');
+            } catch (error) {
+                console.error('下载失败:', error);
+                showToast('下载失败');
+            }
+        }
+
+        // 清空日志
+        async function clearLogs() {
+            const message = `确定要清空"${logTypes[currentLogType]}"的所有日志文件吗？此操作不可恢复！`;
+
+            if (!confirm(message)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/logs/clear/${currentLogType}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(data.message);
+                    loadLogStats();
+                    loadLogFiles();
+                    loadLogs();
+                } else {
+                    showToast(data.message || '清空失败');
+                }
+            } catch (error) {
+                console.error('清空失败:', error);
+                showToast('清空失败');
+            }
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 显示提示消息
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

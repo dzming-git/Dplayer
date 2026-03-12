@@ -67,12 +67,28 @@ static/uploads/
 static/thumbnails/*.gif
 static/thumbnails/*.jpg
 
+# Development directories
+docs/development/
+scripts/
+tests/
+diagnostics/
+
 # Documentation and summary files (development artifacts)
 *_SUMMARY.md
 *FIXES.md
-*EXPLANATION.md
-*ANALYSIS.md
-*GUIDE.md
+*_EXPLANATION.md
+*_ANALYSIS.md
+*_GUIDE.md
+*FEATURE.md
+*QUICKSTART.md
+*REFACTOR.md
+*USAGE.md
+*SOLUTION.md
+*_FIX.md
+*_OPTIMIZATION.md
+*_COMPLETED.md
+*FIXED.md
+*_QUICK*.md
 
 # Test and diagnostic scripts
 test_*.py
@@ -81,6 +97,26 @@ fix_*.py
 diagnose_*.py
 create_*.py
 update_*.py
+batch_*.py
+verify_*.py
+collect_*.py
+debug_*.py
+
+# Server startup scripts
+start_flask.bat
+start_server.bat
+restart_flask.py
+restart_flask_server.py
+immediate_restart.py
+kill_flask.py
+
+# Test HTML files
+test_*.html
+static/diagnose.html
+static/test_*.html
+
+# Reorganization scripts
+reorganize_directory.py
 
 # Environment
 .env

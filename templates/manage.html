@@ -17,7 +17,7 @@
                 <div class="header-actions">
                     <a href="/" class="nav-link">首页</a>
                     <a href="/manage" class="nav-link active">视频管理</a>
-                    <a href="#" class="nav-link">排行榜</a>
+                    <a href="/logs" class="nav-link">日志管理</a>
                 </div>
             </div>
         </div>
@@ -174,7 +174,7 @@
             <!-- 视频列表 -->
             <section class="video-list-section">
                 <div class="section-header">
-                    <h2>视频列表 (共 {{ videos|length }} 个)</h2>
+                    <h2>视频列表 (共 {{ total }} 个)</h2>
                     <div class="search-box">
                         <input type="text" id="videoSearch" placeholder="搜索视频...">
                     </div>
@@ -197,10 +197,16 @@
                             {% for video in videos %}
                             <tr class="video-row" data-title="{{ video.title|lower }}">
                                 <td class="thumbnail-cell">
-                                    <img src="{{ video.thumbnail }}" alt="{{ video.title }}" class="table-thumbnail">
+                                    <img src="{{ video.thumbnail }}"
+                                         alt="{{ video.title }}"
+                                         class="table-thumbnail"
+                                         loading="lazy"
+                                         onerror="this.src='/static/thumbnails/default.png'">
                                 </td>
                                 <td class="title-cell">
-                                    <div class="video-title">{{ video.title }}</div>
+                                    <a href="/video/{{ video.hash }}" class="video-title-link" onclick="event.preventDefault(); showThumbnailModal('{{ video.hash }}')">
+                                        <div class="video-title">{{ video.title }}</div>
+                                    </a>
                                     <div class="video-meta">
                                         <span>👁 {{ "%.1f万"|format(video.view_count/10000) if video.view_count >= 10000 else video.view_count }}</span>
                                         <span>⏱ {{ video.duration }}秒</span>
@@ -242,6 +248,45 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- 分页控件 -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        <span>共 <strong>{{ total }}</strong> 个视频</span>
+                        <span class="separator">|</span>
+                        <span>第 <strong>{{ page }}</strong> / {{ pages }} 页</span>
+                    </div>
+
+                    <div class="pagination-controls">
+                        <button class="page-btn" id="firstPageBtn" onclick="goToPage(1)" {% if page == 1 %}disabled{% endif %}>
+                            首页
+                        </button>
+                        <button class="page-btn" id="prevPageBtn" onclick="goToPage({{ page - 1 }})" {% if page == 1 %}disabled{% endif %}>
+                            上一页
+                        </button>
+
+                        <div class="page-numbers" id="pageNumbers">
+                            <!-- 页码将通过JavaScript动态生成 -->
+                        </div>
+
+                        <button class="page-btn" id="nextPageBtn" onclick="goToPage({{ page + 1 }})" {% if page == pages %}disabled{% endif %}>
+                            下一页
+                        </button>
+                        <button class="page-btn" id="lastPageBtn" onclick="goToPage({{ pages }})" {% if page == pages %}disabled{% endif %}>
+                            末页
+                        </button>
+                    </div>
+
+                    <div class="per-page-selector">
+                        <label>每页显示:</label>
+                        <select id="perPageSelect" onchange="changePerPage()">
+                            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                        </select>
+                    </div>
+                </div>
             </section>
         </div>
     </main>
@@ -249,7 +294,239 @@
     <!-- 提示消息 -->
     <div id="toast" class="toast"></div>
 
+    <!-- 缩略图查看模态框 -->
+    <div id="thumbnailModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">视频缩略图</h3>
+                <span class="close-btn" onclick="closeThumbnailModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="thumbnail-display">
+                    <img id="modalThumbnail" src="" alt="缩略图" class="modal-thumbnail">
+                    <div id="thumbnailStatus" class="thumbnail-status">加载中...</div>
+                </div>
+                <div class="video-info">
+                    <div class="info-row">
+                        <span class="info-label">标题:</span>
+                        <span id="modalVideoTitle" class="info-value"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Hash:</span>
+                        <span id="modalVideoHash" class="info-value hash-code"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">本地路径:</span>
+                        <span id="modalVideoPath" class="info-value"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">文件大小:</span>
+                        <span id="modalFileSize" class="info-value"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">文件存在:</span>
+                        <span id="modalFileExists" class="info-value"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeThumbnailModal()">关闭</button>
+                <button class="btn btn-primary" onclick="regenerateThumbnail()">重新生成</button>
+                <button class="btn btn-primary" id="playVideoBtn" onclick="playFromModal()">播放视频</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // 当前查看的视频hash
+        let currentVideoHash = null;
+        let currentVideoData = null;
+
+        // 显示缩略图模态框
+        function showThumbnailModal(videoHash) {
+            console.log('[缩略图模态框] 显示视频:', videoHash);
+
+            currentVideoHash = videoHash;
+
+            // 获取视频信息
+            fetch(`/api/video/${videoHash}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentVideoData = data.video;
+
+                        // 填充视频信息
+                        document.getElementById('modalTitle').textContent = '视频缩略图';
+                        document.getElementById('modalVideoTitle').textContent = data.video.title;
+                        document.getElementById('modalVideoHash').textContent = data.video.hash;
+                        document.getElementById('modalVideoPath').textContent = data.video.local_path || 'N/A';
+                        document.getElementById('playVideoBtn').dataset.hash = data.video.hash;
+
+                        // 检查文件是否存在
+                        if (data.video.local_path) {
+                            fetch('/api/check-file', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ path: data.video.local_path })
+                            })
+                            .then(response => response.json())
+                            .then(fileData => {
+                                document.getElementById('modalFileExists').textContent = fileData.exists ? '是' : '否';
+                                document.getElementById('modalFileExists').style.color = fileData.exists ? '#28a745' : '#dc3545';
+                                document.getElementById('modalFileSize').textContent = fileData.size ? formatFileSize(fileData.size) : 'N/A';
+                            })
+                            .catch(error => {
+                                console.error('[缩略图模态框] 检查文件失败:', error);
+                                document.getElementById('modalFileExists').textContent = '检查失败';
+                            });
+                        } else {
+                            document.getElementById('modalFileExists').textContent = 'N/A';
+                            document.getElementById('modalFileSize').textContent = 'N/A';
+                        }
+
+                        // 显示模态框
+                        document.getElementById('thumbnailModal').style.display = 'flex';
+
+                        // 加载缩略图
+                        loadThumbnail(data.video.hash);
+                    } else {
+                        showToast('获取视频信息失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('[缩略图模态框] 获取视频信息失败:', error);
+                    showToast('获取视频信息失败');
+                });
+        }
+
+        // 加载缩略图
+        function loadThumbnail(videoHash) {
+            const img = document.getElementById('modalThumbnail');
+            const status = document.getElementById('thumbnailStatus');
+
+            status.textContent = '加载中...';
+            status.className = 'thumbnail-status loading';
+
+            // 懒加载URL
+            const thumbnailUrl = `/thumbnail/${videoHash}`;
+
+            img.onload = function() {
+                console.log('[缩略图模态框] 加载成功:', thumbnailUrl);
+                status.textContent = '加载成功';
+                status.className = 'thumbnail-status success';
+            };
+
+            img.onerror = function() {
+                console.error('[缩略图模态框] 加载失败:', thumbnailUrl);
+
+                // 重试一次
+                setTimeout(() => {
+                    img.src = thumbnailUrl + '?t=' + Date.now();
+                }, 1000);
+
+                status.textContent = '加载失败，正在重试...';
+                status.className = 'thumbnail-status error';
+            };
+
+            // 设置加载状态
+            img.style.opacity = '0';
+            img.style.transition = 'opacity 0.3s ease';
+
+            // 开始加载
+            img.src = thumbnailUrl;
+
+            // 淡入效果
+            setTimeout(() => {
+                img.style.opacity = '1';
+            }, 100);
+        }
+
+        // 关闭缩略图模态框
+        function closeThumbnailModal() {
+            document.getElementById('thumbnailModal').style.display = 'none';
+            currentVideoHash = null;
+            currentVideoData = null;
+        }
+
+        // 从模态框播放视频
+        function playFromModal() {
+            if (currentVideoHash) {
+                closeThumbnailModal();
+                playVideo(currentVideoHash);
+            }
+        }
+
+        // 重新生成缩略图
+        function regenerateThumbnail() {
+            if (!currentVideoHash) {
+                showToast('没有选择视频');
+                return;
+            }
+
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '生成中...';
+
+            const status = document.getElementById('thumbnailStatus');
+            status.textContent = '正在生成缩略图...';
+            status.className = 'thumbnail-status loading';
+
+            fetch(`/api/video/${currentVideoHash}/regenerate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('缩略图生成成功');
+
+                    // 重新加载缩略图
+                    loadThumbnail(currentVideoHash);
+                } else {
+                    showToast(data.message || '生成失败');
+                    status.textContent = '生成失败';
+                    status.className = 'thumbnail-status error';
+                }
+
+                btn.disabled = false;
+                btn.textContent = '重新生成';
+            })
+            .catch(error => {
+                console.error('[缩略图模态框] 生成缩略图失败:', error);
+                showToast('生成失败');
+
+                status.textContent = '生成失败';
+                status.className = 'thumbnail-status error';
+
+                btn.disabled = false;
+                btn.textContent = '重新生成';
+            });
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('thumbnailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeThumbnailModal();
+            }
+        });
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('thumbnailModal').style.display === 'flex') {
+                closeThumbnailModal();
+            }
+        });
+
+
         function format_number(num) {
             if (num >= 10000) {
                 return (num / 10000).toFixed(1) + '万';
@@ -751,6 +1028,183 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[加载] 页面加载完成，检查是否有进行中的任务...');
             restoreTaskState();
+
+            // 添加缩略图加载错误处理
+            setupThumbnailErrorHandler();
+        });
+
+        // 缩略图错误处理
+        function setupThumbnailErrorHandler() {
+            console.log('[缩略图] 设置错误处理器');
+
+            document.querySelectorAll('.table-thumbnail').forEach(img => {
+                // 添加加载状态
+                img.classList.add('loading');
+
+                // 添加重试计数器
+                img.dataset.retryCount = 0;
+                img.dataset.maxRetries = 3; // 最多重试3次
+                img.dataset.retryDelay = 1000; // 首次重试延迟1秒
+
+                // 加载成功
+                img.onload = function() {
+                    img.classList.remove('loading');
+                    img.classList.add('loaded');
+                    console.log('[缩略图] 加载成功:', img.src);
+                };
+
+                // 加载失败
+                img.onerror = function() {
+                    const retryCount = parseInt(img.dataset.retryCount || 0);
+                    const maxRetries = parseInt(img.dataset.maxRetries || 3);
+                    const originalSrc = img.src.split('?')[0]; // 移除之前的查询参数
+
+                    console.error('[缩略图] 加载失败:', img.src);
+                    console.log('[缩略图] 重试次数:', retryCount, '/', maxRetries);
+
+                    if (retryCount < maxRetries) {
+                        // 还有重试机会
+                        img.classList.remove('error');
+                        img.classList.add('loading');
+
+                        // 检查URL是否是懒加载格式
+                        if (originalSrc.includes('/thumbnail/')) {
+                            console.log('[缩略图] 触发懒加载生成，等待生成完成...');
+
+                            // 更新重试计数
+                            img.dataset.retryCount = retryCount + 1;
+
+                            // 计算下次重试延迟（指数退避）
+                            const delay = parseInt(img.dataset.retryDelay || 1000) * 2;
+                            img.dataset.retryDelay = delay;
+
+                            // 触发生成并等待
+                            setTimeout(() => {
+                                console.log('[缩略图] 重新请求缩略图（重试', img.dataset.retryCount, '）:', originalSrc);
+
+                                // 添加时间戳绕过缓存
+                                img.src = originalSrc + '?t=' + Date.now();
+                            }, delay);
+                        } else {
+                            // 如果不是懒加载格式，直接使用默认图
+                            console.log('[缩略图] URL格式错误，使用默认图');
+                            img.src = '/static/thumbnails/default.png';
+                        }
+                    } else {
+                        // 重试次数用尽
+                        console.warn('[缩略图] 重试次数用尽，使用默认图:', originalSrc);
+                        img.classList.remove('loading');
+                        img.classList.add('error');
+                        img.src = '/static/thumbnails/default.png';
+                    }
+                };
+            });
+
+            console.log('[缩略图] 已为', document.querySelectorAll('.table-thumbnail').length, '个缩略图设置错误处理');
+        }
+
+        // 分页功能
+        let currentPage = {{ page }};
+        const totalPages = {{ pages }};
+        let currentPerPage = {{ per_page }};
+
+        // 初始化分页
+        function initPagination() {
+            console.log('[分页] 初始化分页:', currentPage, '/', totalPages, '每页', currentPerPage);
+            generatePageNumbers();
+        }
+
+        // 生成页码
+        function generatePageNumbers() {
+            const container = document.getElementById('pageNumbers');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            // 计算显示的页码范围
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            // 确保至少显示5个页码（如果有足够的页数）
+            if (endPage - startPage < 4) {
+                if (startPage === 1) {
+                    endPage = Math.min(totalPages, 5);
+                } else if (endPage === totalPages) {
+                    startPage = Math.max(1, totalPages - 4);
+                }
+            }
+
+            // 添加第一页和省略号
+            if (startPage > 1) {
+                container.innerHTML += `<button class="page-number" onclick="goToPage(1)">1</button>`;
+                if (startPage > 2) {
+                    container.innerHTML += `<span class="page-ellipsis">...</span>`;
+                }
+            }
+
+            // 添加页码按钮
+            for (let i = startPage; i <= endPage; i++) {
+                const btn = document.createElement('button');
+                btn.className = `page-number ${i === currentPage ? 'active' : ''}`;
+                btn.textContent = i;
+                btn.onclick = () => goToPage(i);
+                container.appendChild(btn);
+            }
+
+            // 添加最后一页和省略号
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    container.innerHTML += `<span class="page-ellipsis">...</span>`;
+                }
+                container.innerHTML += `<button class="page-number" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+            }
+        }
+
+        // 跳转到指定页
+        function goToPage(page) {
+            if (page < 1 || page > totalPages || page === currentPage) {
+                return;
+            }
+
+            console.log('[分页] 跳转到第', page, '页');
+
+            // 更新URL参数
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', page);
+            url.searchParams.set('per_page', currentPerPage);
+
+            // 重新加载页面
+            window.location.href = url.toString();
+        }
+
+        // 修改每页显示数量
+        function changePerPage() {
+            const select = document.getElementById('perPageSelect');
+            const newPerPage = parseInt(select.value);
+
+            if (newPerPage === currentPerPage) {
+                return;
+            }
+
+            console.log('[分页] 修改每页显示数量:', currentPerPage, '->', newPerPage);
+
+            currentPerPage = newPerPage;
+            currentPage = 1; // 重置到第一页
+
+            // 更新URL参数
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', currentPage);
+            url.searchParams.set('per_page', currentPerPage);
+
+            // 重新加载页面
+            window.location.href = url.toString();
+        }
+
+        // 在页面加载时初始化分页
+        document.addEventListener('DOMContentLoaded', function() {
+            initPagination();
         });
     </script>
 </body>

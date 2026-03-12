@@ -53,6 +53,7 @@ class Video(db.Model):
             'download_count': self.download_count,
             'priority': self.priority,
             'is_downloaded': self.is_downloaded,
+            'local_path': self.local_path,
             'tags': [vt.tag.to_dict() for vt in self.tags if vt.tag is not None],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

@@ -145,7 +145,11 @@
                     <div class="recommended-list">
                         {% for rec_video in recommended_videos %}
                         <div class="recommended-item" onclick="playVideo('{{ rec_video.hash }}')">
-                            <img src="{{ rec_video.thumbnail }}" alt="{{ rec_video.title }}" class="rec-thumbnail">
+                            <img src="{{ rec_video.thumbnail }}"
+                                 alt="{{ rec_video.title }}"
+                                 class="rec-thumbnail"
+                                 loading="lazy"
+                                 onerror="this.handleThumbnailError ? this.handleThumbnailError(event) : (function() {var img=this; img.dataset.retryCount=(parseInt(img.dataset.retryCount||0)+1); if(parseInt(img.dataset.retryCount)<=3){setTimeout(function(){img.src=img.src.split('?')[0]+'?t='+Date.now()},1000*Math.pow(2,img.dataset.retryCount-1));}else{img.src='/static/thumbnails/default.png';}})()">
                             <div class="rec-info">
                                 <h4 class="rec-title">{{ rec_video.title }}</h4>
                                 <div class="rec-meta">
@@ -176,6 +180,8 @@
         }
 
         function initPlayer(videoUrl) {
+            console.log('[初始化播放器] 视频URL:', videoUrl);
+
             dp = new DPlayer({
                 container: document.getElementById('dplayer'),
                 video: {
@@ -193,8 +199,13 @@
                 playbackSpeed: [0.5, 0.75, 1, 1.25, 1.5, 2]
             });
 
-            dp.on('error', function() {
-                showToast('视频加载失败');
+            dp.on('error', function(e) {
+                console.error('[播放器错误]', e);
+                showToast('视频加载失败: ' + JSON.stringify(e));
+            });
+
+            dp.on('play', function() {
+                console.log('[播放] 视频开始播放');
             });
         }
 
@@ -469,7 +480,7 @@
 
         // 页面加载时初始化播放器
         window.onload = function() {
-            const videoUrl = '{{ video.url }}';
+            const videoUrl = {{ video.url | tojson }};
             initPlayer(videoUrl);
 
             // 检查收藏状态
