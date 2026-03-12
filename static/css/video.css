@@ -156,6 +156,7 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+    margin-bottom: 12px;
 }
 
 .tag-link {
@@ -167,7 +168,9 @@
     font-size: 14px;
     transition: all 0.3s;
     cursor: pointer;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
 }
 
 .tag-link:hover {
@@ -175,13 +178,45 @@
     color: white;
 }
 
+.tag-link:hover .tag-delete-btn {
+    color: white;
+    margin-left: 6px;
+    opacity: 1;
+}
+
+.tag-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #9499a0;
+    opacity: 0;
+    margin-left: 0;
+    transition: all 0.2s;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.tag-link:hover .tag-delete-btn {
+    opacity: 1;
+}
+
+.tag-delete-btn:hover {
+    opacity: 1 !important;
+    color: white !important;
+    transform: scale(1.2);
+}
+
 .tag-link[onclick*="return false;"] {
     cursor: default;
 }
 
 .tag-link[onclick*="return false;"]:hover {
-    background: #f1f2f3;
-    color: #61666d;
+    background: #00aeec;
+    color: white;
 }
 
 /* 添加标签按钮 */
@@ -189,6 +224,7 @@
     display: inline-flex;
     align-items: center;
     vertical-align: middle;
+    margin-top: 4px;
 }
 
 .add-tag-btn {
@@ -276,6 +312,75 @@
 .confirm-tag-btn:hover {
     background: #0099cc;
     transform: scale(1.1);
+}
+
+.cancel-tag-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: #f1f2f3;
+    color: #61666d;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.cancel-tag-btn:hover {
+    background: #e3e5e7;
+    color: #18191c;
+    transform: scale(1.1);
+}
+
+/* 标签自动补全下拉列表 */
+.new-tag-input-wrapper {
+    position: relative;
+}
+
+.tag-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #e3e5e7;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    margin-top: 4px;
+    min-width: 200px;
+}
+
+.tag-suggestion-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tag-suggestion-item:hover {
+    background: #f6f7f8;
+}
+
+.tag-suggestion-name {
+    color: #18191c;
+    font-size: 14px;
+}
+
+.tag-suggestion-category {
+    font-size: 12px;
+    color: #9499a0;
+}
+
+.tag-suggestion-item.selected {
+    background: #e6f7ff;
 }
 
 .meta-grid {

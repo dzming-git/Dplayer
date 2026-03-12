@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>标签管理 - DPlayer 视频站</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/manage.css') }}">
+    <style>
+        /* 标签管理页面特定样式 */
+        .tag-table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        .tag-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .tag-table th,
+        .tag-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .tag-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .tag-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .tag-badge-cell {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #007bff;
+            color: white;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .category-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #6c757d;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .video-count-badge {
+            background: #28a745;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: white;
+        }
+
+        .action-cell {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .edit-btn {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .edit-btn:hover {
+            background: #e0a800;
+        }
+
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
+        /* 标签编辑模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.1);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .search-filter-section {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .search-filter-section input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-filter-section select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <span class="logo-text">DPlayer</span>
+                </a>
+                <div class="header-actions">
+                    <a href="/" class="nav-link" id="nav-home">首页</a>
+                    <a href="/manage" class="nav-link" id="nav-manage">视频管理</a>
+                    <a href="/tags" class="nav-link" id="nav-tags">标签管理</a>
+                    <a href="/logs" class="nav-link" id="nav-logs">日志管理</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="container">
+            <!-- 添加标签 -->
+            <section class="add-video-section">
+                <div class="section-header">
+                    <h2>添加标签</h2>
+                </div>
+                <form class="add-form" id="addTagForm">
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2; position: relative;">
+                            <label>标签名称 *</label>
+                            <input type="text" name="name" id="tagNameInput" required placeholder="输入标签名称,或选择已有标签" autocomplete="off">
+                            <!-- 标签自动补全下拉列表 -->
+                            <div id="tagSuggestions" class="tag-suggestions" style="display: none;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>标签分类</label>
+                            <select name="category">
+                                <option value="类型">类型</option>
+                                <option value="作者">作者</option>
+                                <option value="地区">地区</option>
+                                <option value="年份">年份</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="cancel-btn" onclick="resetAddTagForm()">重置</button>
+                        <button type="submit" class="submit-btn" id="addTagSubmitBtn">添加标签</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- 标签列表 -->
+            <section class="video-list-section">
+                <div class="section-header">
+                    <h2>标签列表 (共 <span id="totalTags">0</span> 个)</h2>
+                </div>
+
+                <!-- 搜索和筛选 -->
+                <div class="search-filter-section">
+                    <input type="text" id="tagSearch" placeholder="搜索标签名称...">
+                    <select id="categoryFilter">
+                        <option value="">所有分类</option>
+                        <option value="类型">类型</option>
+                        <option value="作者">作者</option>
+                        <option value="地区">地区</option>
+                        <option value="年份">年份</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+
+                <div class="tag-table-container">
+                    <table class="tag-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>标签名称</th>
+                                <th>分类</th>
+                                <th>关联视频数</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tagTableBody">
+                            <!-- 标签数据将通过JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 空状态 -->
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">🏷️</div>
+                    <p>暂无标签</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 提示消息 -->
+    <div id="toast" class="toast"></div>
+
+    <!-- 编辑标签模态框 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>编辑标签</h3>
+                <span class="close-btn" onclick="closeEditModal()">&times;</span>
+            </div>
+            <form id="editTagForm">
+                <input type="hidden" id="editTagId" name="id">
+                <div class="form-group">
+                    <label>标签名称 *</label>
+                    <input type="text" id="editTagName" name="name" required placeholder="例如: 动作, 冒险, 动画">
+                </div>
+                <div class="form-group">
+                    <label>标签分类</label>
+                    <select id="editTagCategory" name="category">
+                        <option value="类型">类型</option>
+                        <option value="作者">作者</option>
+                        <option value="地区">地区</option>
+                        <option value="年份">年份</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 查看视频模态框 -->
+    <div id="videosModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 id="videosModalTitle">关联的视频</h3>
+                <span class="close-btn" onclick="closeVideosModal()">&times;</span>
+            </div>
+            <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+                <div id="videosList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeVideosModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 所有标签数据
+        let allTags = [];
+        let filteredTags = [];
+
+        // 页面加载时获取所有标签
+        document.addEventListener('DOMContentLoaded', function() {
+            // 导航栏高亮显示当前位置
+            highlightNavigation();
+            loadTags();
+        });
+
+        // 导航栏高亮显示当前位置
+        function highlightNavigation() {
+            const currentPath = window.location.pathname;
+
+            // 移除所有active类
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+
+            // 根据路径添加active类
+            if (currentPath === '/') {
+                const navHome = document.getElementById('nav-home');
+                if (navHome) navHome.classList.add('active');
+            } else if (currentPath === '/manage') {
+                const navManage = document.getElementById('nav-manage');
+                if (navManage) navManage.classList.add('active');
+            } else if (currentPath === '/tags') {
+                const navTags = document.getElementById('nav-tags');
+                if (navTags) navTags.classList.add('active');
+            } else if (currentPath === '/logs') {
+                const navLogs = document.getElementById('nav-logs');
+                if (navLogs) navLogs.classList.add('active');
+            }
+        }
+
+        // 加载所有标签
+        function loadTags() {
+            fetch('/api/tags')
+                .then(response => response.json())
+                .then(data => {
+                    // 兼容两种返回格式: {success: true, tags: [...]} 和 {tags: [...]}
+                    if (data.tags && Array.isArray(data.tags)) {
+                        allTags = data.tags;
+                        filteredTags = allTags;
+                        const totalTagsElement = document.getElementById('totalTags');
+                        if (totalTagsElement) {
+                            totalTagsElement.textContent = allTags.length;
+                        }
+                        renderTags(filteredTags);
+                    } else {
+                        console.error('加载标签失败: 无效的响应格式', data);
+                        showToast('加载标签失败，请稍后重试');
+                    }
+                })
+                .catch(error => {
+                    console.error('加载标签失败:', error);
+                    showToast('加载标签失败，请稍后重试');
+                });
+        }
+
+        // 渲染标签列表
+        function renderTags(tags) {
+            const tbody = document.getElementById('tagTableBody');
+            const emptyState = document.getElementById('emptyState');
+
+            if (tags.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            // 按关联视频数降序排序（视频数相同时按名称升序）
+            const sortedTags = [...tags].sort((a, b) => {
+                const aCount = a.video_count || 0;
+                const bCount = b.video_count || 0;
+                if (aCount !== bCount) {
+                    return bCount - aCount;
+                }
+                return a.name.localeCompare(b.name, 'zh-CN');
+            });
+
+            tbody.innerHTML = sortedTags.map(tag => `
+                <tr>
+                    <td>${tag.id}</td>
+                    <td>
+                        <span class="tag-badge-cell">${tag.name}</span>
+                    </td>
+                    <td>
+                        <span class="category-badge">${tag.category || '未分类'}</span>
+                    </td>
+                    <td>
+                        <span class="video-count-badge">${tag.video_count || 0}</span>
+                    </td>
+                    <td>${formatDate(tag.created_at)}</td>
+                    <td>
+                        <div class="action-cell">
+                            <button class="action-btn" style="background: #17a2b8; color: white;" onclick="viewVideos(${tag.id}, '${tag.name}')">查看视频</button>
+                            <button class="action-btn edit-btn" onclick="openEditModal(${tag.id})">编辑</button>
+                            <button class="action-btn delete-btn" onclick="deleteTag(${tag.id})">删除</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // 格式化日期
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 添加标签
+        document.getElementById('addTagForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // 防止重复提交
+            const submitBtn = document.getElementById('addTagSubmitBtn');
+            if (submitBtn.disabled) {
+                return;
+            }
+
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+
+            // 禁用提交按钮
+            submitBtn.disabled = true;
+            submitBtn.textContent = '添加中...';
+
+            fetch('/api/tags/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    this.reset();
+                    loadTags();
+                } else {
+                    showToast(data.message || '添加失败');
+                }
+            })
+            .catch(error => {
+                console.error('添加标签失败:', error);
+                showToast('添加失败，请稍后重试');
+            })
+            .finally(() => {
+                // 恢复提交按钮
+                submitBtn.disabled = false;
+                submitBtn.textContent = '添加标签';
+            });
+        });
+
+        // 重置添加标签表单
+        function resetAddTagForm() {
+            const form = document.getElementById('addTagForm');
+            form.reset();
+            hideTagSuggestions();
+            showToast('表单已重置');
+        }
+
+        // 标签自动补全功能
+        const tagNameInput = document.getElementById('tagNameInput');
+        const tagSuggestions = document.getElementById('tagSuggestions');
+        let selectedSuggestionIndex = -1;
+
+        if (tagNameInput) {
+            // 输入时显示建议
+            tagNameInput.addEventListener('input', function(e) {
+                const value = e.target.value.trim();
+
+                if (value.length > 0) {
+                    showTagSuggestions(value);
+                } else {
+                    hideTagSuggestions();
+                }
+            });
+
+            // 获得焦点时显示建议
+            tagNameInput.addEventListener('focus', function(e) {
+                const value = e.target.value.trim();
+
+                if (value.length > 0) {
+                    showTagSuggestions(value);
+                }
+            });
+
+            // 失去焦点时延迟隐藏,允许点击建议项
+            tagNameInput.addEventListener('blur', function() {
+                setTimeout(hideTagSuggestions, 200);
+            });
+
+            // 键盘导航
+            tagNameInput.addEventListener('keydown', function(e) {
+                const suggestionItems = tagSuggestions.querySelectorAll('.tag-suggestion-item');
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestionItems.length - 1);
+                    updateSelectedSuggestion();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+                    updateSelectedSuggestion();
+                } else if (e.key === 'Enter') {
+                    if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestionItems.length) {
+                        e.preventDefault();
+                        const selectedItem = suggestionItems[selectedSuggestionIndex];
+                        selectSuggestion(selectedItem);
+                    }
+                } else if (e.key === 'Escape') {
+                    hideTagSuggestions();
+                }
+            });
+        }
+
+        // 显示标签建议
+        function showTagSuggestions(input) {
+            const suggestions = allTags.filter(tag =>
+                tag.name.toLowerCase().includes(input.toLowerCase())
+            ).slice(0, 10); // 最多显示10条建议
+
+            if (suggestions.length === 0) {
+                hideTagSuggestions();
+                return;
+            }
+
+            tagSuggestions.innerHTML = suggestions.map((tag, index) => `
+                <div class="tag-suggestion-item" data-tag-name="${tag.name}" data-tag-category="${tag.category || '类型'}" data-index="${index}">
+                    <span class="tag-suggestion-name">${tag.name}</span>
+                    <span class="tag-suggestion-category">${tag.category || '类型'}</span>
+                </div>
+            `).join('');
+
+            tagSuggestions.style.display = 'block';
+
+            // 为每个建议项添加点击事件
+            tagSuggestions.querySelectorAll('.tag-suggestion-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    selectSuggestion(this);
+                });
+
+                item.addEventListener('mouseenter', function() {
+                    selectedSuggestionIndex = parseInt(this.dataset.index);
+                    updateSelectedSuggestion();
+                });
+            });
+
+            selectedSuggestionIndex = -1;
+        }
+
+        // 隐藏标签建议
+        function hideTagSuggestions() {
+            tagSuggestions.style.display = 'none';
+            selectedSuggestionIndex = -1;
+        }
+
+        // 选择建议的标签
+        function selectSuggestion(item) {
+            const tagName = item.dataset.tagName;
+            const tagCategory = item.dataset.category;
+
+            // 填充表单
+            const nameInput = document.getElementById('tagNameInput');
+            const categorySelect = document.querySelector('select[name="category"]');
+
+            nameInput.value = tagName;
+            categorySelect.value = tagCategory;
+
+            hideTagSuggestions();
+
+            // 自动聚焦到分类下拉框,方便用户修改
+            categorySelect.focus();
+        }
+
+        // 更新选中的建议项
+        function updateSelectedSuggestion() {
+            const suggestionItems = tagSuggestions.querySelectorAll('.tag-suggestion-item');
+            suggestionItems.forEach((item, index) => {
+                if (index === selectedSuggestionIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        // 点击页面其他地方隐藏建议
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.form-group')) {
+                hideTagSuggestions();
+            }
+        });
+
+        // 打开编辑模态框
+        function openEditModal(tagId) {
+            const tag = allTags.find(t => t.id === tagId);
+            if (!tag) {
+                showToast('标签不存在');
+                return;
+            }
+
+            document.getElementById('editTagId').value = tag.id;
+            document.getElementById('editTagName').value = tag.name;
+            document.getElementById('editTagCategory').value = tag.category || '类型';
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        // 关闭编辑模态框
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            document.getElementById('editTagForm').reset();
+        }
+
+        // 编辑标签
+        document.getElementById('editTagForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            const tagId = data.id;
+            const newName = data.name.trim();
+            const oldTag = allTags.find(t => t.id === parseInt(tagId));
+
+            // 检查是否要改成相同的标签名
+            if (oldTag && oldTag.name === newName) {
+                // 只是修改分类，直接提交
+                submitEditTag(tagId, data);
+                return;
+            }
+
+            // 检查是否与其他标签重名
+            const duplicateTag = allTags.find(t =>
+                t.id !== parseInt(tagId) && t.name === newName
+            );
+
+            if (duplicateTag) {
+                // 发现重名，提醒用户是否合并
+                const confirmMerge = confirm(
+                    `标签名称"${newName}"已存在！\n\n` +
+                    `原标签: ${oldTag.name} (${oldTag.video_count || 0}个视频)\n` +
+                    `目标标签: ${duplicateTag.name} (${duplicateTag.video_count || 0}个视频)\n\n` +
+                    `点击"确定"将合并这两个标签：\n` +
+                    `- 原标签将被删除\n` +
+                    `- 所有使用原标签的视频将自动使用目标标签\n` +
+                    `- 去重后，相同视频不会重复添加标签\n\n` +
+                    `是否继续合并？`
+                );
+
+                if (confirmMerge) {
+                    mergeTags(parseInt(tagId), duplicateTag.id, duplicateTag.name);
+                }
+                // 如果用户取消，不做任何操作
+            } else {
+                // 没有重名，直接提交
+                submitEditTag(tagId, data);
+            }
+        });
+
+        // 提交编辑标签
+        function submitEditTag(tagId, data) {
+            fetch(`/api/tags/${tagId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showToast(result.message);
+                    closeEditModal();
+                    loadTags();
+                } else {
+                    showToast(result.message || '编辑失败');
+                }
+            })
+            .catch(error => {
+                console.error('编辑标签失败:', error);
+                showToast('编辑失败，请稍后重试');
+            });
+        }
+
+        // 合并标签
+        function mergeTags(sourceTagId, targetTagId, targetTagName) {
+            // 获取源标签的所有视频
+            fetch(`/api/tags/${sourceTagId}/videos`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.videos) {
+                        const videos = data.videos;
+                        console.log(`[合并标签] 源标签${sourceTagId}有${videos.length}个视频`);
+
+                        // 为每个视频添加目标标签，并删除源标签
+                        let completedCount = 0;
+                        let totalVideos = videos.length;
+
+                        videos.forEach(video => {
+                            // 获取视频当前的所有标签（从 API 返回的数据中）
+                            const currentTags = video.tags || [];
+
+                            // 过滤掉源标签，并获取其他标签的名称
+                            const tagNames = currentTags
+                                .filter(t => t.tag_id !== sourceTagId)
+                                .map(t => t.tag_name);
+
+                            // 添加目标标签（如果还没有的话）
+                            if (!tagNames.includes(targetTagName)) {
+                                tagNames.push(targetTagName);
+                            }
+
+                            fetch(`/api/video/${video.hash}/tags`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ tags: tagNames })
+                            })
+                            .then(response => response.json())
+                            .then(result => {
+                                completedCount++;
+                                console.log(`[合并标签] 处理进度: ${completedCount}/${totalVideos}`);
+
+                                if (completedCount === totalVideos) {
+                                    // 所有视频都处理完成，删除源标签
+                                    fetch(`/api/tags/${sourceTagId}`, {
+                                        method: 'DELETE'
+                                    })
+                                    .then(response => response.json())
+                                    .then(result => {
+                                        if (result.success) {
+                                            showToast(`标签合并成功！已将所有视频从原标签迁移到"${targetTagName}"`);
+                                            closeEditModal();
+                                            loadTags();
+                                        } else {
+                                            showToast('删除源标签失败: ' + result.message);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('删除源标签失败:', error);
+                                        showToast('删除源标签失败');
+                                    });
+                                }
+                            })
+                            .catch(error => {
+                                console.error('更新视频标签失败:', error);
+                                completedCount++;
+                            });
+                        });
+
+                        if (totalVideos === 0) {
+                            // 源标签没有关联视频，直接删除
+                            fetch(`/api/tags/${sourceTagId}`, {
+                                method: 'DELETE'
+                            })
+                            .then(response => response.json())
+                            .then(result => {
+                                if (result.success) {
+                                    showToast(`标签合并成功！源标签已删除`);
+                                    closeEditModal();
+                                    loadTags();
+                                }
+                            })
+                            .catch(error => {
+                                console.error('删除源标签失败:', error);
+                            });
+                        }
+                    } else {
+                        showToast('获取视频列表失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('合并标签失败:', error);
+                    showToast('合并失败，请稍后重试');
+                });
+        }
+
+        // 删除标签
+        function deleteTag(tagId) {
+            const tag = allTags.find(t => t.id === tagId);
+            if (!tag) {
+                showToast('标签不存在');
+                return;
+            }
+
+            const videoCount = tag.video_count || 0;
+            let confirmMessage = `确定要删除标签"${tag.name}"吗？`;
+            
+            if (videoCount > 0) {
+                confirmMessage += `\n\n此标签关联了 ${videoCount} 个视频，删除后将同时删除这些关联。`;
+            }
+
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            fetch(`/api/tags/${tagId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    loadTags();
+                } else {
+                    showToast(data.message || '删除失败');
+                }
+            })
+            .catch(error => {
+                console.error('删除标签失败:', error);
+                showToast('删除失败，请稍后重试');
+            });
+        }
+
+        // 查看标签关联的视频
+        function viewVideos(tagId, tagName) {
+            fetch(`/api/tags/${tagId}/videos`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('videosModalTitle').textContent = `标签"${tagName}"关联的视频 (${data.videos.length}个)`;
+                        
+                        const videosList = document.getElementById('videosList');
+                        
+                        if (data.videos.length === 0) {
+                            videosList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">暂无关联视频</p>';
+                        } else {
+                            videosList.innerHTML = `
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f5f5f5;">
+                                            <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee;">ID</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee;">标题</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee;">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.videos.map(video => `
+                                            <tr style="border-bottom: 1px solid #eee;">
+                                                <td style="padding: 12px;">${video.id}</td>
+                                                <td style="padding: 12px;">${video.title}</td>
+                                                <td style="padding: 12px;">
+                                                    <a href="/video/${video.hash}" target="_blank" style="color: #007bff; text-decoration: none;">播放</a>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            `;
+                        }
+
+                        document.getElementById('videosModal').classList.add('active');
+                    } else {
+                        showToast('获取视频列表失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取视频列表失败:', error);
+                    showToast('获取视频列表失败，请稍后重试');
+                });
+        }
+
+        // 关闭视频列表模态框
+        function closeVideosModal() {
+            document.getElementById('videosModal').classList.remove('active');
+        }
+
+        // 搜索标签
+        document.getElementById('tagSearch').addEventListener('input', function() {
+            filterTags();
+        });
+
+        // 按分类筛选
+        document.getElementById('categoryFilter').addEventListener('change', function() {
+            filterTags();
+        });
+
+        // 筛选标签
+        function filterTags() {
+            const searchTerm = document.getElementById('tagSearch').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+
+            filteredTags = allTags.filter(tag => {
+                const matchesSearch = tag.name.toLowerCase().includes(searchTerm);
+                const matchesCategory = !categoryFilter || tag.category === categoryFilter;
+                return matchesSearch && matchesCategory;
+            });
+
+            renderTags(filteredTags);
+            document.getElementById('totalTags').textContent = filteredTags.length;
+        }
+
+        // 显示提示消息
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEditModal();
+            }
+        });
+
+        document.getElementById('videosModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeVideosModal();
+            }
+        });
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeEditModal();
+                closeVideosModal();
+            }
+        });
+    </script>
+</body>
+</html>

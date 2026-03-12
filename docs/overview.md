@@ -1,398 +1,251 @@
-# DPlayer Flask 项目概览
+# DPlayer 视频播放器系统概览
 
-## 最新更新（2026年3月12日）
+## 系统简介
 
-### 📁 目录结构优化完成 ✅
+DPlayer 是一个基于 Flask 的本地视频播放和管理系统,支持视频扫描、播放、收藏、标签管理等功能。
 
-项目已成功完成目录结构优化和Git仓库清理：
+## 核心功能
 
-**优化效果**：
-- 根目录文件从 **114个** 减少到 **9个**（减少92%）
-- 创建清晰的目录结构：`docs/`、`scripts/`、`tests/`、`diagnostics/`
-- 移动 **100+文件** 到合适位置，按功能和用途分类
-- 更新 `.gitignore`，确保开发文件不被跟踪
-- Git仓库更干净，只包含核心文件
+### 1. 视频管理
+- 本地视频扫描和导入
+- 视频播放和在线预览
+- 视频信息管理(标题、描述、时长等)
+- 缩略图自动生成(支持GIF和JPG两种格式)
+- 优先级设置和管理
 
-**新的目录结构**：
+### 2. 标签系统
+- 标签管理界面(增删改查)
+- 标签分类(类型/作者/地区/年份/其他)
+- 视频标签关联
+- 热门标签统计
+
+### 3. 用户交互
+- 视频收藏功能
+- 播放记录
+- 点赞功能
+- 下载计数
+- 智能推荐系统(基于用户偏好)
+
+### 4. 排行榜
+- 播放排行(按播放量)
+- 点赞排行(按点赞数)
+- 下载排行(按下载量)
+- 时长排行(按视频时长)
+
+### 5. 搜索功能
+- 视频标题搜索
+- 标签搜索
+- 实时搜索提示
+
+### 6. 日志系统
+- 分类日志(维护/运行/操作/调试)
+- 日志轮转(自动备份)
+- 日志在线查看
+- 日志搜索和过滤
+- 日志下载
+
+## 技术架构
+
+### 后端技术栈
+- **框架**: Flask
+- **数据库**: SQLite + SQLAlchemy ORM
+- **视频处理**: OpenCV (cv2)
+- **图像处理**: Pillow (PIL)
+- **日志系统**: Python logging with RotatingFileHandler
+
+### 前端技术栈
+- **HTML5**: 语义化标签
+- **CSS3**: 响应式设计
+- **JavaScript**: 原生JS + Fetch API
+- **DPlayer**: 视频播放器组件
+
+### 项目结构
+
 ```
 Dplayer/
-├── app.py                      # Flask主应用
-├── models.py                   # 数据模型
-├── requirements.txt            # Python依赖
-├── README.md                   # 项目说明
-├── INSTALL.md                  # 安装指南
-├── QUICK_START.md              # 快速开始
-├── docs/                       # 文档目录
-│   ├── overview.md             # 本文档
-│   ├── development/           # 开发文档（45个）
-│   │   ├── logging/            # 日志功能
-│   │   ├── mobile/             # 移动端优化
-│   │   ├── pagination/         # 分页功能
-│   │   └── thumbnails/         # 缩略图功能
-│   └── OPTIMIZATION_SUMMARY.md # 优化完成报告
-├── scripts/                    # 工具脚本（16个）
-│   ├── batch/                  # 批量处理
-│   ├── maintenance/            # 维护脚本
-│   ├── server/                 # 服务器控制
-│   └── utils/                  # 工具函数
-├── tests/                      # 测试脚本（23个）
-├── diagnostics/                # 诊断脚本（16个）
-├── static/                     # 静态文件
-└── templates/                  # 模板文件
+├── app.py                 # Flask应用主文件
+├── models.py              # 数据库模型定义
+├── requirements.txt       # Python依赖
+├── config.json           # 系统配置
+├── dplayer.db            # SQLite数据库
+├── static/               # 静态资源
+│   ├── css/             # 样式文件
+│   ├── uploads/         # 上传的视频
+│   └── thumbnails/      # 视频缩略图
+├── templates/            # HTML模板
+│   ├── index.html       # 首页/收藏/排行榜
+│   ├── video.html       # 视频播放页
+│   ├── manage.html      # 视频管理页
+│   ├── tags.html        # 标签管理页
+│   └── logs.html        # 日志管理页
+├── logs/                 # 日志目录
+│   ├── runtime.log      # 运行日志
+│   ├── maintenance.log  # 维护日志
+│   ├── operation.log    # 操作日志
+│   └── debug.log        # 调试日志
+└── docs/                 # 文档目录
+    ├── TAG_MANAGEMENT.md      # 标签管理文档
+    ├── RANKING_FAVORITES_FIX.md  # 排行榜和收藏修复文档
+    └── ID_ANALYSIS.md      # ID编号分析文档
 ```
 
-详细优化报告请参考：`docs/OPTIMIZATION_SUMMARY.md`
+## 数据库模型
 
----
+### Video (视频表)
+- `id`: 主键
+- `hash`: 视频唯一标识(SHA256)
+- `title`: 视频标题
+- `description`: 视频描述
+- `url`: 视频URL或本地路径
+- `thumbnail`: 缩略图路径
+- `duration`: 视频时长(秒)
+- `view_count`: 播放量
+- `like_count`: 点赞数
+- `download_count`: 下载量
+- `priority`: 优先级
+- `is_downloaded`: 是否已下载
+- `local_path`: 本地文件路径
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
 
-## 历史问题修复概览
+### Tag (标签表)
+- `id`: 主键
+- `name`: 标签名称
+- `category`: 标签分类
+- `created_at`: 创建时间
 
-### 问题背景
+### VideoTag (视频-标签关联表)
+- `id`: 主键
+- `video_id`: 视频ID
+- `tag_id`: 标签ID
 
-用户报告了两个主要问题：
-1. **缩略图加载失败**：几乎每次刷新网页都会出现缩略图加载失败
-2. **管理界面全是默认缩略图**：新视频没有生成缩略图，懒加载功能未生效
+### UserInteraction (用户交互表)
+- `id`: 主键
+- `video_id`: 视频ID
+- `user_session`: 用户会话ID
+- `interaction_type`: 交互类型(view/like/download/favorite)
+- `interaction_score`: 交互得分
+- `created_at`: 创建时间
 
-## 问题诊断
+### UserPreference (用户偏好表)
+- `id`: 主键
+- `user_session`: 用户会话ID
+- `tag_id`: 标签ID
+- `preference_score`: 偏好得分
+- `interaction_count`: 交互次数
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
 
-### 根本原因
+## API接口
 
-**Flask进程未重启，仍在运行旧代码**
+### 视频相关
+- `GET /api/videos` - 获取视频列表
+- `GET /api/videos/recommend` - 获取推荐视频
+- `GET /api/video/<hash>` - 获取视频详情
+- `POST /api/video/<hash>/like` - 点赞视频
+- `POST /api/video/<hash>/download` - 下载视频
+- `POST /api/video/<hash>/favorite` - 收藏/取消收藏
+- `GET /api/video/<hash>/is-favorite` - 检查是否收藏
+- `DELETE /api/video/<hash>` - 删除视频
+- `POST /api/video/<hash>/regenerate` - 重新生成缩略图
+- `POST /api/video/<hash>/priority` - 更新优先级
 
-#### 诊断过程
+### 标签相关
+- `GET /api/tags` - 获取所有标签
+- `POST /api/tags/add` - 添加标签
+- `GET /api/tags/<id>` - 获取标签详情
+- `PUT /api/tags/<id>` - 更新标签
+- `DELETE /api/tags/<id>` - 删除标签
+- `GET /api/tags/<id>/videos` - 获取标签关联的视频
+- `GET /api/video/<hash>/tags` - 获取/更新视频标签
 
-1. **内部测试**（`test_internal_route.py`）
-   - ✅ 懒加载路由正常工作
-   - ✅ 能够成功生成缩略图（24KB）
-   - ✅ 代码逻辑完全正确
+### 排行榜
+- `GET /api/ranking?type={type}&limit={limit}` - 获取排行榜
 
-2. **外部HTTP测试**（`test_direct_request.py`）
-   - ❌ 返回404
-   - ❌ 响应时间只有0.03秒（说明根本没有到达Flask应用）
-   - ❌ 触发懒加载
+### 收藏
+- `GET /api/favorites` - 获取收藏列表
 
-3. **进程检查**
-   - Flask进程在运行（PID 26152）
-   - 监听80端口
-   - 但运行的是**旧代码**
+### 配置
+- `GET /api/config` - 获取配置
+- `PUT /api/config` - 更新配置
 
-#### 为什么外部请求返回404？
+### 扫描
+- `POST /api/scan` - 扫描本地视频
+- `POST /api/thumbnails/regenerate` - 批量重新生成缩略图
+- `GET /api/thumbnails/progress/<task_id>` - 获取缩略图生成进度
 
-旧代码中的懒加载路由可能：
-- 不存在或有问题
-- 路由注册失败
-- 被中间件拦截
+### 日志
+- `GET /api/logs` - 获取日志文件列表
+- `GET /api/logs/<filepath>` - 获取日志内容
+- `GET /api/logs/download/<filepath>` - 下载日志文件
+- `POST /api/logs/clear` - 清空所有日志
+- `POST /api/logs/clear/<type>` - 清空指定类型日志
+- `GET /api/logs/size` - 获取日志大小
 
-## 解决方案
+## 配置说明
 
-### 1. 后端改进（已完成✅）
-
-#### 并发控制
-```python
-# 限制同时生成的缩略图数量
-MAX_CONCURRENT_THUMBNAIL_GENERATION = 2
-thumbnail_semaphore = threading.Semaphore(MAX_CONCURRENT_THUMBNAIL_GENERATION)
-```
-
-#### 资源释放保护
-```python
-def generate_video_frames(...):
-    cap = None
-    try:
-        cap = cv2.VideoCapture(video_path)
-        # 处理视频...
-    finally:
-        if cap is not None:
-            cap.release()  # 确保释放
-```
-
-#### 快速路径优化
-```python
-# 第一次检查：快速返回已存在的缩略图（不获取锁）
-if os.path.exists(gif_path):
-    return send_file(gif_path, ...)
-
-# 只有需要生成的才进入信号量等待
-with thumbnail_semaphore:
-    # 生成缩略图...
-```
-
-### 2. 前端改进（已完成✅）
-
-#### 管理界面重试逻辑
-```javascript
-img.onerror = function() {
-    const retryCount = parseInt(img.dataset.retryCount || 0);
-    const maxRetries = 3;
-    
-    if (retryCount < maxRetries) {
-        // 指数退避：1秒、2秒、4秒
-        const delay = 1000 * Math.pow(2, retryCount);
-        
-        setTimeout(() => {
-            // 添加时间戳绕过缓存
-            img.src = originalSrc + '?t=' + Date.now();
-        }, delay);
-    } else {
-        // 重试失败，使用默认图
-        img.src = '/static/thumbnails/default.png';
+### config.json
+```json
+{
+  "scan_directories": [
+    {
+      "path": "M:/bang",
+      "recursive": true,
+      "enabled": true
     }
-};
-```
-
-#### 视频页面重试逻辑
-```html
-<img src="{{ rec_video.thumbnail }}"
-     class="rec-thumbnail"
-     loading="lazy"
-     onerror="(function(){var img=this; img.dataset.retryCount=(parseInt(img.dataset.retryCount||0)+1); if(parseInt(img.dataset.retryCount)<=3){setTimeout(function(){img.src=img.src.split('?')[0]+'?t='+Date.now()},1000*Math.pow(2,img.dataset.retryCount-1));}else{img.src='/static/thumbnails/default.png';}})()">
-```
-
-#### 加载动画
-```css
-.thumbnail-cell img.loading {
-    background: #f0f0f0;
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.7; }
+  ],
+  "auto_scan_on_startup": true,
+  "scan_interval_minutes": 60,
+  "supported_formats": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".m4v"],
+  "default_tags": ["本地视频"],
+  "default_priority": 0
 }
 ```
 
-### 3. 工具脚本（已创建✅）
+## 部署说明
 
-#### 重启脚本
-- `restart_flask.py` - 自动停止旧进程，提示启动新进程
+### 环境要求
+- Python 3.7+
+- 依赖包见 `requirements.txt`
 
-#### 测试脚本
-- `test_internal_route.py` - 测试Flask内部路由
-- `test_direct_request.py` - 测试HTTP请求
-- `check_routes.py` - 检查已注册的路由
+### 安装步骤
+1. 安装依赖: `pip install -r requirements.txt`
+2. 修改配置: 编辑 `config.json`
+3. 启动服务: `python app.py`
+4. 访问系统: http://127.0.0.1
 
-#### 批量生成
-- `batch_generate_thumbnails.py` - 批量生成所有缺失缩略图
-- `generate_first_20.py` - 生成前20个（已执行，成功19个）
+### 默认端口
+- Web服务: 80
+- 数据库: SQLite (本地文件)
 
-## 立即操作步骤
+## 已知问题
 
-### 步骤1: 重启Flask应用（必须⚠️）
+1. **视频ID和标签ID**: 当前使用自增ID,未来删除记录可能导致ID不连续,但不影响功能(使用hash作为对外标识)
+2. **缩略图生成**: 大视频文件生成缩略图可能较慢,已优化为异步生成
+3. **并发限制**: 缩略图生成限制为2个并发,避免资源占用过高
 
-#### 方法A: 使用重启脚本
-```bash
-cd c:\Users\71555\WorkBuddy\Dplayer
-python restart_flask.py
-```
+## 最近更新
 
-#### 方法B: 手动重启
-```bash
-# 1. 查找Flask进程
-netstat -ano | findstr :80
+### 2025-03-13
+- ✅ 修复排行榜功能缺失问题
+- ✅ 修复我的收藏加载失败问题
+- ✅ 实现排行榜API(播放/点赞/下载/时长)
+- ✅ 实现收藏列表API
 
-# 2. 停止进程（替换<PID>为实际进程ID）
-taskkill /PID <PID> /F
+### 标签管理功能
+- ✅ 标签管理界面(增删改查)
+- ✅ 标签分类功能
+- ✅ 视频标签关联管理
 
-# 3. 启动新的Flask应用
-cd c:\Users\71555\WorkBuddy\Dplayer
-python app.py
-```
+## 开发者信息
 
-### 步骤2: 清除浏览器缓存
+- **项目名称**: DPlayer
+- **开发语言**: Python (Flask)
+- **数据库**: SQLite
+- **许可证**: 未指定
 
-**Chrome/Edge**:
-1. 按 `Ctrl+Shift+Delete`
-2. 勾选"缓存的图片和文件"
-3. 时间范围选择"全部时间"
-4. 点击"清除数据"
+## 相关文档
 
-**或使用无痕模式**: 按 `Ctrl+Shift+N`
-
-### 步骤3: 访问页面测试
-
-#### 管理界面
-```
-http://127.0.0.1/manage
-```
-
-#### 视频页面
-```
-http://127.0.0.1/video/<video_hash>
-```
-
-### 步骤4: 批量生成缩略图（可选）
-
-如果想要所有视频立即都有缩略图：
-```bash
-cd c:\Users\71555\WorkBuddy\Dplayer
-python batch_generate_thumbnails.py
-```
-
-## 预期效果
-
-### 重启前（当前状态）
-- ❌ 缩略图全部显示默认图
-- ❌ HTTP请求返回404
-- ❌ 没有自动生成功能
-
-### 重启后（预期状态）
-- ✅ 缺失的缩略图自动生成
-- ✅ 最多同时生成2个（避免资源耗尽）
-- ✅ 已存在的快速返回（不获取锁）
-- ✅ 前端自动重试3次
-- ✅ 指数退避避免过载（1秒、2秒、4秒）
-- ✅ 每次重试添加时间戳绕过缓存
-- ✅ 最终显示默认图（降级处理）
-- ✅ 加载动画提供视觉反馈
-
-## 技术要点
-
-### 懒加载流程
-
-```
-1. 前端请求 /thumbnail/<hash>
-   ↓
-2. 快速检查：文件是否存在？
-   ├─ 是 → 立即返回（不获取锁）✅
-   └─ 否 → 继续
-   ↓
-3. 获取信号量（限制并发）
-   ↓
-4. 双重检查：文件是否已生成？
-   ├─ 是 → 立即返回
-   └─ 否 → 继续
-   ↓
-5. 生成缩略图（静态图优先）
-   ├─ 成功 → 返回
-   └─ 失败 → 返回默认图
-```
-
-### 重试机制
-
-```
-第1次加载失败
-   ↓
-等待1秒
-   ↓
-第2次加载（添加时间戳）
-   ↓
-等待2秒
-   ↓
-第3次加载（添加时间戳）
-   ↓
-等待4秒
-   ↓
-第4次加载（添加时间戳）
-   ↓
-重试失败，显示默认图
-```
-
-## 已修改的文件
-
-| 文件 | 修改内容 |
-|------|---------|
-| `app.py` | 添加懒加载路由、并发控制、资源释放保护 |
-| `templates/manage.html` | 改进缩略图重试逻辑（指数退避、重试计数） |
-| `templates/video.html` | 添加推荐视频重试机制 |
-| `static/css/manage.css` | 添加加载动画（脉冲效果） |
-
-## 创建的文件
-
-| 文件 | 用途 |
-|------|------|
-| `restart_flask.py` | Flask重启脚本 |
-| `test_internal_route.py` | 内部路由测试 |
-| `test_direct_request.py` | HTTP请求测试 |
-| `check_routes.py` | 检查已注册的路由 |
-| `batch_generate_thumbnails.py` | 批量生成缩略图 |
-| `generate_first_20.py` | 生成前20个（已执行） |
-| `THUMBNAIL_SOLUTION.md` | 完整解决方案文档 |
-
-## 测试验证
-
-### 内部测试（已验证✅）
-```bash
-python test_internal_route.py
-```
-
-**输出**:
-```
-[缩略图] 等待信号量: ...
-[缩略图] 获取信号量: ...
-[缩略图] 开始生成静态缩略图: ...
-[缩略图] 静态缩略图生成成功: ...
-状态码: 200
-Content-Type: image/jpeg
-Content-Length: 24812 bytes
-[OK] 成功返回缩略图
-```
-
-### 外部测试（待重启后验证）
-```bash
-python test_direct_request.py
-```
-
-**预期输出**:
-```
-状态码: 200
-Content-Type: image/jpeg
-Content-Length: 20000+ bytes
-[OK] 成功返回缩略图
-```
-
-## 常见问题
-
-### Q: 为什么还是显示默认缩略图？
-
-**A**: 可能原因：
-1. Flask没有重启（最常见）
-2. 浏览器缓存未清除
-3. 视频文件不存在
-
-**解决方法**:
-1. 确认Flask已重启（查看日志）
-2. 强制刷新页面（Ctrl+Shift+R）
-3. 检查视频文件的`local_path`
-
-### Q: 缩略图生成很慢？
-
-**A**: 同时生成太多缩略图会占用大量CPU和磁盘I/O
-
-**解决方法**:
-- 等待现有缩略图生成完成
-- 使用批量生成脚本
-- 调整`MAX_CONCURRENT_THUMBNAIL_GENERATION`
-
-### Q: 如何查看生成进度？
-
-**A**: 查看Flask日志：
-```
-[缩略图] 等待信号量: xxx
-[缩略图] 获取信号量: xxx
-[缩略图] 开始生成静态缩略图: xxx
-[缩略图] 静态缩略图生成成功: xxx
-```
-
-## 总结
-
-**问题**: Flask进程未重启，懒加载功能未生效
-
-**解决方案**:
-1. ✅ 重启Flask应用（必须）
-2. ✅ 清除浏览器缓存
-3. ✅ 前端自动重试（指数退避）
-4. ⏳ 可选：批量生成缩略图
-
-**核心改进**:
-- 后端：并发控制、快速路径、资源保护
-- 前端：自动重试、指数退避、加载动画
-
-**状态**: ✅ 代码已修复，等待用户重启Flask应用
-
----
-
-**下一步操作**:
-1. 重启Flask应用（必须）
-2. 清除浏览器缓存
-3. 访问页面测试
-4. （可选）批量生成缩略图
+- [标签管理功能说明](./TAG_MANAGEMENT.md)
+- [排行榜和收藏修复文档](./RANKING_FAVORITES_FIX.md)
+- [ID编号分析文档](./ID_ANALYSIS.md)

@@ -89,9 +89,9 @@
                         <div class="video-tags-section">
                             <h3>标签</h3>
                             <div class="tags-container" id="tagsContainer">
-                                {% for vt in video.tags %}
+                                {% for vt in video._sorted_tags | default([]) %}
                                 {% if vt.tag %}
-                                <a href="/tag/{{ vt.tag.id }}" class="tag-link" data-tag-id="{{ vt.tag.id }}">{{ vt.tag.name }}</a>
+                                <a href="/tag/{{ vt.tag.id }}" class="tag-link" data-tag-id="{{ vt.tag.id }}" onclick="return false;">{{ vt.tag.name }}<span class="tag-delete-btn" onclick="removeTag(event, '{{ video.hash }}', '{{ vt.tag.id }}', '{{ vt.tag.name }}')">×</span></a>
                                 {% endif %}
                                 {% endfor %}
                             </div>
@@ -338,29 +338,59 @@
             const addTagArea = document.getElementById('addTagArea');
             const addTagBtn = document.getElementById('addTagBtn');
 
+            // 检查是否已经有输入框
+            const existingInput = document.getElementById('newTagWrapper');
+            if (existingInput) {
+                // 如果已有输入框,只聚焦
+                const input = document.getElementById('newTagInput');
+                if (input) {
+                    input.focus();
+                }
+                return;
+            }
+
             // 隐藏加号按钮
             addTagBtn.style.display = 'none';
 
             // 创建输入框和确认按钮
             const inputHtml = `
-                <div class="new-tag-input-wrapper">
-                    <input type="text" class="new-tag-input" id="newTagInput" placeholder="输入新标签" autofocus>
-                    <button class="confirm-tag-btn" onclick="confirmAddTag('{{ video.hash }}')">✓</button>
+                <div class="new-tag-input-wrapper" id="newTagWrapper">
+                    <input type="text" class="new-tag-input" id="newTagInput" placeholder="输入标签名称,或选择已有标签" autocomplete="off">
+                    <button class="confirm-tag-btn" onclick="confirmAddTag('{{ video.hash }}')" title="确认">✓</button>
+                    <div id="newTagSuggestions" class="tag-suggestions" style="display: none;"></div>
                 </div>
             `;
 
             // 插入到加号按钮后面
             const inputWrapper = document.createElement('div');
             inputWrapper.innerHTML = inputHtml;
-            inputWrapper.id = 'newTagWrapper';
             addTagArea.appendChild(inputWrapper.firstElementChild);
 
+            console.log('[标签输入] 输入框已插入到 DOM');
+
+            // 获取元素引用
+            const inputElement = document.getElementById('newTagInput');
+            const suggestionsElement = document.getElementById('newTagSuggestions');
+
+            // 设置自动补全（在加载之前也设置，确保事件监听器已绑定）
+            setupTagAutocompleteForVideo();
+
             // 聚焦输入框
-            document.getElementById('newTagInput').focus();
+            inputElement.focus();
+            console.log('[标签输入] 输入框已聚焦');
+
+            // 加载标签数据
+            loadAvailableTagsForVideo().then(success => {
+                console.log('[标签输入] 标签加载结果:', success);
+                if (success) {
+                    // 加载完成后，再次显示建议列表
+                    showTagSuggestionsForVideo('', suggestionsElement, inputElement);
+                    console.log('[标签输入] 建议列表已显示');
+                }
+            });
 
             // 添加事件监听
-            const input = document.getElementById('newTagInput');
-            input.addEventListener('keypress', function(e) {
+            inputElement.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     confirmAddTag('{{ video.hash }}');
                 } else if (e.key === 'Escape') {
@@ -368,12 +398,12 @@
                 }
             });
 
-            input.addEventListener('blur', function() {
-                // 延迟判断，避免点击确认按钮时触发
+            inputElement.addEventListener('blur', function() {
+                // 延迟判断，避免点击确认/取消按钮时触发
                 setTimeout(function() {
                     const inputExists = document.getElementById('newTagInput');
-                    if (inputExists && document.activeElement !== input) {
-                        const inputValue = input.value.trim();
+                    if (inputExists && document.activeElement !== inputElement) {
+                        const inputValue = inputElement.value.trim();
                         if (inputValue === '') {
                             cancelAddTag();
                         }
@@ -386,6 +416,7 @@
             const input = document.getElementById('newTagInput');
             const newTagName = input.value.trim();
 
+            // 空输入视为取消
             if (!newTagName) {
                 cancelAddTag();
                 return;
@@ -394,7 +425,13 @@
             // 获取当前所有标签
             const tagsContainer = document.getElementById('tagsContainer');
             const existingTagElements = Array.from(tagsContainer.querySelectorAll('.tag-link'));
-            const existingTags = existingTagElements.map(el => el.textContent.trim());
+            const existingTags = existingTagElements.map(el => {
+                // 提取标签名称，只获取第一个文本节点（标签名），去掉删除按钮
+                const textNodes = Array.from(el.childNodes).filter(node =>
+                    node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ''
+                );
+                return textNodes.length > 0 ? textNodes[0].textContent.trim() : el.textContent.trim();
+            });
 
             // 检查是否已存在
             if (existingTags.includes(newTagName)) {
@@ -425,7 +462,7 @@
                 if (data.success) {
                     // 更新标签链接
                     tagsContainer.innerHTML = data.tags.map(tag => {
-                        return `<a href="/tag/${tag.id}" class="tag-link" data-tag-id="${tag.id}">${tag.name}</a>`;
+                        return `<a href="/tag/${tag.id}" class="tag-link" data-tag-id="${tag.id}" onclick="return false;">${tag.name}<span class="tag-delete-btn" onclick="removeTag(event, '${videoHash}', '${tag.id}', '${tag.name}')">×</span></a>`;
                     }).join('');
 
                     showToast('标签已添加');
@@ -441,14 +478,73 @@
                 // 恢复原始标签显示（保留原有的tag_id）
                 tagsContainer.innerHTML = existingTagElements.map(el => {
                     const tagId = el.dataset.tagId || '';
-                    const tagName = el.textContent.trim();
+                    // 提取标签名称，只获取第一个文本节点
+                    const textNodes = Array.from(el.childNodes).filter(node =>
+                        node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ''
+                    );
+                    let tagName = textNodes.length > 0 ? textNodes[0].textContent.trim() : el.textContent.trim();
+
                     if (tagId) {
-                        return `<a href="/tag/${tagId}" class="tag-link" data-tag-id="${tagId}">${tagName}</a>`;
+                        return `<a href="/tag/${tagId}" class="tag-link" data-tag-id="${tagId}" onclick="return false;">${tagName}<span class="tag-delete-btn" onclick="removeTag(event, '${videoHash}', '${tagId}', '${tagName}')">×</span></a>`;
                     } else {
                         return `<span class="tag-link" onclick="return false;">${tagName}</span>`;
                     }
                 }).join('');
                 cancelAddTag();
+            });
+        }
+
+        // 删除标签
+        function removeTag(event, videoHash, tagId, tagName) {
+            // 阻止事件冒泡和默认行为
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            // 获取当前所有标签
+            const tagsContainer = document.getElementById('tagsContainer');
+            const existingTags = Array.from(tagsContainer.querySelectorAll('.tag-link'))
+                .map(el => {
+                    // 提取标签名称，只获取第一个文本节点
+                    const textNodes = Array.from(el.childNodes).filter(node =>
+                        node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ''
+                    );
+                    return textNodes.length > 0 ? textNodes[0].textContent.trim() : el.textContent.trim();
+                });
+
+            // 移除指定标签
+            const newTags = existingTags.filter(tag => tag !== tagName);
+
+            // 保存到服务器
+            fetch('/api/video/' + videoHash + '/tags', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tags: newTags })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // 更新标签链接
+                    tagsContainer.innerHTML = data.tags.map(tag => {
+                        return `<a href="/tag/${tag.id}" class="tag-link" data-tag-id="${tag.id}" onclick="return false;">${tag.name}<span class="tag-delete-btn" onclick="removeTag(event, '${videoHash}', '${tag.id}', '${tag.name}')">×</span></a>`;
+                    }).join('');
+
+                    showToast('标签已删除');
+                } else {
+                    throw new Error(data.message || '服务器返回错误');
+                }
+            })
+            .catch(error => {
+                console.error('删除标签失败:', error);
+                showToast('删除失败: ' + error.message);
             });
         }
 
@@ -464,6 +560,188 @@
             if (addTagBtn) {
                 addTagBtn.style.display = 'inline-flex';
             }
+        }
+
+        // ==================== 标签自动补全功能 ====================
+
+        // 全局变量
+        let allAvailableTagsForVideo = [];
+
+        // 加载所有可用标签
+        function loadAvailableTagsForVideo() {
+            return fetch('/api/tags')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.tags && Array.isArray(data.tags)) {
+                        allAvailableTagsForVideo = data.tags;
+                        return true;
+                    } else {
+                        return false;
+                    }
+                })
+                .catch(error => {
+                    console.error('加载标签失败:', error);
+                    return false;
+                });
+        }
+
+        // 设置标签自动补全
+        function setupTagAutocompleteForVideo() {
+            const input = document.getElementById('newTagInput');
+            const suggestions = document.getElementById('newTagSuggestions');
+
+            if (!input || !suggestions) return;
+
+            let selectedSuggestionIndex = -1;
+
+            // 输入时显示建议
+            input.addEventListener('input', function(e) {
+                const value = e.target.value.trim();
+
+                if (value.length > 0) {
+                    showTagSuggestionsForVideo(value, suggestions, input);
+                } else {
+                    // 当输入为空时,显示所有可用标签(过滤掉已添加的)
+                    showTagSuggestionsForVideo('', suggestions, input);
+                }
+            });
+
+            // 获得焦点时显示建议
+            input.addEventListener('focus', function(e) {
+                console.log('[标签自动补全] focus 事件触发, 标签数量:', allAvailableTagsForVideo.length);
+                // 确保标签数据已加载
+                if (allAvailableTagsForVideo.length === 0) {
+                    console.log('[标签自动补全] 标签数据为空,开始加载...');
+                    loadAvailableTagsForVideo().then(success => {
+                        console.log('[标签自动补全] 加载完成,成功:', success);
+                        if (success) {
+                            showTagSuggestionsForVideo('', suggestions, input);
+                        }
+                    });
+                } else {
+                    // 聚焦时始终显示所有可用标签(过滤掉已添加的)
+                    console.log('[标签自动补全] 显示建议列表');
+                    showTagSuggestionsForVideo('', suggestions, input);
+                }
+            });
+
+            // 失去焦点时延迟隐藏
+            input.addEventListener('blur', function(e) {
+                console.log('[标签自动补全] blur 事件触发');
+                // 检查是否点击了下拉列表项
+                const isClickingSuggestion = e.relatedTarget &&
+                    e.relatedTarget.closest('.tag-suggestions');
+                console.log('[标签自动补全] 是否点击了下拉列表:', isClickingSuggestion);
+
+                if (!isClickingSuggestion) {
+                    setTimeout(() => {
+                        suggestions.style.display = 'none';
+                    }, 200);
+                }
+            });
+
+            // 键盘导航
+            input.addEventListener('keydown', function(e) {
+                const suggestionItems = suggestions.querySelectorAll('.tag-suggestion-item');
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestionItems.length - 1);
+                    updateSelectedSuggestionForVideo(suggestions, selectedSuggestionIndex);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+                    updateSelectedSuggestionForVideo(suggestions, selectedSuggestionIndex);
+                } else if (e.key === 'Enter') {
+                    if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestionItems.length) {
+                        e.preventDefault();
+                        const selectedItem = suggestionItems[selectedSuggestionIndex];
+                        selectTagSuggestionForVideo(selectedItem, input, suggestions);
+                    }
+                } else if (e.key === 'Escape') {
+                    suggestions.style.display = 'none';
+                    selectedSuggestionIndex = -1;
+                }
+            });
+        }
+
+        // 显示标签建议
+        function showTagSuggestionsForVideo(inputValue, suggestionsElement, inputElement) {
+            console.log('[显示建议] 开始显示建议, 输入值:', inputValue, '可用标签数:', allAvailableTagsForVideo.length);
+
+            // 获取当前视频的所有标签
+            const tagsContainer = document.getElementById('tagsContainer');
+            const existingTags = Array.from(tagsContainer.querySelectorAll('.tag-link'))
+                .map(el => el.textContent.trim());
+
+            console.log('[显示建议] 当前视频已有标签:', existingTags);
+
+            // 过滤标签: 不显示已添加的标签
+            const suggestions = allAvailableTagsForVideo.filter(tag => {
+                // 不显示已经添加的标签
+                if (existingTags.includes(tag.name)) {
+                    return false;
+                }
+                // 如果有输入内容,匹配输入的文本;如果为空,显示所有可用标签
+                if (inputValue && inputValue.length > 0) {
+                    return tag.name.toLowerCase().includes(inputValue.toLowerCase());
+                }
+                return true;
+            }).slice(0, 10);
+
+            console.log('[显示建议] 过滤后的建议标签数:', suggestions.length);
+
+            if (suggestions.length === 0) {
+                console.log('[显示建议] 没有建议标签,隐藏列表');
+                suggestionsElement.style.display = 'none';
+                return;
+            }
+
+            suggestionsElement.innerHTML = suggestions.map((tag, index) => `
+                <div class="tag-suggestion-item" data-tag-name="${tag.name}" data-index="${index}">
+                    <span class="tag-suggestion-name">${tag.name}</span>
+                    <span class="tag-suggestion-category">${tag.category || '类型'}</span>
+                </div>
+            `).join('');
+
+            console.log('[显示建议] 建议列表内容已设置,显示列表');
+            suggestionsElement.style.display = 'block';
+
+            // 为每个建议项添加事件
+            suggestionsElement.querySelectorAll('.tag-suggestion-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    selectTagSuggestionForVideo(this, inputElement, suggestionsElement);
+                });
+
+                item.addEventListener('mouseenter', function() {
+                    const index = parseInt(this.dataset.index);
+                    updateSelectedSuggestionForVideo(suggestionsElement, index);
+                });
+            });
+        }
+
+        // 选择标签建议
+        function selectTagSuggestionForVideo(item, inputElement, suggestionsElement) {
+            const tagName = item.dataset.tagName;
+
+            // 填充到输入框
+            inputElement.value = tagName;
+            inputElement.focus();
+
+            // 隐藏建议
+            suggestionsElement.style.display = 'none';
+        }
+
+        // 更新选中的建议项
+        function updateSelectedSuggestionForVideo(suggestionsElement, selectedIndex) {
+            const suggestionItems = suggestionsElement.querySelectorAll('.tag-suggestion-item');
+            suggestionItems.forEach((item, index) => {
+                if (index === selectedIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
         }
 
         function performSearch() {

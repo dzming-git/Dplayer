@@ -19,9 +19,9 @@
                     <button onclick="performSearch()">搜索</button>
                 </div>
                 <div class="header-actions">
-                    <a href="/" class="nav-link active">首页</a>
-                    <a href="#" class="nav-link">排行榜</a>
-                    <a href="/favorites" class="nav-link">我的收藏</a>
+                    <a href="/" class="nav-link" id="nav-home">首页</a>
+                    <a href="/ranking" class="nav-link" id="nav-ranking">排行榜</a>
+                    <a href="/favorites" class="nav-link" id="nav-favorites">我的收藏</a>
                 </div>
             </div>
         </div>
@@ -84,7 +84,7 @@
                                 </span>
                             </div>
                             <div class="video-tags">
-                                {% for vt in video.tags[:3] %}
+                                {% for vt in (video._sorted_tags | default([]))[:3] %}
                                 {% if vt.tag %}
                                 <span class="tag-badge">{{ vt.tag.name }}</span>
                                 {% endif %}
@@ -126,55 +126,65 @@
             window.location.href = '/video/' + videoHash;
         }
 
-        // 缩略图重试机制
-        const thumbnailRetryMap = new Map(); // 跟踪每个缩略图的重试次数
+        // 缩略图懒加载机制 - 异步生成 + 轮询
+        const thumbnailStatusMap = new Map(); // 跟踪每个缩略图的状态
 
-        function handleThumbnailError(img) {
+        async function handleThumbnailError(img) {
             const videoHash = img.getAttribute('data-video-hash');
+            console.log(`[缩略图] 加载失败，开始轮询检查: ${videoHash}`);
 
-            // 检查是否已经重试过
-            const retryCount = thumbnailRetryMap.get(videoHash) || 0;
+            // 检查状态
+            const status = await checkThumbnailStatus(videoHash);
 
-            if (retryCount < 5) { // 最多重试5次
-                console.log(`缩略图加载失败，正在重试 (${retryCount + 1}/5): ${videoHash}`);
-
-                // 增加重试计数
-                thumbnailRetryMap.set(videoHash, retryCount + 1);
-
-                // 延迟后重试，等待缩略图生成
+            if (status === 'ready') {
+                // 缩略图已生成，立即重新加载
+                console.log(`[缩略图] 缩略图已生成，重新加载: ${videoHash}`);
+                const currentSrc = img.src;
+                img.src = ''; // 清空
                 setTimeout(() => {
-                    // 清除src，强制浏览器重新请求
-                    const currentSrc = img.src;
-                    img.src = ''; // 先清空
-                    setTimeout(() => {
-                        img.src = currentSrc + '&t=' + Date.now(); // 添加时间戳避免缓存
-                    }, 100);
-                }, 1000 * (retryCount + 1)); // 递增延迟：1s, 2s, 3s, 4s, 5s
+                    img.src = currentSrc.split('?')[0] + '?t=' + Date.now();
+                }, 100);
+            } else if (status === 'generating' || status === 'pending') {
+                // 正在生成中，2秒后重试
+                console.log(`[缩略图] 正在生成中，2秒后重试: ${videoHash}`);
+                setTimeout(() => {
+                    img.src = img.src.split('?')[0] + '?t=' + Date.now();
+                }, 2000);
             } else {
-                console.log(`缩略图加载失败，已达到最大重试次数: ${videoHash}`);
+                // 生成失败或未知状态，使用默认缩略图
+                console.log(`[缩略图] 生成失败或未知状态，使用默认图: ${videoHash}`);
+                img.src = '/static/thumbnails/default.png';
             }
         }
 
         function handleThumbnailLoad(img) {
             const videoHash = img.getAttribute('data-video-hash');
+            console.log(`[缩略图] 加载成功: ${videoHash}`);
 
-            // 成功加载后，清除重试记录
-            if (thumbnailRetryMap.has(videoHash)) {
-                thumbnailRetryMap.delete(videoHash);
+            // 清除状态记录
+            if (thumbnailStatusMap.has(videoHash)) {
+                thumbnailStatusMap.delete(videoHash);
             }
         }
 
-        // 检查缩略图状态（可选的后台检查机制）
-        function checkThumbnailStatus(videoHash) {
-            return fetch(`/api/thumbnail/${videoHash}/status`)
-                .then(response => response.json())
-                .then(data => {
-                    return data.status === 'ready';
-                })
-                .catch(error => {
-                    console.error('检查缩略图状态失败:', error);
-                    return false;
-                });
+        // 检查缩略图状态
+        async function checkThumbnailStatus(videoHash) {
+            try {
+                const response = await fetch(`/api/thumbnail/${videoHash}/status`);
+                const data = await response.json();
+
+                if (response.status === 200) {
+                    return data.status; // 'ready', 'generating', 'pending'
+                } else if (response.status === 202) {
+                    return data.status || 'generating'; // 202表示正在处理
+                } else {
+                    console.error(`[缩略图] 状态检查失败: ${response.status}`, data);
+                    return 'failed';
+                }
+            } catch (error) {
+                console.error(`[缩略图] 状态检查异常:`, error);
+                return 'failed';
+            }
         }
 
         function performSearch() {
@@ -332,6 +342,28 @@
             }
         });
 
+        // 导航栏高亮显示当前位置
+        function highlightNavigation() {
+            const currentPath = window.location.pathname;
+            
+            // 移除所有active类
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // 根据路径添加active类
+            if (currentPath === '/' || currentPath === '') {
+                document.getElementById('nav-home').classList.add('active');
+            } else if (currentPath === '/ranking') {
+                document.getElementById('nav-ranking').classList.add('active');
+            } else if (currentPath === '/favorites') {
+                document.getElementById('nav-favorites').classList.add('active');
+            }
+        }
+
+        // 页面加载时高亮导航
+        highlightNavigation();
+
         // 检查是否是收藏页面，如果是则加载收藏视频
         const isFavoritesPage = window.location.pathname === '/favorites';
         if (isFavoritesPage) {
@@ -345,12 +377,37 @@
                     if (data.videos && data.videos.length > 0) {
                         updateVideoGrid(data.videos);
                         document.querySelector('.section-header h2').textContent = '我的收藏';
+                        document.querySelector('.refresh-btn').style.display = 'none'; // 收藏页面不显示换一批
                     } else {
                         document.getElementById('videoGrid').innerHTML = '<p style="text-align:center;padding:40px;color:#999;">暂无收藏的视频</p>';
                     }
                 })
                 .catch(error => {
                     console.error('加载收藏失败:', error);
+                    document.getElementById('videoGrid').innerHTML = '<p style="text-align:center;padding:40px;color:#999;">加载失败</p>';
+                });
+        }
+
+        // 检查是否是排行榜页面，如果是则加载排行榜
+        const isRankingPage = window.location.pathname === '/ranking';
+        if (isRankingPage) {
+            loadRanking();
+        }
+
+        function loadRanking(type = 'view') {
+            fetch(`/api/ranking?type=${type}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.videos && data.videos.length > 0) {
+                        updateVideoGrid(data.videos);
+                        document.querySelector('.section-header h2').textContent = data.type_name || '排行榜';
+                        document.querySelector('.refresh-btn').style.display = 'none'; // 排行榜页面不显示换一批
+                    } else {
+                        document.getElementById('videoGrid').innerHTML = '<p style="text-align:center;padding:40px;color:#999;">暂无排行数据</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('加载排行榜失败:', error);
                     document.getElementById('videoGrid').innerHTML = '<p style="text-align:center;padding:40px;color:#999;">加载失败</p>';
                 });
         }

@@ -17,6 +17,7 @@
                 <div class="header-actions">
                     <a href="/" class="nav-link">首页</a>
                     <a href="/manage" class="nav-link active">视频管理</a>
+                    <a href="/tags" class="nav-link">标签管理</a>
                     <a href="/logs" class="nav-link">日志管理</a>
                 </div>
             </div>
@@ -64,9 +65,11 @@
                                 <label>优先级 (0-100)</label>
                                 <input type="number" name="priority" min="0" max="100" value="0" placeholder="0">
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" style="flex: 2; position: relative;">
                                 <label>标签 (用逗号分隔)</label>
-                                <input type="text" name="tags" placeholder="例如: 动作, 冒险, 动画">
+                                <input type="text" name="tags" id="urlTagsInput" placeholder="输入标签名称,或选择已有标签" autocomplete="off">
+                                <!-- 标签自动补全下拉列表 -->
+                                <div id="urlTagSuggestions" class="tag-suggestions" style="display: none;"></div>
                             </div>
                         </div>
                         <div class="form-group full-width">
@@ -100,9 +103,11 @@
                                 <input type="number" name="priority" min="0" max="100" value="0" placeholder="0">
                             </div>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="position: relative;">
                             <label>标签 (用逗号分隔)</label>
-                            <input type="text" name="tags" placeholder="例如: 动作, 冒险, 动画">
+                            <input type="text" name="tags" id="uploadTagsInput" placeholder="输入标签名称,或选择已有标签" autocomplete="off">
+                            <!-- 标签自动补全下拉列表 -->
+                            <div id="uploadTagSuggestions" class="tag-suggestions" style="display: none;"></div>
                         </div>
                         <div class="form-group full-width">
                             <label>视频简介</label>
@@ -1034,7 +1039,7 @@
         });
 
         // 缩略图错误处理
-        function setupThumbnailErrorHandler() {
+        async function setupThumbnailErrorHandler() {
             console.log('[缩略图] 设置错误处理器');
 
             document.querySelectorAll('.table-thumbnail').forEach(img => {
@@ -1043,8 +1048,10 @@
 
                 // 添加重试计数器
                 img.dataset.retryCount = 0;
-                img.dataset.maxRetries = 3; // 最多重试3次
-                img.dataset.retryDelay = 1000; // 首次重试延迟1秒
+                img.dataset.maxRetries = 5; // 最多重试5次
+
+                // 获取video hash
+                const videoHash = img.getAttribute('data-video-hash') || img.src.split('/').pop();
 
                 // 加载成功
                 img.onload = function() {
@@ -1054,9 +1061,9 @@
                 };
 
                 // 加载失败
-                img.onerror = function() {
+                img.onerror = async function() {
                     const retryCount = parseInt(img.dataset.retryCount || 0);
-                    const maxRetries = parseInt(img.dataset.maxRetries || 3);
+                    const maxRetries = parseInt(img.dataset.maxRetries || 5);
                     const originalSrc = img.src.split('?')[0]; // 移除之前的查询参数
 
                     console.error('[缩略图] 加载失败:', img.src);
@@ -1067,28 +1074,29 @@
                         img.classList.remove('error');
                         img.classList.add('loading');
 
-                        // 检查URL是否是懒加载格式
-                        if (originalSrc.includes('/thumbnail/')) {
-                            console.log('[缩略图] 触发懒加载生成，等待生成完成...');
+                        // 检查状态
+                        console.log('[缩略图] 检查生成状态:', videoHash);
+                        const status = await checkThumbnailStatus(videoHash);
 
-                            // 更新重试计数
-                            img.dataset.retryCount = retryCount + 1;
+                        // 更新重试计数
+                        img.dataset.retryCount = retryCount + 1;
 
-                            // 计算下次重试延迟（指数退避）
-                            const delay = parseInt(img.dataset.retryDelay || 1000) * 2;
-                            img.dataset.retryDelay = delay;
-
-                            // 触发生成并等待
+                        if (status === 'ready') {
+                            // 缩略图已生成，立即重新加载
+                            console.log('[缩略图] 缩略图已生成，重新加载');
+                            img.src = originalSrc + '?t=' + Date.now();
+                        } else if (status === 'generating' || status === 'pending') {
+                            // 正在生成，2秒后重试
+                            console.log('[缩略图] 正在生成，2秒后重试');
                             setTimeout(() => {
-                                console.log('[缩略图] 重新请求缩略图（重试', img.dataset.retryCount, '）:', originalSrc);
-
-                                // 添加时间戳绕过缓存
                                 img.src = originalSrc + '?t=' + Date.now();
-                            }, delay);
+                            }, 2000);
                         } else {
-                            // 如果不是懒加载格式，直接使用默认图
-                            console.log('[缩略图] URL格式错误，使用默认图');
+                            // 生成失败或未知状态，使用默认图
+                            console.log('[缩略图] 生成失败，使用默认图');
                             img.src = '/static/thumbnails/default.png';
+                            img.classList.remove('loading');
+                            img.classList.add('error');
                         }
                     } else {
                         // 重试次数用尽
@@ -1101,6 +1109,26 @@
             });
 
             console.log('[缩略图] 已为', document.querySelectorAll('.table-thumbnail').length, '个缩略图设置错误处理');
+        }
+
+        // 检查缩略图状态
+        async function checkThumbnailStatus(videoHash) {
+            try {
+                const response = await fetch(`/api/thumbnail/${videoHash}/status`);
+                const data = await response.json();
+
+                if (response.status === 200) {
+                    return data.status; // 'ready', 'generating', 'pending'
+                } else if (response.status === 202) {
+                    return data.status || 'generating';
+                } else {
+                    console.error('[缩略图] 状态检查失败:', response.status, data);
+                    return 'failed';
+                }
+            } catch (error) {
+                console.error('[缩略图] 状态检查异常:', error);
+                return 'failed';
+            }
         }
 
         // 分页功能
@@ -1205,7 +1233,203 @@
         // 在页面加载时初始化分页
         document.addEventListener('DOMContentLoaded', function() {
             initPagination();
+            // 初始化标签自动补全
+            initTagAutocomplete();
         });
+
+        // ==================== 标签自动补全功能 ====================
+
+        // 全局变量
+        let allAvailableTags = [];
+        const urlTagsInput = document.getElementById('urlTagsInput');
+        const uploadTagsInput = document.getElementById('uploadTagsInput');
+        const urlTagSuggestions = document.getElementById('urlTagSuggestions');
+        const uploadTagSuggestions = document.getElementById('uploadTagSuggestions');
+
+        // 初始化标签自动补全
+        function initTagAutocomplete() {
+            console.log('[标签自动补全] 初始化');
+            loadAvailableTags();
+
+            if (urlTagsInput) {
+                setupTagInputEvents(urlTagsInput, urlTagSuggestions);
+            }
+
+            if (uploadTagsInput) {
+                setupTagInputEvents(uploadTagsInput, uploadTagSuggestions);
+            }
+
+            // 点击页面其他地方隐藏建议
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.form-group')) {
+                    if (urlTagSuggestions) urlTagSuggestions.style.display = 'none';
+                    if (uploadTagSuggestions) uploadTagSuggestions.style.display = 'none';
+                }
+            });
+        }
+
+        // 加载所有可用标签
+        function loadAvailableTags() {
+            fetch('/api/tags')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.tags && Array.isArray(data.tags)) {
+                        allAvailableTags = data.tags;
+                        console.log('[标签自动补全] 加载标签成功:', allAvailableTags.length, '个');
+                    } else {
+                        console.warn('[标签自动补全] 标签数据格式异常:', data);
+                    }
+                })
+                .catch(error => {
+                    console.error('[标签自动补全] 加载标签失败:', error);
+                });
+        }
+
+        // 设置标签输入框事件
+        function setupTagInputEvents(inputElement, suggestionsElement) {
+            if (!inputElement || !suggestionsElement) return;
+
+            let selectedSuggestionIndex = -1;
+
+            // 输入时显示建议
+            inputElement.addEventListener('input', function(e) {
+                const value = e.target.value.trim();
+                const lastTag = getLastTag(value);
+
+                if (lastTag && lastTag.length > 0) {
+                    showTagSuggestions(lastTag, suggestionsElement, inputElement);
+                } else {
+                    suggestionsElement.style.display = 'none';
+                }
+            });
+
+            // 获得焦点时显示建议
+            inputElement.addEventListener('focus', function(e) {
+                const value = e.target.value.trim();
+                const lastTag = getLastTag(value);
+
+                if (lastTag && lastTag.length > 0) {
+                    showTagSuggestions(lastTag, suggestionsElement, inputElement);
+                }
+            });
+
+            // 失去焦点时延迟隐藏
+            inputElement.addEventListener('blur', function() {
+                setTimeout(() => {
+                    suggestionsElement.style.display = 'none';
+                }, 200);
+            });
+
+            // 键盘导航
+            inputElement.addEventListener('keydown', function(e) {
+                const suggestionItems = suggestionsElement.querySelectorAll('.tag-suggestion-item');
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestionItems.length - 1);
+                    updateSelectedSuggestion(suggestionsElement, selectedSuggestionIndex);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+                    updateSelectedSuggestion(suggestionsElement, selectedSuggestionIndex);
+                } else if (e.key === 'Enter' || e.key === ',') {
+                    if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestionItems.length) {
+                        e.preventDefault();
+                        const selectedItem = suggestionItems[selectedSuggestionIndex];
+                        selectTagSuggestion(selectedItem, inputElement, suggestionsElement);
+                    }
+                } else if (e.key === 'Escape') {
+                    suggestionsElement.style.display = 'none';
+                }
+            });
+        }
+
+        // 获取最后一个标签（逗号分隔）
+        function getLastTag(inputValue) {
+            const tags = inputValue.split(',').map(t => t.trim()).filter(t => t);
+            return tags.length > 0 ? tags[tags.length - 1] : '';
+        }
+
+        // 显示标签建议
+        function showTagSuggestions(input, suggestionsElement, inputElement) {
+            // 过滤已输入的标签
+            const currentTags = inputElement.value.split(',').map(t => t.trim()).filter(t => t);
+
+            const suggestions = allAvailableTags.filter(tag => {
+                // 不显示已经输入的标签
+                if (currentTags.includes(tag.name)) {
+                    return false;
+                }
+                // 匹配输入的文本
+                return tag.name.toLowerCase().includes(input.toLowerCase());
+            }).slice(0, 10);
+
+            if (suggestions.length === 0) {
+                suggestionsElement.style.display = 'none';
+                return;
+            }
+
+            suggestionsElement.innerHTML = suggestions.map((tag, index) => `
+                <div class="tag-suggestion-item" data-tag-name="${tag.name}" data-index="${index}">
+                    <span class="tag-suggestion-name">${tag.name}</span>
+                    <span class="tag-suggestion-category">${tag.category || '类型'}</span>
+                </div>
+            `).join('');
+
+            suggestionsElement.style.display = 'block';
+
+            // 为每个建议项添加事件
+            suggestionsElement.querySelectorAll('.tag-suggestion-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    selectTagSuggestion(this, inputElement, suggestionsElement);
+                });
+
+                item.addEventListener('mouseenter', function() {
+                    const index = parseInt(this.dataset.index);
+                    updateSelectedSuggestion(suggestionsElement, index);
+                });
+            });
+        }
+
+        // 选择标签建议
+        function selectTagSuggestion(item, inputElement, suggestionsElement) {
+            const tagName = item.dataset.tagName;
+            const currentValue = inputElement.value.trim();
+
+            // 获取所有已输入的标签（除最后一个）
+            const tags = currentValue.split(',').map(t => t.trim()).filter(t => t);
+
+            // 如果最后一个标签不完整，移除它
+            if (tags.length > 0) {
+                const lastTag = tags[tags.length - 1];
+                // 检查最后一个标签是否匹配建议（可能正在输入中）
+                if (lastTag.toLowerCase() !== tagName.toLowerCase()) {
+                    tags.pop();
+                }
+            }
+
+            // 添加选中的标签
+            tags.push(tagName);
+
+            // 更新输入框
+            inputElement.value = tags.join(', ');
+            inputElement.focus();
+
+            // 隐藏建议
+            suggestionsElement.style.display = 'none';
+        }
+
+        // 更新选中的建议项
+        function updateSelectedSuggestion(suggestionsElement, selectedIndex) {
+            const suggestionItems = suggestionsElement.querySelectorAll('.tag-suggestion-item');
+            suggestionItems.forEach((item, index) => {
+                if (index === selectedIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
     </script>
 </body>
 </html>

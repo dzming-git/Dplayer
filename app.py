@@ -36,11 +36,13 @@ thumbnail_locks_lock = threading.Lock()
 # 自定义日志级别
 CRITICAL_LEVEL = 60  # 致命
 ERROR_LEVEL = 50     # 错误
+INFO_LEVEL = 20      # 信息
 NOTICE_LEVEL = 30    # 通知（介于INFO和WARNING之间）
 DEBUG_LEVEL = 10     # 调试
 
 # 为Python logging模块添加自定义级别
 logging.addLevelName(CRITICAL_LEVEL, 'CRITICAL')
+logging.addLevelName(INFO_LEVEL, 'INFO')
 logging.addLevelName(NOTICE_LEVEL, 'NOTICE')
 
 # 定义日志类型和文件
@@ -71,7 +73,7 @@ class TypedLogger:
     """带类型的日志记录器"""
     def __init__(self, log_type, name):
         self.log_type = log_type
-        self.logger = logging.getLogger(f'{log_type}.{name}')
+        self.logger = logging.getLogger(log_type)  # 使用log_type作为logger名称，确保与setup_logging()中的配置一致
 
     def _log(self, level, msg, *args, **kwargs):
         """内部日志方法"""
@@ -88,6 +90,10 @@ class TypedLogger:
     def notice(self, msg, *args, **kwargs):
         """通知日志"""
         self._log(NOTICE_LEVEL, msg, *args, **kwargs)
+
+    def info(self, msg, *args, **kwargs):
+        """信息日志"""
+        self._log(INFO_LEVEL, msg, *args, **kwargs)
 
     def debug(self, msg, *args, **kwargs):
         """调试日志"""
@@ -211,7 +217,7 @@ def get_log_lines(log_file, line_count=100, search=None, level=None):
         with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
             all_lines = f.readlines()
 
-        # 从后往前读取
+        # 从后往前读取，实现倒序显示（最新的日志在最上面）
         for line in reversed(all_lines):
             # 搜索过滤
             if search and search.lower() not in line.lower():
@@ -225,7 +231,8 @@ def get_log_lines(log_file, line_count=100, search=None, level=None):
             if len(lines) >= line_count:
                 break
 
-        return list(reversed(lines))
+        # 不再反转，直接返回倒序的结果
+        return lines
     except Exception as e:
         logger.error(f"读取日志文件失败: {e}")
         return []
@@ -296,6 +303,7 @@ def parse_log_line(line):
 MAX_CONCURRENT_THUMBNAIL_GENERATION = 2  # 最多同时生成2个缩略图
 thumbnail_semaphore = threading.Semaphore(MAX_CONCURRENT_THUMBNAIL_GENERATION)
 thumbnail_generation_queue = {}
+thumbnail_generation_status = {}  # 记录缩略图生成状态: 'pending', 'generating', 'ready', 'failed'
 
 def get_thumbnail_lock(video_hash):
     """获取视频的缩略图生成锁"""
@@ -386,81 +394,161 @@ def serve_local_video(video_path):
 # 懒加载缩略图路由
 @app.route('/thumbnail/<video_hash>')
 def serve_lazy_thumbnail(video_hash):
-    """懒加载缩略图：如果不存在则生成"""
+    """懒加载缩略图：如果不存在则触发异步生成并返回202"""
+    request_time = datetime.now()
+
+    # 调试日志：记录请求开始
+    debug_log.debug(f"[缩略图请求] 开始处理: video_hash={video_hash}, time={request_time.strftime('%H:%M:%S.%f')}")
+    runtime_log.debug(f"[缩略图请求] video_hash={video_hash}")
+
     try:
         # 缩略图文件路径（使用视频hash作为文件名）
         thumbnail_dir = os.path.join('static', 'thumbnails')
         gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
         jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
 
-        # 第一次检查：文件是否已存在（快速路径，不获取锁）
-        if os.path.exists(gif_path):
+        # 调试日志：检查缩略图文件
+        gif_exists = os.path.exists(gif_path)
+        jpg_exists = os.path.exists(jpg_path)
+        debug_log.debug(f"[缩略图检查] gif_exists={gif_exists}, jpg_exists={jpg_exists}")
+
+        # 如果缩略图已存在，直接返回
+        if gif_exists:
+            debug_log.debug(f"[缩略图快速返回] 使用GIF: {video_hash}")
+            runtime_log.debug(f"[缩略图] 快速返回GIF: {video_hash}")
             response = send_file(gif_path, mimetype='image/gif')
             response.cache_control.max_age = 3600  # 缓存1小时
             return response
-        elif os.path.exists(jpg_path):
+        elif jpg_exists:
+            debug_log.debug(f"[缩略图快速返回] 使用JPG: {video_hash}")
+            runtime_log.debug(f"[缩略图] 快速返回JPG: {video_hash}")
             response = send_file(jpg_path, mimetype='image/jpeg')
             response.cache_control.max_age = 3600  # 缓存1小时
             return response
 
-        # 获取信号量，限制并发生成数量
-        print(f'[缩略图] 等待信号量: {video_hash}')
-        with thumbnail_semaphore:
-            print(f'[缩略图] 获取信号量: {video_hash}')
+        # 缩略图不存在，检查是否正在生成
+        current_status = thumbnail_generation_status.get(video_hash, 'pending')
 
-            # 获取缩略图生成锁
-            lock = get_thumbnail_lock(video_hash)
+        if current_status == 'generating':
+            debug_log.debug(f"[缩略图生成中] 缩略图正在生成: {video_hash}")
+            # 返回202，告诉客户端正在生成
+            response = jsonify({
+                'status': 'generating',
+                'message': '缩略图正在生成中，请稍后重试'
+            })
+            response.status_code = 202
+            response.headers['Retry-After'] = '2'  # 建议2秒后重试
+            return response
 
-            # 第二次检查：锁内再次检查（可能其他线程已生成）
-            if os.path.exists(gif_path):
-                response = send_file(gif_path, mimetype='image/gif')
-                response.cache_control.max_age = 3600  # 缓存1小时
-                return response
-            elif os.path.exists(jpg_path):
-                response = send_file(jpg_path, mimetype='image/jpeg')
-                response.cache_control.max_age = 3600  # 缓存1小时
-                return response
+        # 缩略图不存在且没有在生成，触发异步生成
+        trigger_time = datetime.now()
+        debug_log.debug(f"[缩略图触发] 触发异步生成: video_hash={video_hash}, time={trigger_time.strftime('%H:%M:%S.%f')}")
+        runtime_log.info(f"[缩略图触发] 触发缩略图生成: video_hash={video_hash}")
 
-            # 查询视频
-            video = Video.query.filter_by(hash=video_hash).first_or_404()
+        # 更新状态为pending
+        thumbnail_generation_status[video_hash] = 'pending'
 
-            # 确保目录存在
-            os.makedirs(thumbnail_dir, exist_ok=True)
+        # 在后台线程中生成缩略图
+        def generate_thumbnail_async():
+            start_time = datetime.now()
+            try:
+                debug_log.debug(f"[缩略图异步] 开始异步生成: video_hash={video_hash}, time={start_time.strftime('%H:%M:%S.%f')}")
 
-            # 检查视频文件是否存在
-            if not video.local_path or not os.path.exists(video.local_path):
-                print(f'[缩略图] 视频文件不存在: {video.local_path}')
-                return serve_default_thumbnail()
+                # 查询视频
+                video = Video.query.filter_by(hash=video_hash).first()
+                if not video:
+                    error_time = datetime.now()
+                    debug_log.error(f"[缩略图异步] 视频不存在: video_hash={video_hash}, 耗时={(error_time - start_time).total_seconds():.3f}s")
+                    thumbnail_generation_status[video_hash] = 'failed'
+                    runtime_log.warning(f"[缩略图生成失败] 视频不存在: video_hash={video_hash}")
+                    return
 
-            # 优先生成静态缩略图（更快，减少等待时间）
-            print(f'[缩略图] 开始生成静态缩略图: {video.title}')
-            jpg_success = generate_video_thumbnail(video.local_path, jpg_path)
+                # 更新状态为generating
+                generating_time = datetime.now()
+                thumbnail_generation_status[video_hash] = 'generating'
+                runtime_log.info(f"[缩略图生成开始] video_title={video.title}, video_hash={video_hash}, local_path={video.local_path}")
+                debug_log.debug(f"[缩略图异步] 状态更新为generating: video_hash={video_hash}, 耗时={(generating_time - start_time).total_seconds():.3f}s")
 
-            if jpg_success:
-                print(f'[缩略图] 静态缩略图生成成功: {video.title}')
-                response = send_file(jpg_path, mimetype='image/jpeg')
-                response.cache_control.max_age = 3600  # 缓存1小时
-                return response
+                # 确保目录存在
+                os.makedirs(thumbnail_dir, exist_ok=True)
 
-            # 如果静态图也失败，尝试生成GIF（较慢）
-            print(f'[缩略图] 静态图失败，尝试生成GIF: {video.title}')
-            gif_success = generate_video_gif(video.local_path, gif_path, num_frames=6, duration=500)
+                # 检查视频文件是否存在
+                if not video.local_path:
+                    debug_log.error(f"[缩略图异步] 视频local_path为空: {video_hash}")
+                    thumbnail_generation_status[video_hash] = 'failed'
+                    return
 
-            if gif_success:
-                print(f'[缩略图] GIF生成成功: {video.title}')
-                response = send_file(gif_path, mimetype='image/gif')
-                response.cache_control.max_age = 3600  # 缓存1小时
-                return response
+                if not os.path.exists(video.local_path):
+                    debug_log.error(f"[缩略图异步] 视频文件不存在: {video.local_path}")
+                    thumbnail_generation_status[video_hash] = 'failed'
+                    return
 
-            print(f'[缩略图] 生成失败，返回默认图: {video.title}')
+                # 获取信号量
+                with thumbnail_semaphore:
+                    # 生成静态缩略图
+                    jpg_start = datetime.now()
+                    debug_log.debug(f"[缩略图异步] 开始生成静态缩略图: video_hash={video_hash}, time={jpg_start.strftime('%H:%M:%S.%f')}")
+                    jpg_success = generate_video_thumbnail(video.local_path, jpg_path)
 
-        # 如果生成失败，返回默认缩略图
-        return serve_default_thumbnail()
+                    if jpg_success:
+                        jpg_end = datetime.now()
+                        debug_log.debug(f"[缩略图异步] 静态缩略图生成成功: video_hash={video_hash}, 耗时={(jpg_end - jpg_start).total_seconds():.3f}s")
+                        thumbnail_generation_status[video_hash] = 'ready'
+                        total_time = (datetime.now() - start_time).total_seconds()
+                        runtime_log.info(f"[缩略图生成成功] 格式=JPG, video_title={video.title}, video_hash={video_hash}, 总耗时={total_time:.3f}s, 路径={jpg_path}")
+                        return
+
+                    # 如果静态图失败，尝试生成GIF
+                    gif_start = datetime.now()
+                    debug_log.warning(f"[缩略图异步] 静态图生成失败，尝试GIF: video_hash={video_hash}")
+                    gif_success = generate_video_gif(video.local_path, gif_path, num_frames=6, duration=500)
+
+                    if gif_success:
+                        gif_end = datetime.now()
+                        debug_log.debug(f"[缩略图异步] GIF生成成功: video_hash={video_hash}, 耗时={(gif_end - gif_start).total_seconds():.3f}s")
+                        thumbnail_generation_status[video_hash] = 'ready'
+                        total_time = (datetime.now() - start_time).total_seconds()
+                        runtime_log.info(f"[缩略图生成成功] 格式=GIF, video_title={video.title}, video_hash={video_hash}, 总耗时={total_time:.3f}s, 路径={gif_path}")
+                        return
+
+                    # 两种格式都失败
+                    total_time = (datetime.now() - start_time).total_seconds()
+                    debug_log.error(f"[缩略图异步] 所有格式生成失败: video_hash={video_hash}, 耗时={total_time:.3f}s")
+                    thumbnail_generation_status[video_hash] = 'failed'
+                    runtime_log.error(f"[缩略图生成失败] video_title={video.title}, video_hash={video_hash}, local_path={video.local_path}, 耗时={total_time:.3f}s")
+
+            except Exception as e:
+                error_time = datetime.now()
+                total_time = (error_time - start_time).total_seconds()
+                debug_log.error(f"[缩略图异步] 生成异常: video_hash={video_hash}, error={e}, 耗时={total_time:.3f}s")
+                import traceback
+                debug_log.error(f"[缩略图异步] 堆栈跟踪:\n{traceback.format_exc()}")
+                thumbnail_generation_status[video_hash] = 'failed'
+                runtime_log.error(f"[缩略图生成异常] video_hash={video_hash}, error={str(e)}, 耗时={total_time:.3f}s")
+
+        # 启动异步生成线程
+        thread_start = datetime.now()
+        thread = threading.Thread(target=generate_thumbnail_async, daemon=True)
+        thread.start()
+        debug_log.debug(f"[缩略图异步] 异步生成线程已启动: video_hash={video_hash}, time={thread_start.strftime('%H:%M:%S.%f')}")
+        runtime_log.debug(f"[缩略图线程] 线程已启动: video_hash={video_hash}")
+
+        # 返回202，告诉客户端缩略图正在生成
+        response = jsonify({
+            'status': 'pending',
+            'message': '缩略图生成任务已启动，请稍后重试'
+        })
+        response.status_code = 202
+        response.headers['Retry-After'] = '2'  # 建议2秒后重试
+        return response
 
     except Exception as e:
-        print(f'缩略图服务错误: {e}')
+        error_time = datetime.now()
+        debug_log.error(f"[缩略图异常] 缩略图服务错误: video_hash={video_hash}, error={str(e)}, 耗时={(error_time - request_time).total_seconds():.3f}s")
+        runtime_log.error(f"[缩略图异常] {video_hash}: {str(e)}")
         import traceback
-        traceback.print_exc()
+        debug_log.error(f"[缩略图异常] 堆栈跟踪:\n{traceback.format_exc()}")
+        # 返回错误和默认缩略图
         return serve_default_thumbnail()
 
 def serve_default_thumbnail():
@@ -698,31 +786,48 @@ def generate_video_gif(video_path, output_path, num_frames=6, size=(320, 180), d
     Returns:
         是否成功
     """
+    start_time = datetime.now()
+
+    debug_log.debug(f"[GIF生成] 开始生成: video_path={video_path}, output={output_path}, num_frames={num_frames}, size={size}, duration={duration}ms")
+    print(f'[DEBUG] 开始生成GIF: {output_path}')
+
     try:
         from PIL import Image
 
-        print(f'[DEBUG] 开始生成GIF: {output_path}')
-
         # 生成帧
+        debug_log.debug(f"[GIF生成] 调用generate_video_frames提取帧: num_frames={num_frames}")
         frames = generate_video_frames(video_path, num_frames, size)
+
         if not frames or len(frames) == 0:
+            debug_log.error(f"[GIF生成] 无法提取视频帧: {video_path}")
             print(f'[ERROR] 无法提取视频帧')
             return False
+
+        debug_log.debug(f"[GIF生成] 成功提取{len(frames)}帧")
 
         # 将OpenCV BGR格式转换为PIL RGB格式
         pil_frames = []
         import cv2
+        convert_start = datetime.now()
+
         for i, frame in enumerate(frames):
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(rgb_frame)
             pil_frames.append(pil_image)
+            debug_log.debug(f"[GIF生成] 转换第{i+1}/{len(frames)}帧为RGB格式")
             print(f'[DEBUG] 转换第 {i+1} 帧为RGB格式')
+
+        convert_time = (datetime.now() - convert_start).total_seconds()
+        debug_log.debug(f"[GIF生成] 帧格式转换完成: {len(pil_frames)}帧, 耗时={convert_time:.3f}s")
 
         # 确保输出目录存在
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         # 保存为GIF
+        debug_log.debug(f"[GIF生成] 开始保存GIF: {output_path}, frames={len(pil_frames)}, duration={duration}ms")
         print(f'[DEBUG] 保存GIF到: {output_path}')
+
+        save_start = datetime.now()
         pil_frames[0].save(
             output_path,
             format='GIF',
@@ -732,14 +837,24 @@ def generate_video_gif(video_path, output_path, num_frames=6, size=(320, 180), d
             loop=0,
             optimize=True
         )
+        save_time = (datetime.now() - save_start).total_seconds()
+
+        total_time = (datetime.now() - start_time).total_seconds()
+        output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+
+        debug_log.debug(f"[GIF生成] 保存成功: output={output_path}, size={output_size}B, 耗时={save_time:.3f}s, 总耗时={total_time:.3f}s")
         print(f'[DEBUG] GIF生成成功: {output_path}')
         return True
     except ImportError as e:
+        debug_log.error(f"[GIF生成] Pillow未安装: {str(e)}")
         print(f'[ERROR] Pillow 未安装: {str(e)}')
         print('[HINT] 请运行: pip install Pillow')
         return False
     except Exception as e:
-        print(f'[ERROR] 生成GIF失败 {video_path}: {str(e)}')
+        total_time = (datetime.now() - start_time).total_seconds()
+        error_msg = f'生成GIF失败 {video_path}: {str(e)}'
+        debug_log.error(f"[GIF生成] 异常: {error_msg}, 耗时={total_time:.3f}s\n{traceback.format_exc()}")
+        print(f'[ERROR] {error_msg}')
         import traceback
         traceback.print_exc()
         return False
@@ -759,15 +874,28 @@ def generate_video_thumbnail(video_path, output_path, time_offset=5, size=(320, 
         是否成功
     """
     import cv2
+    start_time = datetime.now()
     cap = None
+
+    debug_log.debug(f"[缩略图生成函数] 开始生成: video_path={video_path}, output={output_path}, time_offset={time_offset}, size={size}")
+
     try:
+        debug_log.debug(f"[缩略图生成函数] 检查视频文件: exists={os.path.exists(video_path)}, size={os.path.getsize(video_path)/(1024*1024):.2f}MB" if os.path.exists(video_path) else f"[缩略图生成函数] 视频文件不存在: {video_path}")
+
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
+            debug_log.error(f"[缩略图生成函数] 无法打开视频: {video_path}")
+            print(f'[缩略图] 无法打开视频: {video_path}')
             return False
 
         # 获取视频总时长
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        duration = total_frames / fps if fps > 0 else 0
+
+        debug_log.debug(f"[缩略图生成函数] 视频信息: fps={fps}, total_frames={total_frames}, resolution={width}x{height}, duration={duration:.2f}s")
 
         # 计算截取的帧数
         if fps > 0:
@@ -775,28 +903,57 @@ def generate_video_thumbnail(video_path, output_path, time_offset=5, size=(320, 
         else:
             frame_num = min(10, total_frames - 1)
 
+        debug_log.debug(f"[缩略图生成函数] 计算目标帧: time_offset={time_offset}s, target_frame={frame_num}/{total_frames}")
+
         # 跳转到指定帧
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+        set_result = cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+        debug_log.debug(f"[缩略图生成函数] 跳转帧: frame_num={frame_num}, success={set_result}")
 
         # 读取帧
+        read_start = datetime.now()
         ret, frame = cap.read()
+        read_time = (datetime.now() - read_start).total_seconds()
+
+        debug_log.debug(f"[缩略图生成函数] 读取帧: success={ret}, 耗时={read_time:.3f}s")
 
         if not ret:
+            debug_log.error(f"[缩略图生成函数] 读取帧失败: {video_path}")
+            print(f'[缩略图] 读取帧失败: {video_path}')
             return False
 
         # 调整大小
+        resize_start = datetime.now()
         frame = cv2.resize(frame, size)
+        resize_time = (datetime.now() - resize_start).total_seconds()
+
+        debug_log.debug(f"[缩略图生成函数] 调整大小: {width}x{height} -> {size[0]}x{size[1]}, 耗时={resize_time:.3f}s")
 
         # 保存图片
-        cv2.imwrite(output_path, frame)
-        return True
+        write_start = datetime.now()
+        save_success = cv2.imwrite(output_path, frame)
+        write_time = (datetime.now() - write_start).total_seconds()
+
+        total_time = (datetime.now() - start_time).total_seconds()
+
+        if save_success:
+            output_size = os.path.getsize(output_path)
+            debug_log.debug(f"[缩略图生成函数] 保存成功: output={output_path}, size={output_size}B, 耗时={write_time:.3f}s, 总耗时={total_time:.3f}s")
+        else:
+            debug_log.error(f"[缩略图生成函数] 保存失败: output={output_path}")
+            print(f'[缩略图] 保存失败: {output_path}')
+
+        return save_success
     except Exception as e:
-        print(f'生成缩略图失败 {video_path}: {str(e)}')
+        total_time = (datetime.now() - start_time).total_seconds()
+        error_msg = f'生成缩略图失败 {video_path}: {str(e)}'
+        debug_log.error(f"[缩略图生成函数] 异常: {error_msg}, 耗时={total_time:.3f}s\n{traceback.format_exc()}")
+        print(error_msg)
         return False
     finally:
         # 确保释放资源
         if cap is not None:
             cap.release()
+            debug_log.debug(f"[缩略图生成函数] 释放VideoCapture资源")
 
 
 def add_local_videos(video_files, default_tags=None, default_priority=0):
@@ -938,7 +1095,35 @@ def index():
     """首页 - 显示推荐视频"""
     user_session = get_user_session()
     recommended_videos = get_recommended_videos(user_session, limit=12)
+
+    # 自动更新缺失的视频时长
+    for video in recommended_videos:
+        if video.duration is None and video.local_path and os.path.exists(video.local_path):
+            try:
+                duration = get_video_duration(video.local_path)
+                if duration:
+                    video.duration = duration
+                    db.session.commit()
+                    debug_log.debug(f"[时长更新] 自动更新时长: {video.title} = {duration}秒")
+            except Exception as e:
+                debug_log.warning(f"[时长更新] 更新失败: {video.title}, error={e}")
+
     popular_tags = get_popular_tags(limit=10)
+
+    # 对首页视频的标签按关联视频数排序
+    for video in recommended_videos:
+        valid_tags = []
+        for vt in video.tags:
+            if vt.tag:
+                valid_tags.append({
+                    'vt': vt,
+                    'tag': vt.tag,
+                    'video_count': vt.tag.video_count()
+                })
+        # 按视频数降序排序（视频数相同时按名称升序）
+        valid_tags.sort(key=lambda x: (-x['video_count'], x['tag'].name))
+        video._sorted_tags = [item['vt'] for item in valid_tags]
+
     return render_template('index.html',
                          videos=recommended_videos,
                          tags=popular_tags,
@@ -975,6 +1160,19 @@ def video_page(video_hash):
     # 获取相关推荐
     recommended_videos = get_recommended_videos(user_session, limit=6, exclude_video_id=video.id)
 
+    # 对视频的标签按关联视频数排序
+    valid_tags = []
+    for vt in video.tags:
+        if vt.tag:
+            valid_tags.append({
+                'vt': vt,
+                'tag': vt.tag,
+                'video_count': vt.tag.video_count()
+            })
+    # 按视频数降序排序（视频数相同时按名称升序）
+    valid_tags.sort(key=lambda x: (-x['video_count'], x['tag'].name))
+    video._sorted_tags = [item['vt'] for item in valid_tags]
+
     return render_template('video.html',
                          video=video,
                          recommended_videos=recommended_videos)
@@ -1005,6 +1203,41 @@ def search():
 
     return jsonify({
         'videos': [v.to_dict() for v in videos[:20]]
+    })
+
+
+@app.route('/ranking')
+def ranking_page():
+    """排行榜页面"""
+    return render_template('index.html', is_ranking_page=True)
+
+
+@app.route('/api/ranking', methods=['GET'])
+def api_get_ranking():
+    """获取排行榜数据"""
+    ranking_type = request.args.get('type', 'view')  # view, like, download, duration
+    limit = request.args.get('limit', 50, type=int)
+    
+    # 根据不同排序方式获取视频
+    if ranking_type == 'like':
+        videos = Video.query.order_by(Video.like_count.desc()).limit(limit).all()
+        type_name = '点赞排行'
+    elif ranking_type == 'download':
+        videos = Video.query.order_by(Video.download_count.desc()).limit(limit).all()
+        type_name = '下载排行'
+    elif ranking_type == 'duration':
+        videos = Video.query.filter(Video.duration.isnot(None)).order_by(Video.duration.desc()).limit(limit).all()
+        type_name = '时长排行'
+    else:  # view
+        videos = Video.query.order_by(Video.view_count.desc()).limit(limit).all()
+        type_name = '播放排行'
+    
+    return jsonify({
+        'success': True,
+        'videos': [v.to_dict() for v in videos],
+        'type': ranking_type,
+        'type_name': type_name,
+        'total': len(videos)
     })
 
 
@@ -1061,6 +1294,18 @@ def api_get_recommended_videos():
     # 只返回需要的数量
     recommended_videos = recommended_videos[:limit]
 
+    # 自动更新缺失的视频时长
+    for video in recommended_videos:
+        if video.duration is None and video.local_path and os.path.exists(video.local_path):
+            try:
+                duration = get_video_duration(video.local_path)
+                if duration:
+                    video.duration = duration
+                    db.session.commit()
+                    debug_log.debug(f"[时长更新] 自动更新时长: {video.title} = {duration}秒")
+            except Exception as e:
+                debug_log.warning(f"[时长更新] 更新失败: {video.title}, error={e}")
+
     return jsonify({
         'videos': [v.to_dict() for v in recommended_videos],
         'total': len(recommended_videos),
@@ -1072,21 +1317,27 @@ def api_get_recommended_videos():
 def check_thumbnail_status(video_hash):
     """检查缩略图是否已生成"""
     try:
-        video = Video.query.filter_by(hash=video_hash).first_or_404()
-
         thumbnail_dir = os.path.join('static', 'thumbnails')
         gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
         jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
 
-        # 检查缩略图状态
+        # 检查生成状态
+        generation_status = thumbnail_generation_status.get(video_hash)
+
+        # 检查文件是否已存在
         if os.path.exists(gif_path):
             status = 'ready'
             format = 'gif'
         elif os.path.exists(jpg_path):
             status = 'ready'
             format = 'jpg'
+        elif generation_status in ['generating', 'pending']:
+            # 正在生成或等待生成
+            status = generation_status
+            format = None
         else:
-            status = 'generating'  # 正在生成或等待生成
+            # 未触发生成
+            status = 'pending'
             format = None
 
         return jsonify({
@@ -1211,10 +1462,172 @@ def regenerate_thumbnail(video_hash):
 
 @app.route('/api/tags', methods=['GET'])
 def api_get_tags():
-    """获取所有标签"""
-    tags = Tag.query.order_by(Tag.name).all()
+    """获取所有标签（按关联视频数降序排序）"""
+    # 获取所有标签并关联视频数
+    tags = Tag.query.all()
+    # 按关联视频数降序排序（视频数相同时按名称升序）
+    tags.sort(key=lambda t: (len(t.videos), t.name), reverse=False)
+    tags.sort(key=lambda t: len(t.videos), reverse=True)
     return jsonify({
+        'success': True,
         'tags': [tag.to_dict() for tag in tags]
+    })
+
+
+@app.route('/tags')
+def tags_page():
+    """标签管理页面"""
+    return render_template('tags.html')
+
+
+@app.route('/api/tags/add', methods=['POST'])
+def api_add_tag():
+    """添加新标签"""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    category = data.get('category', '类型')
+
+    if not name:
+        return jsonify({
+            'success': False,
+            'message': '标签名称不能为空'
+        }), 400
+
+    # 检查标签是否已存在
+    existing_tag = Tag.query.filter_by(name=name).first()
+    if existing_tag:
+        return jsonify({
+            'success': False,
+            'message': f'标签"{name}"已存在'
+        }), 400
+
+    # 创建新标签
+    try:
+        tag = Tag(name=name, category=category)
+        db.session.add(tag)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'标签"{name}"添加成功',
+            'tag': tag.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'添加失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/tags/<int:tag_id>', methods=['GET', 'PUT', 'DELETE'])
+def api_manage_tag(tag_id):
+    """管理单个标签(获取/更新/删除)"""
+    tag = Tag.query.get_or_404(tag_id)
+
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'tag': tag.to_dict()
+        })
+
+    elif request.method == 'PUT':
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        category = data.get('category', '类型')
+
+        if not name:
+            return jsonify({
+                'success': False,
+                'message': '标签名称不能为空'
+            }), 400
+
+        # 检查名称是否与其他标签冲突
+        existing_tag = Tag.query.filter(
+            Tag.name == name,
+            Tag.id != tag_id
+        ).first()
+        if existing_tag:
+            return jsonify({
+                'success': False,
+                'message': f'标签名称"{name}"已被使用'
+            }), 400
+
+        try:
+            tag.name = name
+            tag.category = category
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': f'标签"{name}"更新成功',
+                'tag': tag.to_dict()
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': f'更新失败: {str(e)}'
+            }), 500
+
+    elif request.method == 'DELETE':
+        # 检查关联的视频数量
+        video_count = tag.video_count()
+        tag_name = tag.name
+
+        try:
+            # 删除所有视频-标签关联
+            VideoTag.query.filter_by(tag_id=tag_id).delete()
+
+            # 删除标签
+            db.session.delete(tag)
+            db.session.commit()
+
+            message = f'标签"{tag_name}"删除成功'
+            if video_count > 0:
+                message += f'，同时删除了 {video_count} 个视频关联'
+
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': f'删除失败: {str(e)}'
+            }), 500
+
+
+@app.route('/api/tags/<int:tag_id>/videos', methods=['GET'])
+def api_get_tag_videos(tag_id):
+    """获取标签关联的所有视频"""
+    tag = Tag.query.get_or_404(tag_id)
+
+    videos = []
+    for vt in tag.videos:
+        if vt.video:
+            # 获取视频的所有标签（包括当前标签）
+            video_tags = []
+            for video_vt in vt.video.tags:
+                if video_vt.tag:
+                    video_tags.append({
+                        'tag_id': video_vt.tag_id,
+                        'tag_name': video_vt.tag.name
+                    })
+
+            videos.append({
+                'id': vt.video.id,
+                'title': vt.video.title,
+                'hash': vt.video.hash,
+                'tags': video_tags
+            })
+
+    return jsonify({
+        'success': True,
+        'tag_id': tag_id,
+        'tag_name': tag.name,
+        'videos': videos
     })
 
 
@@ -1224,10 +1637,22 @@ def manage_video_tags(video_hash):
     video = Video.query.filter_by(hash=video_hash).first_or_404()
 
     if request.method == 'GET':
-        # 获取视频标签
+        # 获取视频标签并排序
+        valid_tags = []
+        for vt in video.tags:
+            if vt.tag:
+                valid_tags.append({
+                    'vt': vt,
+                    'tag': vt.tag,
+                    'video_count': vt.tag.video_count()
+                })
+        # 按视频数降序排序（视频数相同时按名称升序）
+        valid_tags.sort(key=lambda x: (-x['video_count'], x['tag'].name))
+        sorted_vts = [item['vt'] for item in valid_tags]
+
         return jsonify({
-            'tags': [vt.tag.to_dict() for vt in video.tags if vt.tag is not None],
-            'tag_names': [vt.tag.name for vt in video.tags if vt.tag is not None]
+            'tags': [vt.tag.to_dict() for vt in sorted_vts],
+            'tag_names': [vt.tag.name for vt in sorted_vts]
         })
     else:
         # 更新视频标签
@@ -1256,10 +1681,24 @@ def manage_video_tags(video_hash):
 
         db.session.commit()
 
+        # 重新加载视频并排序标签
+        db.session.refresh(video)
+        valid_tags = []
+        for vt in video.tags:
+            if vt.tag:
+                valid_tags.append({
+                    'vt': vt,
+                    'tag': vt.tag,
+                    'video_count': vt.tag.video_count()
+                })
+        # 按视频数降序排序（视频数相同时按名称升序）
+        valid_tags.sort(key=lambda x: (-x['video_count'], x['tag'].name))
+        sorted_vts = [item['vt'] for item in valid_tags]
+
         return jsonify({
             'success': True,
             'message': '标签已更新',
-            'tags': [vt.tag.to_dict() for vt in video.tags if vt.tag is not None]
+            'tags': [vt.tag.to_dict() for vt in sorted_vts]
         })
 
 
@@ -1317,6 +1756,29 @@ def is_favorite(video_hash):
     })
 
 
+@app.route('/api/favorites', methods=['GET'])
+def api_get_favorites():
+    """获取收藏列表API"""
+    user_session = get_user_session()
+    
+    # 获取用户收藏的视频
+    favorite_interactions = UserInteraction.query.filter_by(
+        user_session=user_session,
+        interaction_type='favorite'
+    ).order_by(UserInteraction.created_at.desc()).all()
+    
+    favorite_videos = []
+    for interaction in favorite_interactions:
+        if interaction.video:
+            favorite_videos.append(interaction.video)
+    
+    return jsonify({
+        'success': True,
+        'videos': [v.to_dict() for v in favorite_videos],
+        'total': len(favorite_videos)
+    })
+
+
 @app.route('/favorites')
 def favorites_page():
     """收藏页面"""
@@ -1334,6 +1796,21 @@ def favorites_page():
             favorite_videos.append(interaction.video)
 
     popular_tags = get_popular_tags(limit=10)
+
+    # 对视频的标签按关联视频数排序
+    for video in favorite_videos:
+        valid_tags = []
+        for vt in video.tags:
+            if vt.tag:
+                valid_tags.append({
+                    'vt': vt,
+                    'tag': vt.tag,
+                    'video_count': vt.tag.video_count()
+                })
+        # 按视频数降序排序（视频数相同时按名称升序）
+        valid_tags.sort(key=lambda x: (-x['video_count'], x['tag'].name))
+        video._sorted_tags = [item['vt'] for item in valid_tags]
+
     return render_template('index.html',
                          videos=favorite_videos,
                          tags=popular_tags,
@@ -1407,17 +1884,55 @@ def clear_videos():
 @app.route('/manage')
 def manage_page():
     """视频管理页面 - 支持分页"""
+    debug_log.debug(f"[管理页面] 开始加载管理页面")
+    runtime_log.debug(f"[管理页面] 访问管理页面")
+
     # 获取分页参数
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+
+    debug_log.debug(f"[管理页面] 分页参数: page={page}, per_page={per_page}")
 
     # 限制每页数量范围
     per_page = max(10, min(100, per_page))
 
     # 分页查询
+    debug_log.debug(f"[管理页面] 开始查询数据库")
     pagination = Video.query.order_by(Video.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
+
+    debug_log.debug(f"[管理页面] 查询完成: total={pagination.total}, pages={pagination.pages}, current_page={pagination.page}, items={len(pagination.items)}")
+
+    # 检查视频的缩略图状态
+    thumbnail_dir = os.path.join('static', 'thumbnails')
+    thumbnails_info = []
+
+    for video in pagination.items:
+        video_hash = video.hash
+        gif_exists = os.path.exists(os.path.join(thumbnail_dir, f'{video_hash}.gif'))
+        jpg_exists = os.path.exists(os.path.join(thumbnail_dir, f'{video_hash}.jpg'))
+        has_thumbnail = gif_exists or jpg_exists
+
+        thumbnails_info.append({
+            'video_id': video.id,
+            'video_hash': video_hash[:8] + '...',
+            'title': video.title,
+            'has_thumbnail': has_thumbnail,
+            'gif_exists': gif_exists,
+            'jpg_exists': jpg_exists,
+            'is_downloaded': video.is_downloaded,
+            'local_path': video.local_path
+        })
+
+        debug_log.debug(f"[管理页面] 视频缩略图状态: id={video.id}, hash={video_hash[:8]}..., has_thumbnail={has_thumbnail}, gif={gif_exists}, jpg={jpg_exists}")
+
+    # 统计缩略图状态
+    with_thumbnails = sum(1 for info in thumbnails_info if info['has_thumbnail'])
+    without_thumbnails = sum(1 for info in thumbnails_info if not info['has_thumbnail'])
+
+    debug_log.debug(f"[管理页面] 缩略图统计: 有缩略图={with_thumbnails}, 无缩略图={without_thumbnails}, 总计={len(thumbnails_info)}")
+    runtime_log.info(f"[管理页面] 第{page}页: 总数={len(pagination.items)}, 有缩略图={with_thumbnails}, 无缩略图={without_thumbnails}")
 
     return render_template('manage.html',
                          videos=pagination.items,
@@ -1860,13 +2375,22 @@ def add_video_url():
 
 def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
     """获取推荐视频 - 优先推荐已有缩略图的视频"""
+    debug_log.debug(f"[推荐系统] 开始获取推荐视频: user_session={user_session}, limit={limit}, exclude_video_id={exclude_video_id}")
+    runtime_log.debug(f"[推荐] 开始获取推荐: limit={limit}")
+
     # 获取用户偏好的标签
     user_preferences = UserPreference.query.filter_by(user_session=user_session).order_by(
         UserPreference.preference_score.desc()
     ).limit(5).all()
 
+    debug_log.debug(f"[推荐系统] 用户偏好标签数量: {len(user_preferences)}")
+    if user_preferences:
+        for i, pref in enumerate(user_preferences):
+            debug_log.debug(f"[推荐系统] 偏好{i+1}: tag_id={pref.tag_id}, score={pref.preference_score}")
+
     # 获取所有视频
     videos = Video.query.all()
+    debug_log.debug(f"[推荐系统] 数据库总视频数: {len(videos)}")
 
     # 预先检查哪些视频有缩略图
     thumbnail_dir = os.path.join('static', 'thumbnails')
@@ -1878,16 +2402,22 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
             continue
 
         video_hash = video.hash
-        has_thumbnail = (os.path.exists(os.path.join(thumbnail_dir, f'{video_hash}.gif')) or
-                         os.path.exists(os.path.join(thumbnail_dir, f'{video_hash}.jpg')))
+        gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
+        jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
+        has_thumbnail = os.path.exists(gif_path) or os.path.exists(jpg_path)
 
         if has_thumbnail:
             videos_with_thumbnails.append(video)
+            debug_log.debug(f"[推荐系统] 有缩略图: video_id={video.id}, hash={video_hash[:8]}..., title={video.title}")
         else:
             videos_without_thumbnails.append(video)
+            debug_log.debug(f"[推荐系统] 无缩略图: video_id={video.id}, hash={video_hash[:8]}..., title={video.title}")
+
+    debug_log.debug(f"[推荐系统] 缩略图统计: 有缩略图={len(videos_with_thumbnails)}, 无缩略图={len(videos_without_thumbnails)}")
 
     # 如果有缩略图的视频数量足够，只从有缩略图的视频中选择
     if len(videos_with_thumbnails) >= limit:
+        debug_log.debug(f"[推荐系统] 只推荐有缩略图的视频")
         video_scores = []
         for video in videos_with_thumbnails:
             # 基础分数：优先级和播放量
@@ -1902,14 +2432,17 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
                 for pref in user_preferences:
                     if any(tag.tag_id == pref.tag_id for tag in video.tags):
                         score += pref.preference_score * 5
+                        debug_log.debug(f"[推荐系统] 偏好加分: video_id={video.id}, tag_id={pref.tag_id}, score_added={pref.preference_score * 5}")
 
             video_scores.append((video, score))
 
         # 排序并取推荐
         video_scores.sort(key=lambda x: x[1], reverse=True)
         recommended = [v for v, s in video_scores[:limit]]
+        debug_log.debug(f"[推荐系统] 推荐完成: 推荐了{len(recommended)}个视频，都有缩略图")
     else:
         # 有缩略图的视频不够，混合推荐
+        debug_log.debug(f"[推荐系统] 有缩略图的视频不够，混合推荐")
         # 先取出所有有缩略图的视频
         recommended = videos_with_thumbnails.copy()
 
@@ -1918,6 +2451,7 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
 
         # 从没有缩略图的视频中选择（尽量少选）
         if additional_needed > 0 and len(videos_without_thumbnails) > 0:
+            debug_log.debug(f"[推荐系统] 需要从无缩略图视频补充{additional_needed}个")
             additional_scores = []
             for video in videos_without_thumbnails:
                 # 基础分数
@@ -1938,12 +2472,10 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
             # 排序并补充
             additional_scores.sort(key=lambda x: x[1], reverse=True)
             recommended.extend([v for v, s in additional_scores[:additional_needed]])
+            debug_log.debug(f"[推荐系统] 补充完成: 补充了{additional_needed}个无缩略图视频")
 
-        # 如果还不够，随机从有缩略图的视频中重复选择
-        if len(recommended) < limit and len(videos_with_thumbnails) > 0:
-            remaining_needed = limit - len(recommended)
-            random.shuffle(videos_with_thumbnails)
-            recommended.extend(videos_with_thumbnails[:remaining_needed])
+    debug_log.debug(f"[推荐系统] 最终推荐: 总数={len(recommended)}, 有缩略图={len(videos_with_thumbnails) if recommended == videos_with_thumbnails else len([v for v in recommended if v in videos_with_thumbnails])}")
+    runtime_log.debug(f"[推荐] 完成推荐: 总数={len(recommended)}, 需要生成缩略图={len([v for v in recommended if v not in videos_with_thumbnails])}")
 
     return recommended
 
@@ -2146,12 +2678,19 @@ def api_get_log_content(filepath):
         # 解析日志
         parsed_logs = [parse_log_line(line) for line in log_lines]
 
-        return jsonify({
+        response = jsonify({
             'success': True,
             'filename': filepath,
             'lines': len(parsed_logs),
             'logs': parsed_logs
         })
+
+        # 添加缓存控制头，防止浏览器缓存
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
+        return response
     except Exception as e:
         runtime_log.error(f"读取日志内容失败: {e}")
         traceback.print_exc()
@@ -2247,25 +2786,38 @@ def api_clear_log_by_type(log_type):
             })
 
         log_file = LOG_FILES[log_type]
-        base_filename = os.path.basename(log_file)
+        base_filename = os.path.basename(log_file)  # 例如: debug.log
+        runtime_log.info(f"[日志清空] log_type={log_type}, base_filename={base_filename}")
 
-        # 删除该类型的所有日志文件
-        deleted_count = 0
+        # 获取logger并刷新所有文件处理器以释放缓冲
+        logger = logging.getLogger(log_type)
+        handlers_to_flush = []
+        for handler in logger.handlers[:]:  # 遍历所有处理器
+            if isinstance(handler, logging.FileHandler):
+                handlers_to_flush.append(handler)
+                handler.flush()  # 刷新缓冲区
+
+        # 清空该类型的所有日志文件（包括轮转备份）
+        cleared_count = 0
         for filename in os.listdir(LOG_DIR):
-            if filename.startswith(base_filename):
+            # 匹配主日志文件和所有轮转文件 (debug.log, debug.log.1, debug.log.2, etc.)
+            if filename == base_filename or filename.startswith(base_filename + '.'):
                 filepath = os.path.join(LOG_DIR, filename)
                 try:
-                    os.remove(filepath)
-                    deleted_count += 1
+                    # 打开文件并清空内容
+                    with open(filepath, 'w', encoding='utf-8') as f:
+                        f.truncate(0)
+                    cleared_count += 1
+                    runtime_log.info(f"[日志清空] 清空日志文件: {filename}")
                 except Exception as e:
-                    runtime_log.error(f"删除日志文件失败 {filename}: {e}")
+                    runtime_log.error(f"清空日志文件失败 {filename}: {e}")
 
-        runtime_log.notice(f"清空了 {LOG_TYPES[log_type]} 的 {deleted_count} 个日志文件")
+        runtime_log.notice(f"清空了 {LOG_TYPES[log_type]} 的 {cleared_count} 个日志文件")
 
         return jsonify({
             'success': True,
-            'message': f'成功清空 {LOG_TYPES[log_type]} 的 {deleted_count} 个日志文件',
-            'deleted_count': deleted_count,
+            'message': f'成功清空 {LOG_TYPES[log_type]} 的 {cleared_count} 个日志文件',
+            'cleared_count': cleared_count,
             'log_type': log_type
         })
     except Exception as e:
