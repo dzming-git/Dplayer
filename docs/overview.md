@@ -1,6 +1,53 @@
-# DPlayer Flask 项目问题修复概览
+# DPlayer Flask 项目概览
 
-## 问题背景
+## 最新更新（2026年3月12日）
+
+### 📁 目录结构优化完成 ✅
+
+项目已成功完成目录结构优化和Git仓库清理：
+
+**优化效果**：
+- 根目录文件从 **114个** 减少到 **9个**（减少92%）
+- 创建清晰的目录结构：`docs/`、`scripts/`、`tests/`、`diagnostics/`
+- 移动 **100+文件** 到合适位置，按功能和用途分类
+- 更新 `.gitignore`，确保开发文件不被跟踪
+- Git仓库更干净，只包含核心文件
+
+**新的目录结构**：
+```
+Dplayer/
+├── app.py                      # Flask主应用
+├── models.py                   # 数据模型
+├── requirements.txt            # Python依赖
+├── README.md                   # 项目说明
+├── INSTALL.md                  # 安装指南
+├── QUICK_START.md              # 快速开始
+├── docs/                       # 文档目录
+│   ├── overview.md             # 本文档
+│   ├── development/           # 开发文档（45个）
+│   │   ├── logging/            # 日志功能
+│   │   ├── mobile/             # 移动端优化
+│   │   ├── pagination/         # 分页功能
+│   │   └── thumbnails/         # 缩略图功能
+│   └── OPTIMIZATION_SUMMARY.md # 优化完成报告
+├── scripts/                    # 工具脚本（16个）
+│   ├── batch/                  # 批量处理
+│   ├── maintenance/            # 维护脚本
+│   ├── server/                 # 服务器控制
+│   └── utils/                  # 工具函数
+├── tests/                      # 测试脚本（23个）
+├── diagnostics/                # 诊断脚本（16个）
+├── static/                     # 静态文件
+└── templates/                  # 模板文件
+```
+
+详细优化报告请参考：`docs/OPTIMIZATION_SUMMARY.md`
+
+---
+
+## 历史问题修复概览
+
+### 问题背景
 
 用户报告了两个主要问题：
 1. **缩略图加载失败**：几乎每次刷新网页都会出现缩略图加载失败
