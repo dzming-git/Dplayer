@@ -48,9 +48,6 @@ python scripts\service_controller.py <操作> <服务>
 
 ```bash
 # 以管理员身份运行
-python scripts\install_services.bat
-
-# 或使用 Python 脚本
 python scripts\service_controller.py install
 ```
 
@@ -104,7 +101,6 @@ python scripts\service_controller.py uninstall
 
 | 脚本 | 用途 |
 |------|------|
-| `install_services.bat` | 首次安装所有服务 |
 | `start_all_services.bat` | 启动所有服务 |
 | `stop_all_services.bat` | 停止所有服务 |
 | `clean_all_dplayer.bat` | 清理所有DPlayer服务 |
