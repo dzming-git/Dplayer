@@ -384,13 +384,6 @@ def task_worker():
             )
 
 
-# 启动工作线程
-worker_threads = []
-for i in range(MAX_CONCURRENT_TASKS):
-    t = threading.Thread(target=task_worker, daemon=True)
-    t.start()
-    worker_threads.append(t)
-    logger.info(f"启动工作线程 {i+1}/{MAX_CONCURRENT_TASKS}")
 
 
 # ========== Flask路由 ==========
@@ -619,6 +612,14 @@ def regenerate_thumbnail():
 # ========== 启动应用 ==========
 
 if __name__ == '__main__':
+    # ========== Windows 服务模式支持 ==========
+    # 确保在作为 Windows 服务运行时工作目录正确
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(script_dir)  # 回到项目根目录
+    if os.getcwd() != parent_dir:
+        os.chdir(parent_dir)
+        logger.info(f"工作目录已设置为: {os.getcwd()}")
+    
     logger.info("=" * 60)
     logger.info("缩略图微服务启动")
     logger.info("=" * 60)
@@ -627,15 +628,29 @@ if __name__ == '__main__':
     logger.info(f"任务队列大小: {QUEUE_SIZE}")
     logger.info(f"任务超时时间: {TASK_TIMEOUT}秒")
     logger.info(f"日志级别: {LOG_LEVEL}")
-    logger.info(f"缩略图目录: {THUMBNAIL_DIR}")
+    logger.info(f"缩略图目录: {os.path.abspath(THUMBNAIL_DIR)}")
+
+    # 检测是否作为 Windows 服务运行
+    is_service = 'windows_service' in os.environ.get('RUN_MODE', '').lower()
+    if is_service:
+        logger.info("以 Windows 服务模式运行")
+
     logger.info("=" * 60)
+
+    # 启动工作线程（移到这里，避免导入时启动）
+    worker_threads = []
+    for i in range(MAX_CONCURRENT_TASKS):
+        t = threading.Thread(target=task_worker, daemon=True)
+        t.start()
+        worker_threads.append(t)
+        logger.info(f"启动工作线程 {i+1}/{MAX_CONCURRENT_TASKS}")
     
     try:
         # 启动Flask应用
         app.run(
             host=THUMBNAIL_SERVICE_HOST,
             port=THUMBNAIL_SERVICE_PORT,
-            debug=False,
+            debug=not is_service,
             threaded=True,
             use_reloader=False
         )
