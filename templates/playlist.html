@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>播放列表 - Dplayer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/playlist.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 播放列表</h1>
+            <button onclick="showCreatePlaylistModal()" class="btn btn-primary">
+                ➕ 新建播放列表
+            </button>
+        </header>
+
+        <main>
+            <!-- 播放列表列表 -->
+            <div id="playlist-list" class="playlist-list">
+                <p class="loading">加载中...</p>
+            </div>
+
+            <!-- 当前播放列表详情 -->
+            <div id="playlist-detail" class="playlist-detail hidden">
+                <div class="playlist-header">
+                    <button onclick="closePlaylistDetail()" class="btn btn-secondary">
+                        ← 返回列表
+                    </button>
+                    <h2 id="playlist-name"></h2>
+                    <div class="playlist-actions">
+                        <button onclick="playPlaylist()" class="btn btn-success">▶ 播放</button>
+                        <button onclick="shufflePlaylist()" class="btn btn-secondary">🔀 随机</button>
+                        <button onclick="showEditPlaylistModal()" class="btn btn-secondary">✏️ 编辑</button>
+                        <button onclick="deletePlaylist()" class="btn btn-danger">🗑️ 删除</button>
+                    </div>
+                </div>
+
+                <div class="playlist-info">
+                    <p id="playlist-description"></p>
+                    <p>视频数: <span id="video-count"></span></p>
+                    <p>总时长: <span id="total-duration"></span></p>
+                    <p>播放次数: <span id="play-count"></span></p>
+                </div>
+
+                <!-- 播放控制 -->
+                <div class="playlist-controls">
+                    <button onclick="playPrevious()" class="btn btn-secondary">⏮ 上一首</button>
+                    <button onclick="playNext()" class="btn btn-secondary">下一首 ⏭</button>
+                    <select id="repeat-mode" onchange="changeRepeatMode()">
+                        <option value="none">不重复</option>
+                        <option value="all">重复全部</option>
+                        <option value="one">单曲循环</option>
+                    </select>
+                </div>
+
+                <!-- 视频列表 -->
+                <div id="playlist-items" class="playlist-items">
+                    <p class="loading">加载中...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 创建/编辑播放列表模态框 -->
+    <div id="playlist-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">新建播放列表</h3>
+                <button onclick="closePlaylistModal()" class="close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="playlist-form">
+                    <input type="hidden" id="playlist-id">
+                    <div class="form-group">
+                        <label for="playlist-name-input">播放列表名称 *</label>
+                        <input type="text" id="playlist-name-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="playlist-description-input">描述</label>
+                        <textarea id="playlist-description-input" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="playlist-public">
+                            公开播放列表
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="video-select">选择视频</label>
+                        <select id="video-select" multiple>
+                            <option value="">加载中...</option>
+                        </select>
+                        <small>按住Ctrl/Cmd多选</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">保存</button>
+                        <button type="button" onclick="closePlaylistModal()" class="btn btn-secondary">取消</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加视频到播放列表模态框 -->
+    <div id="add-video-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>添加视频到播放列表</h3>
+                <button onclick="closeAddVideoModal()" class="close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-video-select">选择视频</label>
+                    <select id="add-video-select" multiple>
+                        <option value="">加载中...</option>
+                    </select>
+                    <small>按住Ctrl/Cmd多选</small>
+                </div>
+                <div class="form-actions">
+                    <button onclick="addVideosToPlaylist()" class="btn btn-primary">添加</button>
+                    <button onclick="closeAddVideoModal()" class="btn btn-secondary">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/playlist.js') }}"></script>
+</body>
+</html>

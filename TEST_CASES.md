@@ -238,6 +238,71 @@
 - COMPATIBILITY-004: 不同浏览器兼容性
 - COMPATIBILITY-005: 移动端兼容性
 
+### 16. 异步缩略图生成测试 (ASYNC_THUMBNAIL) ⭐ 新增
+
+- ASYNC_THUMBNAIL-001: 提交单个异步缩略图生成任务
+- ASYNC_THUMBNAIL-002: 查询任务状态（PENDING）
+- ASYNC_THUMBNAIL-003: 查询任务状态（SUCCESS）
+- ASYNC_THUMBNAIL-004: 查询任务状态（FAILURE）
+- ASYNC_THUMBNAIL-005: 任务重试机制
+- ASYNC_THUMBNAIL-006: 批量异步生成缩略图
+- ASYNC_THUMBNAIL-007: 取消异步任务
+- ASYNC_THUMBNAIL-008: 任务超时处理
+- ASYNC_THUMBNAIL-009: Celery Worker状态检查
+- ASYNC_THUMBNAIL-010: 并发任务处理
+- ASYNC_THUMBNAIL-011: Redis消息代理连接测试
+- ASYNC_THUMBNAIL-012: 任务结果获取
+
+### 17. 播放列表功能测试 (PLAYLIST) ⭐ 新增
+
+- PLAYLIST-001: 创建播放列表（无视频）
+- PLAYLIST-002: 创建播放列表（包含视频）
+- PLAYLIST-003: 获取所有播放列表
+- PLAYLIST-004: 获取指定播放列表详情
+- PLAYLIST-005: 更新播放列表信息
+- PLAYLIST-006: 删除播放列表
+- PLAYLIST-007: 添加视频到播放列表
+- PLAYLIST-008: 从播放列表移除视频
+- PLAYLIST-009: 重新排序播放列表项
+- PLAYLIST-010: 播放播放列表
+- PLAYLIST-011: 获取下一个视频（顺序播放）
+- PLAYLIST-012: 获取上一个视频
+- PLAYLIST-013: 随机播放
+- PLAYLIST-014: 单曲循环模式
+- PLAYLIST-015: 列表循环模式
+- PLAYLIST-016: 播放列表为空处理
+- PLAYLIST-017: 用户会话隔离
+- PLAYLIST-018: 播放次数统计
+- PLAYLIST-019: 当前播放位置记忆
+
+### 18. 资源监控和限制测试 (RESOURCE_MONITOR) ⭐ 新增
+
+- RESOURCE_MONITOR-001: CPU使用率监控
+- RESOURCE_MONITOR-002: 内存使用率监控
+- RESOURCE_MONITOR-003: 资源限制配置读取
+- RESOURCE_MONITOR-004: 资源限制配置更新
+- RESOURCE_MONITOR-005: 内存超限暂停处理
+- RESOURCE_MONITOR-006: CPU超限暂停处理
+- RESOURCE_MONITOR-007: 自动恢复机制
+- RESOURCE_MONITOR-008: 资源阈值触发测试
+- RESOURCE_MONITOR-009: 监控线程启动/停止
+- RESOURCE_MONITOR-010: 资源违规统计
+- RESOURCE_MONITOR-011: 上下文管理器模式
+- RESOURCE_MONITOR-012: 资源限制禁用测试
+
+### 19. Docker多文件夹挂载测试 (DOCKER_MOUNT) ⭐ 新增
+
+- DOCKER_MOUNT-001: 挂载配置文件加载
+- DOCKER_MOUNT-002: 单文件夹挂载
+- DOCKER_MOUNT-003: 多文件夹挂载
+- DOCKER_MOUNT-004: 读写权限配置
+- DOCKER_MOUNT-005: 软链接创建验证
+- DOCKER_MOUNT-006: Docker Compose卷配置生成
+- DOCKER_MOUNT-007: 统一内容目录路径
+- DOCKER_MOUNT-008: 向后兼容性验证
+- DOCKER_MOUNT-009: 配置文件格式错误处理
+- DOCKER_MOUNT-010: 环境变量配置测试
+
 ---
 
 ## 测试用例优先级
@@ -246,17 +311,21 @@
 - 所有API端点的基本功能测试
 - 数据库CRUD操作
 - 端口管理和配置管理
+- 异步缩略图生成 ⭐ 新增
+- 播放列表功能 ⭐ 新增
 
 ### P1 - 重要功能（应该通过）
 - 缩略图生成
 - 推荐系统
 - 应用管理
 - 日志系统
+- 资源监控和限制 ⭐ 新增
 
 ### P2 - 一般功能（可以暂缓）
 - 性能测试
 - 兼容性测试
 - 部分错误处理
+- Docker多文件夹挂载 ⭐ 新增
 
 ### P3 - 可选功能（不强制）
 - 安全性测试
@@ -281,6 +350,16 @@
 - `empty_config.json` - 空配置文件
 - `invalid_config.json` - 无效配置文件
 
+### 4. Docker配置 ⭐ 新增
+- `mounts_config.example.json` - Docker挂载配置示例
+- `docker-compose.yml` - Docker Compose配置
+- `docker-compose.multi.yml` - 多文件夹挂载配置
+
+### 5. Celery配置 ⭐ 新增
+- `celery_config.py` - Celery任务配置
+- Redis服务配置
+- Worker启动脚本
+
 ---
 
 ## 测试环境要求
@@ -289,6 +368,7 @@
 - Python 3.7+
 - SQLite 3
 - 端口 80 和 8080 可用
+- Redis 服务器（用于Celery）⭐ 新增
 
 ### 2. 依赖包
 - Flask
@@ -297,10 +377,18 @@
 - OpenCV (cv2)
 - Pillow (PIL)
 - requests
+- Celery ⭐ 新增
+- redis ⭐ 新增
 
 ### 3. 系统要求
 - FFmpeg（用于视频处理）
 - 至少1GB可用磁盘空间
+- Docker（可选，用于Docker测试）⭐ 新增
+
+### 4. 服务要求 ⭐ 新增
+- Redis服务运行中（端口6379）
+- Celery Worker进程运行中
+- Docker守护进程（可选）
 
 ---
 
@@ -325,6 +413,12 @@
 - 测试系统性能指标
 - 负载测试
 - 长时间执行
+
+### 5. 异步任务测试 ⭐ 新增
+- 测试Celery任务提交和执行
+- 任务状态跟踪
+- 错误处理和重试
+- 并发任务处理
 
 ---
 
@@ -359,6 +453,12 @@
 - 趋势图
 - 回归分析
 
+### 4. 新功能测试报告 ⭐ 新增
+- 异步缩略图生成测试结果
+- 播放列表功能测试结果
+- 资源监控和限制测试结果
+- Docker多文件夹挂载测试结果
+
 ---
 
 ## 自动化测试
@@ -377,6 +477,11 @@
 - 测试失败通知
 - 报告生成
 - 问题跟踪
+
+### 4. 异步任务监控 ⭐ 新增
+- Celery任务状态监控
+- Redis队列监控
+- Worker健康检查
 
 ---
 
@@ -397,5 +502,9 @@
 - INTEGRATION: 8个
 - SECURITY: 6个
 - COMPATIBILITY: 5个
+- ASYNC_THUMBNAIL: 12个 ⭐ 新增
+- PLAYLIST: 19个 ⭐ 新增
+- RESOURCE_MONITOR: 12个 ⭐ 新增
+- DOCKER_MOUNT: 10个 ⭐ 新增
 
-**总计：168个测试用例**
+**总计：233个测试用例**（原168个 + 新增65个）

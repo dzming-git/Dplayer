@@ -136,3 +136,89 @@ class UserPreference(db.Model):
 
     def __repr__(self):
         return f'<UserPreference {self.user_session} - {self.preference_score}>'
+
+
+class Playlist(db.Model):
+    """播放列表模型"""
+    __tablename__ = 'playlists'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    user_session = db.Column(db.String(100), nullable=False, index=True)  # 用户会话ID
+    is_public = db.Column(db.Boolean, default=False)  # 是否公开
+    thumbnail = db.Column(db.String(500))  # 播放列表缩略图
+    total_duration = db.Column(db.Integer, default=0)  # 总时长（秒）
+    video_count = db.Column(db.Integer, default=0)  # 视频数量
+    play_count = db.Column(db.Integer, default=0)  # 播放次数
+    shuffle_play = db.Column(db.Boolean, default=False)  # 随机播放
+    repeat_mode = db.Column(db.String(20), default='none')  # 重复模式: none, all, one
+    current_video_id = db.Column(db.Integer)  # 当前播放的视频ID
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # 关系
+    items = db.relationship('PlaylistItem', back_populates='playlist', cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Playlist {self.name}>'
+
+    def update_video_count(self):
+        """更新视频数量"""
+        self.video_count = len([item for item in self.items if item.video is not None])
+        self.total_duration = sum(item.video.duration for item in self.items if item.video and item.video.duration)
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'user_session': self.user_session,
+            'is_public': self.is_public,
+            'thumbnail': self.thumbnail,
+            'total_duration': self.total_duration,
+            'video_count': self.video_count,
+            'play_count': self.play_count,
+            'shuffle_play': self.shuffle_play,
+            'repeat_mode': self.repeat_mode,
+            'current_video_id': self.current_video_id,
+            'items': [item.to_dict() for item in self.items if item.video is not None],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class PlaylistItem(db.Model):
+    """播放列表项模型"""
+    __tablename__ = 'playlist_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('playlists.id'), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False)
+    position = db.Column(db.Integer, nullable=False)  # 播放顺序
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 关系
+    playlist = db.relationship('Playlist', back_populates='items')
+    video = db.relationship('Video')
+
+    # 唯一约束，防止重复添加
+    __table_args__ = (
+        db.UniqueConstraint('playlist_id', 'video_id', name='_playlist_video_uc'),
+    )
+
+    def __repr__(self):
+        return f'<PlaylistItem {self.playlist_id} - {self.video_id}>'
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'playlist_id': self.playlist_id,
+            'video_id': self.video_id,
+            'video': self.video.to_dict() if self.video else None,
+            'position': self.position,
+            'added_at': self.added_at.isoformat() if self.added_at else None
+        }
+

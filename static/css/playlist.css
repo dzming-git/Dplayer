@@ -1,0 +1,399 @@
+/* 播放列表样式 */
+
+.playlist-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+
+.playlist-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 15px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.playlist-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.playlist-thumbnail {
+    width: 100%;
+    height: 160px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    color: #999;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.playlist-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.playlist-name {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.playlist-description {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.playlist-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #999;
+}
+
+.playlist-detail {
+    padding: 20px;
+}
+
+.playlist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #eee;
+}
+
+.playlist-header h2 {
+    margin: 0;
+    flex: 1;
+    text-align: center;
+}
+
+.playlist-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.playlist-info {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.playlist-info p {
+    margin: 5px 0;
+    color: #666;
+}
+
+.playlist-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #e9ecef;
+    border-radius: 8px;
+}
+
+.playlist-items {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.playlist-item {
+    display: flex;
+    align-items: center;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: background 0.2s;
+}
+
+.playlist-item:hover {
+    background: #f5f5f5;
+}
+
+.playlist-item.current {
+    background: #e3f2fd;
+    border-left: 4px solid #2196F3;
+}
+
+.playlist-item-number {
+    font-size: 18px;
+    font-weight: bold;
+    color: #999;
+    min-width: 40px;
+    text-align: center;
+    margin-right: 10px;
+}
+
+.playlist-item.current .playlist-item-number {
+    color: #2196F3;
+}
+
+.playlist-item-thumbnail {
+    width: 80px;
+    height: 45px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    margin-right: 10px;
+    overflow: hidden;
+}
+
+.playlist-item-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.playlist-item-info {
+    flex: 1;
+}
+
+.playlist-item-title {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 3px;
+}
+
+.playlist-item-duration {
+    font-size: 12px;
+    color: #999;
+}
+
+.playlist-item-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.playlist-item-actions button {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 2px solid #eee;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.close {
+    font-size: 28px;
+    font-weight: bold;
+    color: #999;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+}
+
+.close:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+.form-group input[type="text"],
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-group select[multiple] {
+    height: 200px;
+}
+
+.form-group small {
+    display: block;
+    margin-top: 5px;
+    color: #999;
+    font-size: 12px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.loading {
+    text-align: center;
+    color: #999;
+    padding: 40px 0;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-primary {
+    background: #2196F3;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1976D2;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+@media (max-width: 768px) {
+    .playlist-list {
+        grid-template-columns: 1fr;
+    }
+
+    .playlist-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .playlist-actions {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .playlist-controls {
+        flex-wrap: wrap;
+    }
+}
