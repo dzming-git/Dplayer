@@ -78,8 +78,8 @@ static/thumbnails/*.jpg
 
 # Development directories
 docs/development/
-scripts/
 diagnostics/
+archive/
 
 # Documentation and summary files (development artifacts)
 *_SUMMARY.md
