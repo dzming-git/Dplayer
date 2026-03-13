@@ -206,22 +206,19 @@ class TestFramework:
 
     def generate_report(self, results: List[TestResult], output_file: str = None) -> str:
         """生成测试报告"""
-        # 调试：检查results
-        print(f"[generate_report] results类型: {type(results)}")
-        print(f"[generate_report] results长度: {len(results)}")
-        if results:
-            str_indices = [i for i, r in enumerate(results) if isinstance(r, str)]
-            if str_indices:
-                print(f"[generate_report] 警告: 发现字符串对象在位置: {str_indices[:5]}")
-                for idx in str_indices[:3]:
-                    print(f"[generate_report]   results[{idx}] = {results[idx]}")
+        # 过滤掉非TestResult对象
+        valid_results = [r for r in results if isinstance(r, TestResult)]
 
-        total = len(results)
-        passed = sum(1 for r in results if r.status == TestStatus.PASSED)
-        failed = sum(1 for r in results if r.status == TestStatus.FAILED)
-        error = sum(1 for r in results if r.status == TestStatus.ERROR)
-        skipped = sum(1 for r in results if r.status == TestStatus.SKIPPED)
-        total_duration = sum(r.duration for r in results)
+        # 调试：检查results
+        if len(valid_results) != len(results):
+            print(f"[警告] results包含{len(results) - len(valid_results)}个无效对象，已过滤")
+
+        total = len(valid_results)
+        passed = sum(1 for r in valid_results if r.status == TestStatus.PASSED)
+        failed = sum(1 for r in valid_results if r.status == TestStatus.FAILED)
+        error = sum(1 for r in valid_results if r.status == TestStatus.ERROR)
+        skipped = sum(1 for r in valid_results if r.status == TestStatus.SKIPPED)
+        total_duration = sum(r.duration for r in valid_results)
 
         report_lines = [
             "\n" + "=" * 80,
@@ -239,7 +236,7 @@ class TestFramework:
         ]
 
         # 失败和错误的测试详情
-        failed_tests = [r for r in results if r.status in [TestStatus.FAILED, TestStatus.ERROR]]
+        failed_tests = [r for r in valid_results if r.status in [TestStatus.FAILED, TestStatus.ERROR]]
         if failed_tests:
             report_lines.append("\n失败/错误详情:")
             report_lines.append("-" * 80)
