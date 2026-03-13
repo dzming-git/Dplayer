@@ -149,6 +149,7 @@ def load_config():
 # 全局配置
 config = load_config()
 PORT = config.get('ports', {}).get('main_app', 80)
+HOST = config.get('host', '0.0.0.0')
 
 # 全局进度字典
 progress_store = {}
@@ -3075,7 +3076,7 @@ if __name__ == '__main__':
     with open(pid_file, 'w') as f:
         f.write(str(os.getpid()))
 
-    print(f'[*] Starting Flask server on 0.0.0.0:{PORT}')
+    print(f'[*] Starting Flask server on {HOST}:{PORT}')
     print(f'[*] Process ID: {os.getpid()}')
     init_db()  # 初始化数据库
 
@@ -3084,4 +3085,4 @@ if __name__ == '__main__':
     thumbnail_thread.start()
     print('[*] 缩略图预生成后台任务已启动')
 
-    app.run(host='0.0.0.0', port=PORT, debug=True)
+    app.run(host=HOST, port=PORT, debug=True)

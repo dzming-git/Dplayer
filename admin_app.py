@@ -173,6 +173,7 @@ def load_config():
 config = load_config()
 ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
 MAIN_APP_PORT = config.get('ports', {}).get('main_app', 80)
+HOST = config.get('host', '0.0.0.0')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'admin-secret-key-change-in-production'
@@ -1558,11 +1559,11 @@ if __name__ == '__main__':
             print(f'    - PID: {proc.pid}, Name: {proc.name()}')
         sys.exit(1)
 
-    print(f'[*] Starting Admin Dashboard on 0.0.0.0:{ADMIN_PORT}')
+    print(f'[*] Starting Admin Dashboard on {HOST}:{ADMIN_PORT}')
     print(f'[*] Main app port: {MAIN_APP_PORT}')
-    print(f'[*] Admin dashboard: http://0.0.0.0:{ADMIN_PORT}')
-    print(f'[*] Main application: http://0.0.0.0:{MAIN_APP_PORT}')
+    print(f'[*] Admin dashboard: http://{HOST}:{ADMIN_PORT}')
+    print(f'[*] Main application: http://{HOST}:{MAIN_APP_PORT}')
 
     # 注意：不使用SQLAlchemy ORM，使用原生SQL查询
     # 数据库表由app.py负责创建
-    app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False)
+    app.run(host=HOST, port=ADMIN_PORT, debug=False)
