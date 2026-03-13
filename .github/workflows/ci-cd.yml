@@ -1,0 +1,240 @@
+name: Dplayer CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main ]
+  schedule:
+    # 每天凌晨2点运行定期测试
+    - cron: '0 2 * * *'
+
+jobs:
+  # 代码质量检查
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint
+        pip install -r requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Lint with pylint
+      run: |
+        pylint app.py models.py thumbnail_service.py thumbnail_service_client.py --exit-zero
+
+  # 单元测试
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run unit tests
+      run: |
+        python tests/test_thumbnail_simple.py
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: test_results/
+
+  # API集成测试
+  api-tests:
+    name: API Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run main app tests
+      run: |
+        python tests/run_tests.py --category API_MAIN
+
+    - name: Run admin app tests
+      run: |
+        python tests/run_tests.py --category API_ADMIN
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: api-test-results
+        path: test_results/
+
+  # 完整测试套件
+  full-test-suite:
+    name: Full Test Suite
+    runs-on: ubuntu-latest
+    needs: [unit-tests, api-tests]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run all tests
+      run: |
+        python tests/run_all_tests.py
+
+    - name: Generate test report
+      run: |
+        python scripts/generate_test_report.py
+
+    - name: Upload test report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-report
+        path: test_report.html
+
+  # 性能测试
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run performance tests
+      run: |
+        python tests/test_performance.py
+
+    - name: Upload performance results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: performance_results/
+
+  # 安全测试
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install bandit safety
+
+    - name: Run security scan with bandit
+      run: |
+        bandit -r . -f json -o bandit-report.json || true
+
+    - name: Check for security vulnerabilities
+      run: |
+        safety check --json > safety-report.json || true
+
+    - name: Upload security reports
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # 测试结果通知
+  notify:
+    name: Notify Test Results
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests, api-tests, full-test-suite, security-tests]
+    if: always()
+
+    steps:
+    - name: Send notification on failure
+      if: needs.code-quality.result == 'failure' || needs.unit-tests.result == 'failure' || needs.api-tests.result == 'failure' || needs.full-test-suite.result == 'failure' || needs.security-tests.result == 'failure'
+      run: |
+        echo "::warning::One or more jobs failed. Check the logs for details."
+
+    - name: Create test summary
+      if: always()
+      run: |
+        echo "## Test Results Summary" > test_summary.md
+        echo "" >> test_summary.md
+        echo "| Job | Status |" >> test_summary.md
+        echo "|-----|--------|" >> test_summary.md
+        echo "| Code Quality | ${{ needs.code-quality.result }} |" >> test_summary.md
+        echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> test_summary.md
+        echo "| API Tests | ${{ needs.api-tests.result }} |" >> test_summary.md
+        echo "| Full Test Suite | ${{ needs.full-test-suite.result }} |" >> test_summary.md
+        echo "| Security Tests | ${{ needs.security-tests.result }} |" >> test_summary.md
+
+    - name: Upload test summary
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-summary
+        path: test_summary.md
