@@ -1,5 +1,0 @@
-[OK] test_framework_tests imported successfully
-
-[OK] test_routes_tests imported successfully
-
-[OK] test_functions_tests imported successfully

@@ -21,14 +21,14 @@ from thumbnail_service_client import get_thumbnail_client, reset_thumbnail_clien
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dplayer.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/dplayer.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB 最大上传
 
 
 
 # 配置文件路径
-CONFIG_FILE = 'config.json'
+CONFIG_FILE = 'config/config.json'
 
 # ========== 端口管理函数 ==========
 
@@ -3100,7 +3100,7 @@ def api_status():
     """获取应用状态"""
     try:
         # 检查数据库连接
-        conn = sqlite3.connect('dplayer.db')
+        conn = sqlite3.connect('instance/dplayer.db')
         cursor = conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM videos')
         video_count = cursor.fetchone()[0]

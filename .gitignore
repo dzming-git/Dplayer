@@ -62,6 +62,7 @@ test_results*.txt
 
 # Config - 用户配置不上传
 config.json
+config/config.json
 
 # Cache and temp
 .cache/

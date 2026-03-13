@@ -47,9 +47,9 @@ except Exception as e:
 # ========== 配置 ==========
 
 # 配置文件路径
-CONFIG_FILE = 'config.json'
-MAIN_APP_PID_FILE = 'main_app.pid'
-DB_FILE = 'dplayer.db'
+CONFIG_FILE = 'config/config.json'
+MAIN_APP_PID_FILE = 'instance/main_app.pid'
+DB_FILE = 'instance/dplayer.db'
 
 # ========== 端口管理函数 ==========
 
