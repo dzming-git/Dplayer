@@ -50,6 +50,15 @@ desktop.ini
 
 # Logs
 *.log
+logs/*.log.*
+logs/*.log
+
+# Test result files (temporary)
+test_*.txt
+test_*.json
+final_test*.txt
+final_test*.json
+test_results*.txt
 
 # Config - 用户配置不上传
 config.json
@@ -70,7 +79,6 @@ static/thumbnails/*.jpg
 # Development directories
 docs/development/
 scripts/
-tests/
 diagnostics/
 
 # Documentation and summary files (development artifacts)
@@ -89,6 +97,11 @@ diagnostics/
 *_COMPLETED.md
 *FIXED.md
 *_QUICK*.md
+*ADMIN*.md
+*SESSION*.md
+*PORT_*.md
+*DELIVERY*.md
+*MIGRATION*.md
 
 # Test and diagnostic scripts
 test_*.py
@@ -148,3 +161,4 @@ reorganize_directory.py
 \"docs/THUMBNAIL_FIX_PROPOSAL.md\"  
 \"docs/THUMBNAIL_LOGGING.md\"  
 \"docs/UI_IMPROVEMENTS.md\" 
+\"*.pid\" 

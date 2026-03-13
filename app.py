@@ -4,15 +4,19 @@ from models import db, Video, Tag, VideoTag, UserInteraction, UserPreference
 from datetime import datetime
 import random
 import os
+import sys
 import hashlib
 import json
 import glob
+import sqlite3
 from urllib.parse import quote
 import threading
 import time
 import logging
 from logging.handlers import RotatingFileHandler
 import traceback
+import psutil
+import socket
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
@@ -21,8 +25,130 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB 最大上传
 
 
+
 # 配置文件路径
 CONFIG_FILE = 'config.json'
+
+# ========== 端口管理函数 ==========
+
+def is_port_in_use(port):
+    """检查指定端口是否被占用"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            result = s.connect_ex(('localhost', port))
+            return result == 0
+    except Exception as e:
+        logger.error(f"检查端口 {port} 占用状态失败: {e}")
+        return False
+
+
+def find_process_using_port(port):
+    """查找占用指定端口的进程"""
+    processes = []
+    try:
+        for conn in psutil.net_connections():
+            if conn.laddr.port == port and conn.status == 'LISTEN':
+                try:
+                    proc = psutil.Process(conn.pid)
+                    processes.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    logger.warning(f"无法访问进程 {conn.pid}")
+    except Exception as e:
+        logger.error(f"查找端口 {port} 的进程失败: {e}")
+    return processes
+
+
+def kill_process(process):
+    """强制终止指定进程"""
+    try:
+        pid = process.pid
+        name = process.name()
+        process.terminate()  # 先尝试正常终止
+        try:
+            process.wait(timeout=5)
+            logger.info(f"成功终止进程 {name} (PID: {pid})")
+            return True
+        except psutil.TimeoutExpired:
+            # 正常终止超时，强制杀死
+            process.kill()
+            process.wait(timeout=2)
+            logger.info(f"强制杀死进程 {name} (PID: {pid})")
+            return True
+    except psutil.NoSuchProcess:
+        logger.warning(f"进程已不存在")
+        return True
+    except psutil.AccessDenied:
+        logger.error(f"没有权限终止进程 (PID: {process.pid})")
+        return False
+    except Exception as e:
+        logger.error(f"终止进程失败: {e}")
+        return False
+
+
+def kill_all_processes_using_port(port):
+    """强制终止占用指定端口的所有进程"""
+    result = {
+        'success': True,
+        'killed_count': 0,
+        'processes': []
+    }
+    processes = find_process_using_port(port)
+    if not processes:
+        logger.info(f"端口 {port} 没有被占用")
+        return result
+    logger.warning(f"端口 {port} 被 {len(processes)} 个进程占用")
+    for proc in processes:
+        proc_info = {
+            'pid': proc.pid,
+            'name': proc.name(),
+            'status': 'failed'
+        }
+        if kill_process(proc):
+            result['killed_count'] += 1
+            proc_info['status'] = 'killed'
+        result['processes'].append(proc_info)
+    # 验证端口是否已释放
+    if is_port_in_use(port):
+        result['success'] = False
+        logger.error(f"端口 {port} 仍然被占用，可能有新进程启动")
+    else:
+        logger.info(f"端口 {port} 已成功释放")
+    return result
+
+
+def ensure_port_available(port):
+    """确保端口可用，如果被占用则强制释放"""
+    if not is_port_in_use(port):
+        logger.info(f"端口 {port} 可用")
+        return {
+            'success': True,
+            'action': 'none',
+            'message': f'端口 {port} 可用'
+        }
+    logger.warning(f"端口 {port} 被占用，正在强制释放...")
+    result = kill_all_processes_using_port(port)
+    result['action'] = 'killed'
+    result['message'] = f'已终止 {result["killed_count"]} 个进程以释放端口 {port}'
+    return result
+
+
+# 读取配置
+def load_config():
+    """读取配置文件"""
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            return {}
+    except Exception as e:
+        logger.error(f"读取配置文件失败: {e}")
+        return {}
+
+# 全局配置
+config = load_config()
+PORT = config.get('ports', {}).get('main_app', 80)
 
 # 全局进度字典
 progress_store = {}
@@ -2893,14 +3019,69 @@ def api_get_logs_size():
             'message': f'获取失败: {str(e)}'
         }), 500
 
+@app.route('/api/status')
+def api_status():
+    """获取应用状态"""
+    try:
+        # 检查数据库连接
+        conn = sqlite3.connect('dplayer.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM videos')
+        video_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM tags')
+        tag_count = cursor.fetchone()[0]
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'status': 'running',
+            'database': {
+                'videos': video_count,
+                'tags': tag_count
+            },
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        logger.error(f"获取状态失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
 if __name__ == '__main__':
-    PORT = 80
-    print(f'Starting Flask server on 0.0.0.0:{PORT}')
+    import os
+
+    # 重新加载配置（确保获取最新的端口配置）
+    config = load_config()
+    PORT = config.get('ports', {}).get('main_app', 80)
+
+    print(f'[*] 正在检查端口 {PORT}...')
+    port_result = ensure_port_available(PORT)
+
+    if port_result['action'] == 'killed':
+        print(f'[!] {port_result["message"]}')
+        time.sleep(1)  # 等待端口完全释放
+
+    if is_port_in_use(PORT):
+        print(f'[!] 错误: 端口 {PORT} 仍然被占用，无法启动应用')
+        print(f'[!] 请手动检查并终止占用该端口的进程:')
+        processes = find_process_using_port(PORT)
+        for proc in processes:
+            print(f'    - PID: {proc.pid}, Name: {proc.name()}')
+        sys.exit(1)
+
+    # 保存进程ID
+    pid_file = 'main_app.pid'
+    with open(pid_file, 'w') as f:
+        f.write(str(os.getpid()))
+
+    print(f'[*] Starting Flask server on 0.0.0.0:{PORT}')
+    print(f'[*] Process ID: {os.getpid()}')
     init_db()  # 初始化数据库
 
     # 启动缩略图预生成后台任务
     thumbnail_thread = threading.Thread(target=generate_missing_thumbnails_async, daemon=True)
     thumbnail_thread.start()
-    print('[系统] 缩略图预生成后台任务已启动')
+    print('[*] 缩略图预生成后台任务已启动')
 
     app.run(host='0.0.0.0', port=PORT, debug=True)
