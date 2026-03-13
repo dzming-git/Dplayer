@@ -104,7 +104,8 @@ archive/
 *DELIVERY*.md
 *MIGRATION*.md
 
-# Test and diagnostic scripts
+# Test and diagnostic scripts (but keep test_framework.py)
+!tests/test_framework.py
 test_*.py
 check_*.py
 fix_*.py
