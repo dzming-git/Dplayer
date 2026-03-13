@@ -52,23 +52,84 @@ pip install -r requirements.txt
 
 ### 2. 运行应用
 
+#### 方法一：直接运行（开发环境）
+
 ```bash
 python app.py
 ```
 
-默认运行在 `http://localhost`
+#### 方法二：使用 Windows 原生服务（生产环境推荐）
+
+**安装服务（需要管理员权限）：**
+
+```batch
+# 方法1：使用安装脚本（会自动请求管理员权限）
+scripts\install_services.bat
+
+# 方法2：手动以管理员身份运行
+# 右键点击 install_services.bat，选择"以管理员身份运行"
+```
+
+**管理服务：**
+
+```batch
+# 启动所有服务
+scripts\start_all_services.bat
+
+# 停止所有服务
+scripts\stop_all_services.bat
+
+# 检查服务状态
+scripts\check_services.bat
+
+# 单独管理某个服务
+scripts\service_control.bat start admin_service
+scripts\service_control.bat stop admin_service
+scripts\service_control.bat restart admin_service
+
+# 卸载服务（需要管理员权限）
+scripts\service_control.bat remove admin_service
+```
+
+**服务说明：**
+- `DPlayer-Admin` - 管理后台（端口 8080）
+- `DPlayer-Main` - 主应用（端口 5000）
+- `DPlayer-Thumbnail` - 缩略图服务
+
+**Linux/Mac 用户：**
+
+```bash
+# 使用进程管理器
+python process_manager.py start all
+python process_manager.py status
+python process_manager.py stop all
+```
+
+#### 方法三：使用快捷脚本
+
+```batch
+# Windows - 启动所有服务
+scripts\start_all_services.bat
+
+# Windows - 停止所有服务
+scripts\stop_all_services.bat
+```
 
 ### 3. 访问页面
 
 - 首页: `http://localhost/`
 - 视频播放: `http://localhost/video/{video_hash}`
 - 视频管理: `http://localhost/manage`
+- 管理后台: `http://localhost:8080`（需要先启动 admin_app.py）
+- 缩略图服务: `http://localhost:5001`（需要先启动 thumbnail_service.py）
 
 ## 项目结构
 
 ```
 Dplayer/
 ├── app.py                 # Flask 主应用
+├── admin_app.py            # 管理后台
+├── process_manager.py      # 跨平台进程管理器
 ├── models.py              # 数据库模型
 ├── requirements.txt       # Python 依赖
 ├── templates/             # HTML 模板
@@ -82,7 +143,65 @@ Dplayer/
 │   │   └── manage.css    # 管理页面样式
 │   ├── uploads/          # 上传的视频文件
 │   └── thumbnails/       # 视频缩略图
+├── scripts/               # 启动和管理脚本
+│   ├── service_manager.ps1      # PowerShell 服务管理器（Windows 推荐）
+│   ├── service_manager.bat      # 服务管理器启动器
+│   ├── install_services.bat     # 一键安装脚本
+│   ├── uninstall_services.bat   # 一键卸载脚本
+│   ├── migrate_to_services.bat # 迁移工具
+│   ├── start_all_services.bat   # 启动所有服务
+│   ├── stop_all_services.bat    # 停止所有服务
+│   └── ...                     # 其他辅助脚本
+├── services/              # 微服务
+│   └── thumbnail_service.py     # 缩略图生成服务
 └── dplayer.db            # SQLite 数据库（自动生成）
+```
+
+## 服务管理
+
+### Windows 用户（推荐）
+
+使用 PowerShell 服务管理器，基于 Windows 原生服务 API：
+
+- ✅ 原生 Windows 服务支持
+- ✅ 自动启动配置
+- ✅ 系统级监控和恢复
+- ✅ 详细的进程状态监控
+- ✅ 事件日志集成
+
+**快速开始：**
+```batch
+# 安装服务（需要管理员权限）
+scripts\install_services.bat
+
+# 管理服务
+scripts\service_manager.bat status
+scripts\service_manager.bat start All
+scripts\service_manager.bat stop All
+scripts\service_manager.bat restart All
+```
+
+详细文档请查看：[docs/POWERSHELL_SERVICE_MANAGER.md](docs/POWERSHELL_SERVICE_MANAGER.md)
+
+### Linux/Mac 用户
+
+使用 Python 进程管理器：
+
+```bash
+# 启动所有服务
+python process_manager.py start all
+
+# 查看状态
+python process_manager.py status
+
+# 停止所有服务
+python process_manager.py stop all
+
+# 重启服务
+python process_manager.py restart all
+
+# 注册为系统服务（systemd）
+python process_manager.py enable all
 ```
 
 ## API 接口
