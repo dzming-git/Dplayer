@@ -53,7 +53,17 @@ def import_test_modules(test_files: list):
             spec = importlib.util.spec_from_file_location(module_name, test_file)
             module = importlib.util.module_from_spec(spec)
             sys.modules[full_module_name] = module
-            spec.loader.exec_module(module)
+
+            # 在导入前保存标准输出和错误
+            original_stdout = sys.stdout
+            original_stderr = sys.stderr
+
+            try:
+                spec.loader.exec_module(module)
+            finally:
+                # 确保标准输出和错误被恢复
+                sys.stdout = original_stdout
+                sys.stderr = original_stderr
 
             print(f"[导入] {module_name}")
         except Exception as e:

@@ -22,8 +22,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # ========== 导入缩略图服务模块 ==========
-import thumbnail_service
-import thumbnail_service_client
+from services import thumbnail_service
+from services import thumbnail_service_client
 
 
 class TestThumbnailTask(unittest.TestCase):
@@ -254,7 +254,7 @@ class TestThumbnailServiceClient(unittest.TestCase):
         self.assertTrue(self.client.fallback_enabled)
         self.assertTrue(self.client.service_available)
 
-    @patch('thumbnail_service_client.requests.get')
+    @patch('services.thumbnail_service_client.requests.get')
     def test_check_health_success(self, mock_get):
         """测试健康检查 - 成功"""
         mock_response = MagicMock()
@@ -276,7 +276,7 @@ class TestThumbnailServiceClient(unittest.TestCase):
         self.assertTrue(result)
         self.assertTrue(self.client.service_available)
 
-    @patch('thumbnail_service_client.requests.get')
+    @patch('services.thumbnail_service_client.requests.get')
     def test_check_health_failure(self, mock_get):
         """测试健康检查 - 失败"""
         mock_get.side_effect = Exception("Connection error")

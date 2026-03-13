@@ -37,7 +37,8 @@ jobs:
 
     - name: Lint with pylint
       run: |
-        pylint app.py models.py thumbnail_service.py thumbnail_service_client.py --exit-zero
+        pylint app.py admin_app.py --exit-zero
+        pylint core/ api/ services/ utils/ config/ --exit-zero --ignore=__pycache__
 
   # 单元测试
   unit-tests:
