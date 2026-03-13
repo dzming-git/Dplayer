@@ -1,8 +1,10 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, abort
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, abort, g
 from werkzeug.utils import secure_filename
-from core.models import db, Video, Tag, VideoTag, UserInteraction, UserPreference
+from core.models import db, Video, Tag, VideoTag, UserInteraction, UserPreference, User, UserSession, UserRole, ROLE_NAMES
 from services.thumbnail_service_client import get_thumbnail_client, reset_thumbnail_client
-from datetime import datetime
+from services.auth_service import AuthService, init_root_user
+from api.auth_api import auth_bp
+from datetime import datetime, timedelta
 import random
 import os
 import sys
@@ -21,9 +23,15 @@ import socket
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/dplayer.db'
+# 使用绝对路径确保数据库文件位置正确
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'instance', 'dplayer.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB 最大上传
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # 会话有效期7天
+
+# 注册认证蓝图
+app.register_blueprint(auth_bp)
 
 
 
@@ -44,12 +52,21 @@ def is_port_in_use(port):
         return False
 
 
-def find_process_using_port(port):
-    """查找占用指定端口的进程"""
+def find_process_using_port(port, exclude_self=False):
+    """查找占用指定端口的进程
+    
+    Args:
+        port: 端口号
+        exclude_self: 是否排除当前进程
+    """
     processes = []
+    current_pid = os.getpid() if exclude_self else None
     try:
         for conn in psutil.net_connections():
             if conn.laddr.port == port and conn.status == 'LISTEN':
+                # 如果需要排除当前进程，则跳过
+                if exclude_self and conn.pid == current_pid:
+                    continue
                 try:
                     proc = psutil.Process(conn.pid)
                     processes.append(proc)
@@ -87,14 +104,19 @@ def kill_process(process):
         return False
 
 
-def kill_all_processes_using_port(port):
-    """强制终止占用指定端口的所有进程"""
+def kill_all_processes_using_port(port, exclude_self=False):
+    """强制终止占用指定端口的所有进程
+    
+    Args:
+        port: 端口号
+        exclude_self: 是否排除当前进程（避免在debug模式下杀死自己）
+    """
     result = {
         'success': True,
         'killed_count': 0,
         'processes': []
     }
-    processes = find_process_using_port(port)
+    processes = find_process_using_port(port, exclude_self=exclude_self)
     if not processes:
         logger.info(f"端口 {port} 没有被占用")
         return result
@@ -118,8 +140,13 @@ def kill_all_processes_using_port(port):
     return result
 
 
-def ensure_port_available(port):
-    """确保端口可用，如果被占用则强制释放"""
+def ensure_port_available(port, exclude_self=False):
+    """确保端口可用，如果被占用则强制释放
+    
+    Args:
+        port: 端口号
+        exclude_self: 是否排除当前进程（避免在debug模式下杀死自己）
+    """
     if not is_port_in_use(port):
         logger.info(f"端口 {port} 可用")
         return {
@@ -128,7 +155,7 @@ def ensure_port_available(port):
             'message': f'端口 {port} 可用'
         }
     logger.warning(f"端口 {port} 被占用，正在强制释放...")
-    result = kill_all_processes_using_port(port)
+    result = kill_all_processes_using_port(port, exclude_self=exclude_self)
     result['action'] = 'killed'
     result['message'] = f'已终止 {result["killed_count"]} 个进程以释放端口 {port}'
     return result
@@ -222,6 +249,10 @@ class TypedLogger:
     def info(self, msg, *args, **kwargs):
         """信息日志"""
         self._log(INFO_LEVEL, msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        """警告日志"""
+        self._log(logging.WARNING, msg, *args, **kwargs)
 
     def debug(self, msg, *args, **kwargs):
         """调试日志"""
@@ -1308,7 +1339,14 @@ def index():
 def tag_page(tag_id):
     """标签页面 - 显示特定标签的视频"""
     tag = Tag.query.get_or_404(tag_id)
-    videos = [vt.video for vt in tag.videos if vt.video is not None]
+    
+    # 获取当前用户角色
+    current_role = AuthService.get_current_role()
+    
+    # 获取视频并进行权限过滤
+    all_videos = [vt.video for vt in tag.videos if vt.video is not None]
+    videos = [v for v in all_videos if current_role >= v.min_role]
+    
     # 按优先级和播放量排序（处理None值）
     videos = sorted(videos, key=lambda v: (v.priority or 0, v.view_count or 0), reverse=True)
     popular_tags = get_popular_tags(limit=10)
@@ -1323,6 +1361,17 @@ def video_page(video_hash):
     """视频播放页面"""
     video = Video.query.filter_by(hash=video_hash).first_or_404()
 
+    # 检查权限
+    current_role = AuthService.get_current_role()
+    if current_role < video.min_role:
+        # 权限不足
+        required_role_name = ROLE_NAMES.get(video.min_role, '未知')
+        return render_template('error.html', 
+                             error_title='权限不足',
+                             error_message=f'观看此视频需要{required_role_name}权限',
+                             current_role=current_role,
+                             required_role=video.min_role), 403
+
     # 记录播放
     user_session = get_user_session()
     record_interaction(video.id, user_session, 'view', score=1.0)
@@ -1331,7 +1380,7 @@ def video_page(video_hash):
     video.view_count += 1
     db.session.commit()
 
-    # 获取相关推荐
+    # 获取相关推荐（已自动过滤权限）
     recommended_videos = get_recommended_videos(user_session, limit=6, exclude_video_id=video.id)
 
     # 对视频的标签按关联视频数排序
@@ -2576,9 +2625,19 @@ def add_video_url():
 
 
 def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
-    """获取推荐视频 - 优先推荐已有缩略图的视频"""
+    """获取推荐视频 - 优先推荐已有缩略图的视频
+    
+    Args:
+        user_session: 用户会话ID
+        limit: 返回视频数量限制
+        exclude_video_id: 需要排除的视频ID
+    """
     debug_log.debug(f"[推荐系统] 开始获取推荐视频: user_session={user_session}, limit={limit}, exclude_video_id={exclude_video_id}")
     runtime_log.debug(f"[推荐] 开始获取推荐: limit={limit}")
+
+    # 获取当前用户角色
+    current_role = AuthService.get_current_role()
+    debug_log.debug(f"[推荐系统] 当前用户角色: {current_role} ({ROLE_NAMES.get(current_role, '未知')})")
 
     # 获取用户偏好的标签
     user_preferences = UserPreference.query.filter_by(user_session=user_session).order_by(
@@ -2590,9 +2649,13 @@ def get_recommended_videos(user_session, limit=10, exclude_video_id=None):
         for i, pref in enumerate(user_preferences):
             debug_log.debug(f"[推荐系统] 偏好{i+1}: tag_id={pref.tag_id}, score={pref.preference_score}")
 
-    # 获取所有视频
-    videos = Video.query.all()
-    debug_log.debug(f"[推荐系统] 数据库总视频数: {len(videos)}")
+    # 获取所有视频，并进行权限过滤
+    all_videos = Video.query.all()
+    debug_log.debug(f"[推荐系统] 数据库总视频数: {len(all_videos)}")
+    
+    # 权限过滤：只显示当前用户有权限观看的视频
+    videos = [v for v in all_videos if current_role >= v.min_role]
+    debug_log.debug(f"[推荐系统] 权限过滤后视频数: {len(videos)} (已过滤{len(all_videos) - len(videos)}个无权限视频)")
 
     # 预先检查哪些视频有缩略图
     thumbnail_dir = os.path.join('static', 'thumbnails')
@@ -3127,24 +3190,42 @@ def api_status():
 if __name__ == '__main__':
     import os
 
+    # ========== Windows 服务模式支持 ==========
+    # 确保在作为 Windows 服务运行时工作目录正确
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.getcwd() != script_dir:
+        os.chdir(script_dir)
+        logger.info(f"工作目录已设置为: {os.getcwd()}")
+
+    # 检测是否在 Flask reloader 模式下运行
+    # Werkzeug reloader 会设置 WERKZEUG_RUN_MAIN=true
+    is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+    
+    # 检测是否作为 Windows 服务运行
+    is_service = 'windows_service' in os.environ.get('RUN_MODE', '').lower()
+    
     # 重新加载配置（确保获取最新的端口配置）
     config = load_config()
     PORT = config.get('ports', {}).get('main_app', 80)
 
-    print(f'[*] 正在检查端口 {PORT}...')
-    port_result = ensure_port_available(PORT)
+    # 只在非服务模式下检查端口
+    if not is_service and not is_reloader:
+        print(f'[*] 正在检查端口 {PORT}...')
+        port_result = ensure_port_available(PORT, exclude_self=True)
 
-    if port_result['action'] == 'killed':
-        print(f'[!] {port_result["message"]}')
-        time.sleep(1)  # 等待端口完全释放
+        if port_result['action'] == 'killed':
+            print(f'[!] {port_result["message"]}')
+            time.sleep(1)  # 等待端口完全释放
 
-    if is_port_in_use(PORT):
-        print(f'[!] 错误: 端口 {PORT} 仍然被占用，无法启动应用')
-        print(f'[!] 请手动检查并终止占用该端口的进程:')
-        processes = find_process_using_port(PORT)
-        for proc in processes:
-            print(f'    - PID: {proc.pid}, Name: {proc.name()}')
-        sys.exit(1)
+        if is_port_in_use(PORT):
+            # 再次检查时排除自己
+            processes = find_process_using_port(PORT, exclude_self=True)
+            if processes:
+                print(f'[!] 错误: 端口 {PORT} 仍然被占用，无法启动应用')
+                print(f'[!] 请手动检查并终止占用该端口的进程:')
+                for proc in processes:
+                    print(f'    - PID: {proc.pid}, Name: {proc.name()}')
+                sys.exit(1)
 
     # 保存进程ID
     pid_file = 'main_app.pid'
@@ -3153,7 +3234,23 @@ if __name__ == '__main__':
 
     print(f'[*] Starting Flask server on {HOST}:{PORT}')
     print(f'[*] Process ID: {os.getpid()}')
+    if is_service:
+        logger.info("以 Windows 服务模式运行")
     init_db()  # 初始化数据库
+    
+    # 创建用户表（如果不存在）
+    with app.app_context():
+        try:
+            # 导入用户模型确保表被创建
+            from core.models import User, UserSession
+            db.create_all()
+            
+            # 初始化root用户
+            init_root_user()
+            
+            logger.info("用户系统初始化完成")
+        except Exception as e:
+            logger.error(f"用户系统初始化失败: {e}")
     
     # 初始化缩略图服务
     print(f'[*] Initializing thumbnail service...')
@@ -3169,4 +3266,5 @@ if __name__ == '__main__':
     thumbnail_thread.start()
     print('[*] 缩略图预生成后台任务已启动')
 
-    app.run(host=HOST, port=PORT, debug=True)
+    # 服务模式下禁用 debug 模式，不使用 reloader
+    app.run(host=HOST, port=PORT, debug=not is_service, use_reloader=False)

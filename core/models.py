@@ -1,8 +1,140 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import hashlib
+from werkzeug.security import generate_password_hash, check_password_hash
+from enum import IntEnum
 
 db = SQLAlchemy()
+
+
+class UserRole(IntEnum):
+    """用户角色枚举"""
+    GUEST = 0      # 游客 - 未登录用户
+    USER = 1       # 普通用户
+    ADMIN = 2      # 管理员
+    ROOT = 3       # 超级管理员
+
+
+# 角色名称映射
+ROLE_NAMES = {
+    UserRole.GUEST: '游客',
+    UserRole.USER: '用户',
+    UserRole.ADMIN: '管理员',
+    UserRole.ROOT: '超级管理员'
+}
+
+
+class User(db.Model):
+    """用户模型"""
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=False)  # 密码哈希，不存储明文
+    role = db.Column(db.Integer, default=UserRole.USER, nullable=False)  # 用户角色
+    email = db.Column(db.String(120), unique=True, nullable=True)  # 邮箱（可选）
+    is_active = db.Column(db.Boolean, default=True)  # 账户是否激活
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = db.Column(db.DateTime)  # 最后登录时间
+
+    def __repr__(self):
+        return f'<User {self.username} ({ROLE_NAMES.get(self.role, "未知")})>'
+
+    def set_password(self, password):
+        """设置密码（自动哈希）"""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """验证密码"""
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def role_name(self):
+        """获取角色名称"""
+        return ROLE_NAMES.get(self.role, '未知')
+
+    def has_permission(self, required_role):
+        """检查是否具有指定权限
+        
+        Args:
+            required_role: 需要的角色 (UserRole枚举值)
+        
+        Returns:
+            bool: 是否具有权限
+        """
+        return self.role >= required_role
+
+    def is_admin_or_above(self):
+        """是否是管理员或以上"""
+        return self.role >= UserRole.ADMIN
+
+    def is_root(self):
+        """是否是超级管理员"""
+        return self.role == UserRole.ROOT
+
+    def to_dict(self, include_sensitive=False):
+        """转换为字典
+        
+        Args:
+            include_sensitive: 是否包含敏感信息
+        """
+        result = {
+            'id': self.id,
+            'username': self.username,
+            'role': self.role,
+            'role_name': self.role_name,
+            'email': self.email,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None
+        }
+        if include_sensitive:
+            result['updated_at'] = self.updated_at.isoformat() if self.updated_at else None
+        return result
+
+
+class UserSession(db.Model):
+    """用户会话模型 - 用于管理登录状态"""
+    __tablename__ = 'user_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_token = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    ip_address = db.Column(db.String(45))  # IPv6最长45字符
+    user_agent = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)  # 过期时间
+    is_active = db.Column(db.Boolean, default=True)
+
+    # 关系
+    user = db.relationship('User', backref=db.backref('sessions', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<UserSession {self.user_id} - {self.session_token[:8]}...>'
+
+    @staticmethod
+    def generate_token():
+        """生成会话令牌"""
+        import secrets
+        return secrets.token_hex(32)
+
+    def is_expired(self):
+        """检查会话是否过期"""
+        from datetime import datetime
+        return datetime.utcnow() > self.expires_at
+
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            'id': self.id,
+            'session_token': self.session_token[:8] + '...',  # 只显示前8位
+            'user_id': self.user_id,
+            'ip_address': self.ip_address,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'is_active': self.is_active
+        }
 
 class Video(db.Model):
     """视频模型"""
@@ -20,6 +152,7 @@ class Video(db.Model):
     like_count = db.Column(db.Integer, default=0)  # 点赞数
     download_count = db.Column(db.Integer, default=0)  # 下载次数
     priority = db.Column(db.Integer, default=0)  # 优先级，数值越大优先级越高
+    min_role = db.Column(db.Integer, default=UserRole.GUEST, nullable=False)  # 最低访问权限要求
     is_downloaded = db.Column(db.Boolean, default=False)  # 是否已下载到本地
     local_path = db.Column(db.String(500))  # 本地存储路径
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -52,6 +185,8 @@ class Video(db.Model):
             'like_count': self.like_count,
             'download_count': self.download_count,
             'priority': self.priority,
+            'min_role': self.min_role,
+            'min_role_name': ROLE_NAMES.get(self.min_role, '未知'),
             'is_downloaded': self.is_downloaded,
             'local_path': self.local_path,
             'tags': [vt.tag.to_dict() for vt in self.tags if vt.tag is not None],
