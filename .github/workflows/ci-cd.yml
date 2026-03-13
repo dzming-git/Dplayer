@@ -91,11 +91,11 @@ jobs:
 
     - name: Run main app tests
       run: |
-        python tests/run_tests.py --category API_MAIN
+        python tests/run_tests.py API_MAIN
 
     - name: Run admin app tests
       run: |
-        python tests/run_tests.py --category API_ADMIN
+        python tests/run_tests.py API_ADMIN
 
     - name: Upload test results
       if: always()
@@ -161,7 +161,7 @@ jobs:
 
     - name: Run performance tests
       run: |
-        python tests/test_performance.py
+        python tests/run_tests.py PERFORMANCE
 
     - name: Upload performance results
       if: always()
