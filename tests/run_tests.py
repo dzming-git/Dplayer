@@ -16,14 +16,33 @@ import os
 import argparse
 from datetime import datetime
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 确保项目根目录在Python路径中
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-from tests.test_framework import (
-    get_test_framework,
-    reset_test_framework,
-    TestFramework
-)
+# 添加tests目录到路径，确保test_framework可以被导入
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
+
+# 首先尝试直接导入test_framework.py（作为独立模块）
+try:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("test_framework", os.path.join(script_dir, "test_framework.py"))
+    test_framework_module = importlib.util.module_from_spec(spec)
+    sys.modules["test_framework"] = test_framework_module
+    spec.loader.exec_module(test_framework_module)
+    get_test_framework = test_framework_module.get_test_framework
+    reset_test_framework = test_framework_module.reset_test_framework
+    TestFramework = test_framework_module.TestFramework
+except Exception as e:
+    # 回退到通过tests.test_framework导入
+    from tests.test_framework import (
+        get_test_framework,
+        reset_test_framework,
+        TestFramework
+    )
 
 
 def discover_test_files(test_dir: str = "tests") -> list:
