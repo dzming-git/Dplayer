@@ -185,6 +185,21 @@ def import_test_modules(test_files: list):
 5. Security Tests - Upload security reports
 6. Notify Test Results - Upload test summary
 
+### 第三次发现的问题
+
+在第二次修复后，虽然大部分 Job 成功了，但仍有 2 个 Job 失败：
+
+**API Integration Tests 和 Performance Tests 失败原因：**
+1. **错误的命令行参数**
+   - CI 配置使用了 `python tests/run_tests.py --category API_MAIN`
+   - 但 `run_tests.py` 不支持 `--category` 参数
+   - 应该使用位置参数：`python tests/run_tests.py API_MAIN`
+
+2. **错误的测试文件调用**
+   - CI 配置使用了 `python tests/test_performance.py`
+   - 但 `test_performance.py` 只定义了测试用例，不会自动运行
+   - 需要通过 `run_tests.py` 来运行：`python tests/run_tests.py PERFORMANCE`
+
 ## Git 提交信息
 
 ### 第一次提交（f4c7e72）
@@ -217,6 +232,25 @@ def import_test_modules(test_files: list):
 这解决了 CI 在 "Set up job" 步骤失败的问题。
 ```
 
+### 第三次提交（15d35b1）
+```
+修复 CI 测试运行命令
+
+修复内容：
+- 修正 API Integration Tests 的测试命令：
+  - 从 python tests/run_tests.py --category API_MAIN
+  - 改为 python tests/run_tests.py API_MAIN
+  - 从 python tests/run_tests.py --category API_ADMIN
+  - 改为 python tests/run_tests.py API_ADMIN
+- 修正 Performance Tests 的测试命令：
+  - 从 python tests/test_performance.py
+  - 改为 python tests/run_tests.py PERFORMANCE
+
+原因：
+run_tests.py 不支持 --category 参数，应该使用位置参数
+test_performance.py 只定义了测试用例，需要通过 run_tests.py 来运行
+```
+
 ## 后续建议
 
 1. **监控 CI 运行：** 推送后需要监控 GitHub Actions 的运行结果，确保所有测试通过
@@ -243,3 +277,6 @@ def import_test_modules(test_files: list):
 
 ### 第二次修复（86e2cd4）
 - `.github/workflows/ci-cd.yml` - CI 配置文件（升级 upload-artifact 到 v4）
+
+### 第三次修复（15d35b1）
+- `.github/workflows/ci-cd.yml` - CI 配置文件（修复测试运行命令）
