@@ -2,39 +2,77 @@
 
 ## 根目录
 
-根目录仅包含核心Python代码文件，简洁清晰。
+根目录仅包含应用入口文件和项目文档，极简化。
 
 ```
 Dplayer/
-├── app.py                      # 主Flask应用
-├── admin_app.py                # 管理后台Flask应用
-├── models.py                   # 数据库模型定义
-├── config_manager.py           # 配置管理器
-├── port_manager.py             # 端口管理器
-├── async_thumbnail_api.py      # 异步缩略图API
-├── playlist_api.py            # 播放列表API
-├── playlist_manager.py         # 播放列表管理器
-├── resource_monitor.py         # 资源监控
-├── tasks.py                    # Celery异步任务
-├── thumbnail_service.py        # 缩略图服务
-├── thumbnail_service_client.py # 缩略图客户端
-├── mount_config.py             # 挂载配置
-├── celery_config.py            # Celery配置
+├── app.py                      # 主Flask应用入口
+├── admin_app.py                # 管理后台Flask应用入口
 ├── README.md                   # 项目说明文档
 ├── requirements.txt            # Python依赖列表
 └── .gitignore                  # Git忽略规则
 ```
 
+## 代码模块结构
+
+### core/ - 核心模块
+存放核心数据库模型和基础组件。
+
+```
+core/
+├── __init__.py                 # Python包初始化
+└── models.py                   # 数据库模型定义
+    ├── Video                   # 视频模型
+    ├── Tag                     # 标签模型
+    ├── Playlist                # 播放列表模型
+    └── ... (其他模型)
+```
+
+### api/ - API接口模块
+存放所有API接口端点。
+
+```
+api/
+├── __init__.py                 # Python包初始化
+├── async_thumbnail_api.py      # 异步缩略图API
+└── playlist_api.py            # 播放列表API
+```
+
+### services/ - 服务模块
+存放业务逻辑和服务模块。
+
+```
+services/
+├── __init__.py                 # Python包初始化
+├── thumbnail_service.py        # 缩略图服务
+├── thumbnail_service_client.py # 缩略图客户端
+├── playlist_manager.py         # 播放列表管理器
+└── resource_monitor.py         # 资源监控
+```
+
+### utils/ - 工具类模块
+存放工具类和辅助函数。
+
+```
+utils/
+├── __init__.py                 # Python包初始化
+├── config_manager.py           # 配置管理器
+├── port_manager.py             # 端口管理器
+└── mount_config.py             # 挂载配置
+```
+
 ## 子目录结构
 
-### config/ - 配置文件目录
-存放项目配置文件，用户配置文件不会被提交到Git。
+### config/ - 配置模块目录
+存放配置相关文件和模块。
 
 ```
 config/
 ├── config.json                  # 用户配置（.gitignore忽略）
 ├── mounts_config.example.json   # Docker挂载配置示例
-└── test_monitor_config.example.json  # 监控配置示例
+├── test_monitor_config.example.json  # 监控配置示例
+├── celery_config.py            # Celery配置
+└── tasks.py                    # Celery异步任务
 ```
 
 ### docker/ - Docker配置目录
@@ -154,21 +192,29 @@ diagnostics/
 
 ## 项目特点
 
-### 1. 根目录简洁
-- 只包含18个核心Python文件
-- 没有零散的配置文件、脚本、文档
-- 易于查看和维护核心代码
+### 1. 根目录极简化
+- 只包含4个文件（2个应用入口 + 2个项目文档）
+- 没有任何零散的代码文件
+- 清晰的项目入口点
 
-### 2. 分类清晰
+### 2. 代码模块化
+- core/ - 核心数据模型
+- api/ - API接口层
+- services/ - 业务逻辑层
+- utils/ - 工具类层
+- config/ - 配置模块
+
+### 3. 分类清晰
 - 配置文件独立在config/
 - Docker文件独立在docker/
 - 文档统一在docs/
 - 脚本统一在scripts/
 - 测试统一在tests/
 
-### 3. 符合最佳实践
+### 4. 符合最佳实践
 - Flask instance目录用于运行时数据
-- 符合Python项目标准结构
+- 符合Python包结构规范
+- 清晰的分层架构
 - 易于团队协作和部署
 
 ### 4. Git管理规范
