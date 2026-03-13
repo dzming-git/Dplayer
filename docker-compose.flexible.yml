@@ -1,0 +1,128 @@
+version: '3.8'
+
+# Docker Compose配置 - 灵活多实例部署
+# 支持通过挂载配置文件自定义多个目录挂载
+
+services:
+  # 实例1
+  dplayer-1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-instance-1
+    restart: unless-stopped
+    ports:
+      - "8081:80"  # 主应用端口
+      - "5001:5001"  # 缩略图服务端口
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=80
+      - DPLAYER_DEBUG=False
+      - DPLAYER_INSTANCE_NAME=instance-1
+      - DPLAYER_SECRET_KEY=${DPLAYER_SECRET_KEY_INSTANCE_1:-your-secret-key-1}
+      - DPLAYER_THUMBNAIL_SERVICE_ENABLED=true
+      - DPLAYER_THUMBNAIL_SERVICE_URL=http://localhost:5001
+      - DPLAYER_GIT_ENABLED=true
+      - DPLAYER_GIT_USER_NAME=${GIT_USER_NAME:-Docker User}
+      - DPLAYER_GIT_USER_EMAIL=${GIT_USER_EMAIL:-docker@example.com}
+      - DPLAYER_LOG_LEVEL=INFO
+      - DPLAYER_MOUNT_CONFIG=/config/mounts_instance_1.json
+    volumes:
+      # 配置文件
+      - ./data/config/instance-1:/config
+      # 统一内容目录（包含所有挂载点）
+      - ./content/instance-1:/content
+      # 日志目录
+      - ./logs/instance-1:/logs
+      # 挂载配置文件（实例特定）
+      - ./mounts_config_instance_1.json:/config/mounts_instance_1.json:ro
+    networks:
+      - dplayer-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # 实例2
+  dplayer-2:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-instance-2
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+      - "5002:5001"
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=80
+      - DPLAYER_DEBUG=False
+      - DPLAYER_INSTANCE_NAME=instance-2
+      - DPLAYER_SECRET_KEY=${DPLAYER_SECRET_KEY_INSTANCE_2:-your-secret-key-2}
+      - DPLAYER_THUMBNAIL_SERVICE_ENABLED=true
+      - DPLAYER_THUMBNAIL_SERVICE_URL=http://localhost:5002
+      - DPLAYER_GIT_ENABLED=true
+      - DPLAYER_GIT_USER_NAME=${GIT_USER_NAME:-Docker User}
+      - DPLAYER_GIT_USER_EMAIL=${GIT_USER_EMAIL:-docker@example.com}
+      - DPLAYER_LOG_LEVEL=INFO
+      - DPLAYER_MOUNT_CONFIG=/config/mounts_instance_2.json
+    volumes:
+      - ./data/config/instance-2:/config
+      - ./content/instance-2:/content
+      - ./logs/instance-2:/logs
+      - ./mounts_config_instance_2.json:/config/mounts_instance_2.json:ro
+    networks:
+      - dplayer-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # 实例3
+  dplayer-3:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-instance-3
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+      - "5003:5001"
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=80
+      - DPLAYER_DEBUG=False
+      - DPLAYER_INSTANCE_NAME=instance-3
+      - DPLAYER_SECRET_KEY=${DPLAYER_SECRET_KEY_INSTANCE_3:-your-secret-key-3}
+      - DPLAYER_THUMBNAIL_SERVICE_ENABLED=true
+      - DPLAYER_THUMBNAIL_SERVICE_URL=http://localhost:5003
+      - DPLAYER_GIT_ENABLED=true
+      - DPLAYER_GIT_USER_NAME=${GIT_USER_NAME:-Docker User}
+      - DPLAYER_GIT_USER_EMAIL=${GIT_USER_EMAIL:-docker@example.com}
+      - DPLAYER_LOG_LEVEL=INFO
+      - DPLAYER_MOUNT_CONFIG=/config/mounts_instance_3.json
+    volumes:
+      - ./data/config/instance-3:/config
+      - ./content/instance-3:/content
+      - ./logs/instance-3:/logs
+      - ./mounts_config_instance_3.json:/config/mounts_instance_3.json:ro
+    networks:
+      - dplayer-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  dplayer-network:
+    driver: bridge
+
+volumes:
+  dplayer-config:
+    driver: local

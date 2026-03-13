@@ -32,14 +32,24 @@ COPY models.py .
 COPY thumbnail_service.py .
 COPY thumbnail_service_client.py .
 COPY config_manager.py .
+COPY mount_config.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
 
 # 创建必要的目录
 RUN mkdir -p /config /data /data/thumbnails /data/videos /logs /app/static/thumbnails
 
+# 创建内容目录（用于统一挂载）
+RUN mkdir -p /content /content/videos /content/thumbnails /content/uploads /content/static /content/cache
+
+# 创建软链接，支持兼容旧路径
+RUN ln -sf /content/videos /data/videos && \
+    ln -sf /content/thumbnails /data/thumbnails && \
+    ln -sf /content/uploads /data/uploads && \
+    ln -sf /content/cache /data/cache
+
 # 设置权限
-RUN chmod -R 755 /app /config /data /logs
+RUN chmod -R 755 /app /config /data /logs /content
 
 # 暴露端口
 EXPOSE 80

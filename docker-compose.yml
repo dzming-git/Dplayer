@@ -25,12 +25,12 @@ services:
     volumes:
       # 配置文件挂载
       - ./data/config:/config
-      # 数据目录挂载（数据库、缩略图等）
-      - ./data:/data
+      # 统一内容目录挂载（推荐）
+      - ./content:/content
       # 日志目录挂载
       - ./logs:/logs
-      # 视频目录挂载（可选）
-      - ./videos:/data/videos:ro
+      # 挂载配置文件（可选，用于自定义挂载）
+      - ./mounts_config.json:/config/mounts.json:ro
     networks:
       - dplayer-network
     depends_on:
@@ -57,7 +57,7 @@ services:
       - DPLAYER_DEBUG=False
       - SERVICE_TYPE=thumbnail  # 标识这是缩略图服务
     volumes:
-      - ./data:/data
+      - ./content:/content
       - ./logs:/logs
     networks:
       - dplayer-network

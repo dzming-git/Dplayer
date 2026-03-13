@@ -1,0 +1,46 @@
+{
+  "mounts": {
+    "videos": {
+      "source": "/content/videos",
+      "target": "/app/videos",
+      "description": "视频文件目录",
+      "read_only": true
+    },
+    "thumbnails": {
+      "source": "/content/thumbnails",
+      "target": "/app/thumbnails",
+      "description": "缩略图目录",
+      "read_only": false
+    },
+    "uploads": {
+      "source": "/content/uploads",
+      "target": "/app/uploads",
+      "description": "上传文件目录",
+      "read_only": false
+    },
+    "static": {
+      "source": "/content/static",
+      "target": "/app/static",
+      "description": "静态资源目录",
+      "read_only": true
+    },
+    "cache": {
+      "source": "/content/cache",
+      "target": "/app/cache",
+      "description": "缓存目录",
+      "read_only": false
+    },
+    "custom_movies": {
+      "source": "/content/custom_movies",
+      "target": "/app/custom_movies",
+      "description": "自定义电影目录",
+      "read_only": true
+    },
+    "custom_series": {
+      "source": "/content/custom_series",
+      "target": "/app/custom_series",
+      "description": "自定义剧集目录",
+      "read_only": true
+    }
+  }
+}
