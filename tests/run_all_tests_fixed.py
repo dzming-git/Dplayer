@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 导入测试框架和测试模块
 from tests.test_framework import get_test_framework, reset_test_framework
 
-# 重置框架,确保使用最新的配置
+# 重置框架,确保使用最新的框架配置
 reset_test_framework()
 
 # 导入所有测试模块
@@ -52,21 +52,24 @@ for category, test_ids in framework.categories.items():
             test_case = framework.test_cases[test_id]
             print(f"  {test_id:20} | {test_case.name}")
 
-print("\n" + "=" * 80)
-total = len(framework.test_cases)
-print(f"总计: {total} 个测试用例")
-print("=" * 80 + "\n")
+print(f"\n================================================================================")
+print(f"总计: {len(framework.test_cases)} 个测试用例")
+print(f"================================================================================\n")
 
-# 运行所有类别测试
-all_categories = list(framework.categories.keys())
-print(f"运行所有 {len(all_categories)} 个类别的测试...\n")
+# 运行所有测试
+all_tests = framework.get_all_tests()
+print(f"运行所有 {len(framework.categories)} 个类别的测试...\n")
+print(f"准备运行 {len(all_tests)} 个测试用例...\n")
 
-results = framework.run_tests(categories=all_categories)
+# 运行测试
+results = framework.run_all_tests()
 
 # 生成报告
-framework.generate_report(results, "test_report.txt")
-framework.export_json_report("test_report.json")
+reporter = framework.get_reporter()
+reporter.generate_console_report()
+reporter.generate_text_report("test_report.txt")
+reporter.generate_json_report("test_report.json")
 
 print("\n" + "=" * 80)
-print("测试完成！")
-print("=" * 80 + "\n")
+print("测试完成!")
+print("=" * 80)
