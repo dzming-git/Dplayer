@@ -237,15 +237,19 @@ class TaskManager:
             task.error = error
             task.thumbnail_path = thumbnail_path
             task.file_size = file_size
-            
+
             if task.started_at:
                 task.processing_time = (task.completed_at - task.started_at).total_seconds()
-            
+                processing_time_str = f"{task.processing_time:.3f}s"
+            else:
+                task.processing_time = None
+                processing_time_str = "N/A"
+
             self.active_count -= 1
-            
+
             if success:
                 self.stats['completed'] += 1
-                logger.info(f"任务完成: {task_id}, 耗时={task.processing_time:.3f}s, 文件大小={file_size}")
+                logger.info(f"任务完成: {task_id}, 耗时={processing_time_str}, 文件大小={file_size}")
             else:
                 self.stats['failed'] += 1
                 logger.error(f"任务失败: {task_id}, 错误={error}")
