@@ -46,10 +46,13 @@ except Exception as e:
 
 # ========== 配置 ==========
 
+# 使用绝对路径确保文件位置正确
+BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
 # 配置文件路径
-CONFIG_FILE = 'config/config.json'
-MAIN_APP_PID_FILE = 'instance/main_app.pid'
-DB_FILE = 'instance/dplayer.db'
+CONFIG_FILE = os.path.join(BASEDIR, 'config', 'config.json')
+MAIN_APP_PID_FILE = os.path.join(BASEDIR, 'instance', 'main_app.pid')
+DB_FILE = os.path.join(BASEDIR, 'instance', 'dplayer.db')
 
 # ========== 端口管理函数 ==========
 
@@ -427,6 +430,416 @@ def get_system_stats():
         }
 
 
+# ========== 三服务统一管理 ==========
+
+# 服务定义：名称、端口、启动脚本、PID文件、Windows任务名称
+SERVICES = {
+    'main': {
+        'name': '主应用',
+        'description': 'app.py - 用户界面',
+        'port': MAIN_APP_PORT,
+        'script': os.path.join(BASEDIR, 'app.py'),
+        'pid_file': os.path.join(BASEDIR, 'instance', 'main_app.pid'),
+        'url': f'http://127.0.0.1:{MAIN_APP_PORT}/',
+        'task_name': 'dplayer-main',  # Windows 计划任务名称
+    },
+    'admin': {
+        'name': '管理后台',
+        'description': 'admin_app.py - 管理界面',
+        'port': ADMIN_PORT,
+        'script': os.path.join(BASEDIR, 'admin_app.py'),
+        'pid_file': os.path.join(BASEDIR, 'instance', 'admin_app.pid'),
+        'url': f'http://127.0.0.1:{ADMIN_PORT}/',
+        'task_name': 'dplayer-admin',  # Windows 计划任务名称
+    },
+    'thumbnail': {
+        'name': '缩略图服务',
+        'description': 'thumbnail_service.py - 缩略图生成',
+        'port': 5001,
+        'script': os.path.join(BASEDIR, 'services', 'thumbnail_service.py'),
+        'pid_file': os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid'),
+        'url': 'http://127.0.0.1:5001/health',
+        'task_name': 'dplayer-thumbnail',  # Windows 计划任务名称
+    },
+}
+
+# 检查是否为 Windows 系统
+IS_WINDOWS = os.name == 'nt'
+
+
+def _run_powershell(script):
+    """执行 PowerShell 命令并返回结果"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-Command', script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            encoding='utf-8',
+            errors='replace'
+        )
+        return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return -1, '', 'PowerShell 执行超时'
+    except Exception as e:
+        return -1, '', str(e)
+
+
+def _get_scheduled_task_status(task_name):
+    """通过 Get-ScheduledTask 获取任务状态"""
+    if not IS_WINDOWS:
+        return None, 'Not a Windows system'
+
+    script = f'Get-ScheduledTask -TaskName "{task_name}" -ErrorAction SilentlyContinue | Select-Object -Property TaskName,State | ConvertTo-Json'
+    code, stdout, stderr = _run_powershell(script)
+
+    if code != 0 or not stdout.strip():
+        return None, stderr or 'Task not found'
+
+    try:
+        import json
+        data = json.loads(stdout)
+        # State: 3=Ready, 4=Running, 5=Disabled, etc.
+        state_map = {3: 'Ready', 4: 'Running', 5: 'Disabled', 0: 'Unknown'}
+        state = state_map.get(data.get('State', 0), 'Unknown')
+        return {'task_name': data.get('TaskName'), 'state': state}, ''
+    except Exception as e:
+        return None, str(e)
+
+
+def _get_pid_from_file(pid_file):
+    """从 PID 文件读取 PID，验证进程存活"""
+    try:
+        if not os.path.exists(pid_file):
+            return None
+        with open(pid_file, 'r') as f:
+            pid = int(f.read().strip())
+        if psutil.pid_exists(pid):
+            return pid
+        os.remove(pid_file)
+        return None
+    except Exception:
+        return None
+
+
+def _port_listening(port):
+    """检查指定端口是否处于 LISTEN 状态（进程存活的最终判据）"""
+    try:
+        for conn in psutil.net_connections():
+            if conn.laddr.port == port and conn.status == 'LISTEN':
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _pid_for_port(port):
+    """返回监听指定端口的 PID，没有则返回 None"""
+    try:
+        for conn in psutil.net_connections():
+            if conn.laddr.port == port and conn.status == 'LISTEN':
+                return conn.pid
+    except Exception:
+        pass
+    return None
+
+
+def get_service_status(svc_key):
+    """获取单个服务的完整状态（优先使用 Get-ScheduledTask，结合端口检测）"""
+    svc = SERVICES[svc_key]
+    port = svc['port']
+    pid_file = svc['pid_file']
+    task_name = svc.get('task_name')
+
+    # Windows 下优先使用 Get-ScheduledTask 获取任务状态
+    task_state = None
+    task_info = None
+    if IS_WINDOWS and task_name:
+        task_result, _ = _get_scheduled_task_status(task_name)
+        if task_result:
+            task_state = task_result.get('state')
+            task_info = _get_task_run_info(task_name)
+
+    # 任务状态：Running=运行中, Ready=就绪(未启动), Disabled=禁用
+    task_running = task_state == 'Running'
+
+    # 同时用端口检测作为辅助判据（更可靠）
+    live_pid = _pid_for_port(port)
+    port_running = live_pid is not None
+
+    # 如果端口没监听，再查 PID 文件作为辅助（防止服务启动中）
+    if not port_running:
+        live_pid = _get_pid_from_file(pid_file)
+        if live_pid:
+            port_running = psutil.pid_exists(live_pid)
+
+    # 综合判断：优先信任任务状态（如果已注册），其次看端口
+    if task_state:
+        # 任务已注册，以任务状态为准
+        running = task_running or port_running
+        if task_running and not port_running:
+            # 任务显示运行但端口未监听，可能还在启动
+            live_pid = _get_pid_from_file(pid_file)
+    else:
+        # 任务未注册，以端口检测为准
+        running = port_running
+
+    status_info = {
+        'key': svc_key,
+        'name': svc['name'],
+        'description': svc['description'],
+        'port': port,
+        'running': running,
+        'pid': live_pid,
+        'status': '运行中' if running else '已停止',
+        'task_state': task_state,  # 计划任务状态
+        'task_info': task_info,    # 任务运行信息
+        'cpu_percent': 0.0,
+        'memory_mb': 0.0,
+        'memory_percent': 0.0,
+    }
+
+    if running and live_pid:
+        try:
+            proc = psutil.Process(live_pid)
+            # cpu_percent 首次调用返回0，需连续两次或用interval
+            proc.cpu_percent()  # 初始化
+            time.sleep(0.1)
+            status_info['cpu_percent'] = round(proc.cpu_percent(), 1)
+            mem = proc.memory_info()
+            status_info['memory_mb'] = round(mem.rss / 1024 / 1024, 1)
+            status_info['memory_percent'] = round(proc.memory_percent(), 1)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    return status_info
+
+
+def get_all_services_status():
+    """获取所有服务状态列表（优先使用 Get-ScheduledTask）"""
+    return [get_service_status(k) for k in SERVICES]
+
+
+def _get_task_run_info(task_name):
+    """获取任务运行信息（当前运行的进程信息）"""
+    if not IS_WINDOWS:
+        return None
+
+    # 获取正在运行的任务信息
+    script = f'''
+$task = Get-ScheduledTask -TaskName "{task_name}" -ErrorAction SilentlyContinue
+if ($task -and $task.State -eq 4) {{
+    $info = Get-ScheduledTaskInfo -TaskName "{task_name}" -ErrorAction SilentlyContinue
+    if ($info) {{
+        @{{
+            LastRunTime = if ($info.LastRunTime) {{ $info.LastRunTime.ToString("yyyy-MM-dd HH:mm:ss") }} else {{ $null }}
+            LastTaskResult = $info.LastTaskResult
+            NumberOfMissedRuns = $info.NumberOfMissedRuns
+        }} | ConvertTo-Json
+    }} else {{ "{{}}" }}
+}} else {{ "{{}}" }}
+'''
+    code, stdout, stderr = _run_powershell(script)
+    if code != 0 or not stdout.strip():
+        return None
+
+    try:
+        import json
+        data = json.loads(stdout.strip() or '{}')
+        if not data:
+            return None
+        return data
+    except:
+        return None
+
+
+def start_service(svc_key):
+    """启动指定服务（优先使用计划任务，任务不存在时直接启动以保留代码热重载特性）"""
+    svc = SERVICES[svc_key]
+    port = svc['port']
+    pid_file = svc['pid_file']
+    script = svc['script']
+    task_name = svc.get('task_name')
+
+    # 已在运行
+    if _port_listening(port):
+        return {'success': False, 'message': f'{svc["name"]} 已在运行（端口 {port}）'}
+
+    # Windows 下优先尝试使用计划任务
+    if IS_WINDOWS and task_name:
+        task_result, _ = _get_scheduled_task_status(task_name)
+        if task_result:
+            # 任务存在，使用 Start-ScheduledTask 启动
+            script_ps = f'Start-ScheduledTask -TaskName "{task_name}"'
+            code, stdout, stderr = _run_powershell(script_ps)
+            if code == 0:
+                # 等待端口就绪
+                for _ in range(20):
+                    time.sleep(0.5)
+                    if _port_listening(port):
+                        admin_logger.info(f"服务 {svc['name']} 通过计划任务启动成功")
+                        return {'success': True, 'message': f'{svc["name"]} 启动成功（计划任务）'}
+                return {'success': True, 'message': f'{svc["name"]} 计划任务已启动，等待端口就绪'}
+            else:
+                admin_logger.warning(f"计划任务启动失败: {stderr}，尝试直接启动")
+
+    # 计划任务不存在或失败时，直接启动（保留代码热重载特性）
+    try:
+        env = os.environ.copy()
+        if svc_key == 'thumbnail':
+            env['THUMBNAIL_SERVICE_PORT'] = str(port)
+
+        proc = subprocess.Popen(
+            [sys.executable, script],
+            cwd=BASEDIR,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+        )
+
+        # 写入 PID 文件
+        os.makedirs(os.path.dirname(pid_file), exist_ok=True)
+        with open(pid_file, 'w') as f:
+            f.write(str(proc.pid))
+
+        # 等待端口就绪（最多10秒）
+        for _ in range(20):
+            time.sleep(0.5)
+            if _port_listening(port):
+                admin_logger.info(f"服务 {svc['name']} 启动成功 (PID: {proc.pid})")
+                return {'success': True, 'message': f'{svc["name"]} 启动成功', 'pid': proc.pid}
+
+        # 端口未就绪，但进程可能还在启动中
+        if psutil.pid_exists(proc.pid):
+            return {'success': True, 'message': f'{svc["name"]} 进程已启动，等待端口就绪', 'pid': proc.pid}
+        return {'success': False, 'message': f'{svc["name"]} 启动失败，进程已退出'}
+
+    except Exception as e:
+        admin_logger.error(f"启动服务 {svc['name']} 失败: {e}")
+        return {'success': False, 'message': str(e)}
+
+
+def stop_service(svc_key):
+    """停止指定服务（优先通过计划任务，其次通过端口/PID文件）"""
+    svc = SERVICES[svc_key]
+    port = svc['port']
+    pid_file = svc['pid_file']
+    task_name = svc.get('task_name')
+
+    # 自己不能停止自己
+    if svc_key == 'admin':
+        return {'success': False, 'message': '管理后台不能停止自身'}
+
+    # Windows 下优先尝试使用计划任务停止
+    if IS_WINDOWS and task_name:
+        task_result, _ = _get_scheduled_task_status(task_name)
+        if task_result and task_result.get('state') == 'Running':
+            # 任务正在运行，使用 Stop-ScheduledTask 停止
+            script_ps = f'Stop-ScheduledTask -TaskName "{task_name}"'
+            code, stdout, stderr = _run_powershell(script_ps)
+            if code == 0:
+                # 等待端口释放
+                for _ in range(10):
+                    time.sleep(0.5)
+                    if not _port_listening(port):
+                        admin_logger.info(f"服务 {svc['name']} 通过计划任务已停止")
+                        return {'success': True, 'message': f'{svc["name"]} 已停止（计划任务）'}
+
+    # 计划任务不存在或失败时，直接终止进程
+    pid = _pid_for_port(port) or _get_pid_from_file(pid_file)
+    if not pid:
+        return {'success': False, 'message': f'{svc["name"]} 未在运行'}
+
+    try:
+        proc = psutil.Process(pid)
+        proc.terminate()
+        try:
+            proc.wait(timeout=8)
+        except psutil.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=3)
+
+        # 清理 PID 文件
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
+
+        admin_logger.info(f"服务 {svc['name']} 已停止 (PID: {pid})")
+        return {'success': True, 'message': f'{svc["name"]} 已停止'}
+
+    except psutil.NoSuchProcess:
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
+        return {'success': True, 'message': f'{svc["name"]} 进程已不存在'}
+    except Exception as e:
+        admin_logger.error(f"停止服务 {svc['name']} 失败: {e}")
+        return {'success': False, 'message': str(e)}
+
+
+def restart_service(svc_key):
+    """重启指定服务"""
+    if svc_key == 'admin':
+        return {'success': False, 'message': '管理后台不支持通过界面重启，请手动操作'}
+    stop_result = stop_service(svc_key)
+    time.sleep(2)
+    start_result = start_service(svc_key)
+    if start_result['success']:
+        return {'success': True, 'message': f'{SERVICES[svc_key]["name"]} 重启成功'}
+    return {'success': False, 'message': f'重启失败: {start_result["message"]}'}
+
+
+# ===== 服务管理页面 & API 路由 =====
+
+@app.route('/services')
+def page_services():
+    """服务管理页面"""
+    return render_template('admin/services.html')
+
+
+@app.route('/api/services/status')
+def api_services_status():
+    """获取所有服务状态"""
+    try:
+        services = get_all_services_status()
+        sys_stats = get_system_stats()
+        return jsonify({
+            'success': True,
+            'services': services,
+            'system': sys_stats,
+        })
+    except Exception as e:
+        admin_logger.error(f"获取服务状态失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/services/<svc_key>/start', methods=['POST'])
+def api_service_start(svc_key):
+    """启动指定服务"""
+    if svc_key not in SERVICES:
+        return jsonify({'success': False, 'message': '未知服务'}), 404
+    result = start_service(svc_key)
+    return jsonify(result)
+
+
+@app.route('/api/services/<svc_key>/stop', methods=['POST'])
+def api_service_stop(svc_key):
+    """停止指定服务"""
+    if svc_key not in SERVICES:
+        return jsonify({'success': False, 'message': '未知服务'}), 404
+    result = stop_service(svc_key)
+    return jsonify(result)
+
+
+@app.route('/api/services/<svc_key>/restart', methods=['POST'])
+def api_service_restart(svc_key):
+    """重启指定服务"""
+    if svc_key not in SERVICES:
+        return jsonify({'success': False, 'message': '未知服务'}), 404
+    result = restart_service(svc_key)
+    return jsonify(result)
+
+
 # ========== 数据库清理功能 ==========
 
 def get_db_stats():
@@ -733,11 +1146,12 @@ def api_videos():
         cursor.execute('SELECT COUNT(*) as count FROM videos')
         total = cursor.fetchone()['count']
 
-        # 分页查询
+        # 分页查询（包含min_role字段）
         cursor.execute('''
             SELECT id, hash, title, description, url, thumbnail, duration,
                    file_size, view_count, like_count, download_count, priority,
-                   is_downloaded, local_path, created_at, updated_at
+                   is_downloaded, local_path, created_at, updated_at,
+                   COALESCE(min_role, 0) as min_role
             FROM videos
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
@@ -745,6 +1159,9 @@ def api_videos():
 
         rows = cursor.fetchall()
         conn.close()
+
+        # 角色名称映射
+        role_names = {0: '游客', 1: '用户', 2: '管理员', 3: '超级管理员'}
 
         # 转换为字典格式
         videos_data = []
@@ -762,6 +1179,8 @@ def api_videos():
                 'like_count': row['like_count'],
                 'download_count': row['download_count'],
                 'priority': row['priority'],
+                'min_role': row['min_role'],
+                'min_role_name': role_names.get(row['min_role'], '游客'),
                 'is_downloaded': row['is_downloaded'],
                 'local_path': row['local_path'],
                 'created_at': row['created_at'],
@@ -936,6 +1355,53 @@ def api_get_video(video_hash):
         return jsonify({'success': True, 'video': video})
     except Exception as e:
         admin_logger.error(f"获取视频详情失败: {e}")
+        import traceback
+        admin_logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/video/<video_hash>/permission', methods=['PUT'])
+def api_update_video_permission(video_hash):
+    """更新视频权限要求（管理员及以上）"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+        min_role = data.get('min_role', 0)
+
+        # 验证角色值
+        if min_role not in [0, 1, 2, 3]:
+            return jsonify({'success': False, 'message': '无效的权限值'}), 400
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # 检查视频是否存在
+        cursor.execute('SELECT id, title FROM videos WHERE hash = ?', (video_hash,))
+        video = cursor.fetchone()
+        if not video:
+            conn.close()
+            return jsonify({'success': False, 'message': '视频不存在'}), 404
+
+        video_id, title = video
+
+        # 更新权限
+        cursor.execute('UPDATE videos SET min_role = ?, updated_at = datetime("now") WHERE hash = ?',
+                      (min_role, video_hash))
+        conn.commit()
+        conn.close()
+
+        role_names = {0: '游客', 1: '用户', 2: '管理员', 3: '超级管理员'}
+        admin_logger.info(f"更新视频权限: {title} -> {role_names.get(min_role, '游客')}")
+        return jsonify({
+            'success': True,
+            'message': f'视频权限已更新为{role_names.get(min_role, "游客")}',
+            'min_role': min_role,
+            'min_role_name': role_names.get(min_role, '游客')
+        })
+    except Exception as e:
+        admin_logger.error(f"更新视频权限失败: {e}")
         import traceback
         admin_logger.error(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)})
@@ -1538,32 +2004,72 @@ def api_ranking():
 
 
 if __name__ == '__main__':
+    # ========== Windows 服务模式支持 ==========
+    # 确保在作为 Windows 服务运行时工作目录正确
+    # 服务启动时默认工作目录是 C:\Windows\System32，需要切换到项目目录
+    import os
+    import sys
+    
+    # 获取此脚本的绝对路径
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 如果当前工作目录不是脚本所在目录，则切换
+    if os.getcwd() != script_dir:
+        os.chdir(script_dir)
+        admin_logger.info(f"工作目录已设置为: {os.getcwd()}")
+    
+    # 更新 BASEDIR（确保使用正确的工作目录）
+    BASEDIR = script_dir
+    
+    # 更新所有使用 BASEDIR 的路径
+    CONFIG_FILE = os.path.join(BASEDIR, 'config', 'config.json')
+    MAIN_APP_PID_FILE = os.path.join(BASEDIR, 'instance', 'main_app.pid')
+    DB_FILE = os.path.join(BASEDIR, 'instance', 'dplayer.db')
+    
+    # 更新 SERVICES 配置中的路径
+    SERVICES['main']['script'] = os.path.join(BASEDIR, 'app.py')
+    SERVICES['main']['pid_file'] = os.path.join(BASEDIR, 'instance', 'main_app.pid')
+    SERVICES['admin']['script'] = os.path.join(BASEDIR, 'admin_app.py')
+    SERVICES['admin']['pid_file'] = os.path.join(BASEDIR, 'instance', 'admin_app.pid')
+    SERVICES['thumbnail']['script'] = os.path.join(BASEDIR, 'services', 'thumbnail_service.py')
+    SERVICES['thumbnail']['pid_file'] = os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid')
+    
+    # ========== 启动应用 ==========
     # 重新加载配置（确保获取最新的端口配置）
     config = load_config()
     ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
     MAIN_APP_PORT = config.get('ports', {}).get('main_app', 80)
 
     admin_logger.info(f"启动管理后台，端口: {ADMIN_PORT}")
-    print(f'[*] 正在检查端口 {ADMIN_PORT}...')
-    port_result = ensure_port_available(ADMIN_PORT)
+    admin_logger.info(f"工作目录: {os.getcwd()}")
+    
+    # 作为 Windows 服务运行时，跳过端口检查（避免杀死自己的进程）
+    is_service = 'windows_service' in os.environ.get('RUN_MODE', '').lower()
+    
+    if not is_service:
+        print(f'[*] 正在检查端口 {ADMIN_PORT}...')
+        port_result = ensure_port_available(ADMIN_PORT)
 
-    if port_result['action'] == 'killed':
-        print(f'[!] {port_result["message"]}')
-        time.sleep(1)  # 等待端口完全释放
+        if port_result['action'] == 'killed':
+            print(f'[!] {port_result["message"]}')
+            time.sleep(1)  # 等待端口完全释放
 
-    if is_port_in_use(ADMIN_PORT):
-        print(f'[!] 错误: 端口 {ADMIN_PORT} 仍然被占用，无法启动管理后台')
-        print(f'[!] 请手动检查并终止占用该端口的进程:')
-        processes = find_process_using_port(ADMIN_PORT)
-        for proc in processes:
-            print(f'    - PID: {proc.pid}, Name: {proc.name()}')
-        sys.exit(1)
+        if is_port_in_use(ADMIN_PORT):
+            print(f'[!] 错误: 端口 {ADMIN_PORT} 仍然被占用，无法启动管理后台')
+            print(f'[!] 请手动检查并终止占用该端口的进程:')
+            processes = find_process_using_port(ADMIN_PORT)
+            for proc in processes:
+                print(f'    - PID: {proc.pid}, Name: {proc.name()}')
+            sys.exit(1)
 
-    print(f'[*] Starting Admin Dashboard on {HOST}:{ADMIN_PORT}')
-    print(f'[*] Main app port: {MAIN_APP_PORT}')
-    print(f'[*] Admin dashboard: http://{HOST}:{ADMIN_PORT}')
-    print(f'[*] Main application: http://{HOST}:{MAIN_APP_PORT}')
+        print(f'[*] Starting Admin Dashboard on {HOST}:{ADMIN_PORT}')
+        print(f'[*] Main app port: {MAIN_APP_PORT}')
+        print(f'[*] Admin dashboard: http://{HOST}:{ADMIN_PORT}')
+        print(f'[*] Main application: http://{HOST}:{MAIN_APP_PORT}')
+    else:
+        admin_logger.info("以 Windows 服务模式运行")
 
     # 注意：不使用SQLAlchemy ORM，使用原生SQL查询
     # 数据库表由app.py负责创建
-    app.run(host=HOST, port=ADMIN_PORT, debug=False)
+    # 服务模式下禁用 debug，不使用 reloader
+    app.run(host=HOST, port=ADMIN_PORT, debug=False, use_reloader=False)

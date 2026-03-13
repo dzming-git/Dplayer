@@ -96,6 +96,76 @@
             gap: 10px;
         }
 
+        .services-list {
+            margin-bottom: 20px;
+        }
+
+        .service-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s;
+        }
+
+        .service-item:hover {
+            background: #e9ecef;
+        }
+
+        .service-item.running {
+            border-left-color: #28a745;
+        }
+
+        .service-item.stopped {
+            border-left-color: #dc3545;
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .service-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 12px;
+            color: white;
+            font-weight: normal;
+        }
+
+        .status-badge.status-success {
+            background: #28a745;
+        }
+
+        .status-badge.status-danger {
+            background: #dc3545;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .service-actions .btn {
+            flex: none;
+            min-width: 70px;
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -410,43 +480,39 @@
 
         <!-- 标签页导航 -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('app')">应用控制</button>
+            <button class="tab-btn active" onclick="switchTab('services')">服务管理</button>
             <button class="tab-btn" onclick="switchTab('videos')">视频管理</button>
             <button class="tab-btn" onclick="switchTab('tags')">标签管理</button>
             <button class="tab-btn" onclick="switchTab('database')">数据库</button>
             <button class="tab-btn" onclick="switchTab('logs')">日志查看</button>
         </div>
 
-        <!-- 应用控制 -->
-        <div class="tab-content active" id="tab-app">
+        <!-- 服务管理 -->
+        <div class="tab-content active" id="tab-services">
             <div class="card">
-                <h2>⚙️ 应用控制</h2>
-                <div class="status-grid">
-                    <div class="status-item" id="mainAppStatus">
-                        <div class="status-label">主应用状态</div>
-                        <div class="status-value">未运行</div>
+                <h2>⚙️ 服务管理</h2>
+                <div class="services-list" id="servicesList">
+                    <div class="service-item">
+                        <div class="service-name">加载中...</div>
                     </div>
-                    <div class="status-item" id="systemStatus">
+                </div>
+                <div class="system-status" id="systemStatus" style="display:none;">
+                    <div class="status-item" style="margin-bottom:10px;">
                         <div class="status-label">系统负载</div>
                         <div class="status-value">--</div>
                     </div>
-                    <div class="status-item" id="memoryStatus">
+                    <div class="status-item" style="margin-bottom:10px;">
                         <div class="status-label">内存使用</div>
                         <div class="status-value">--</div>
                     </div>
-                    <div class="status-item" id="diskStatus">
+                    <div class="status-item">
                         <div class="status-label">磁盘使用</div>
                         <div class="status-value">--</div>
                     </div>
                 </div>
-
                 <div class="button-group">
-                    <button class="btn btn-success" onclick="startApp()" id="startBtn">启动</button>
-                    <button class="btn btn-danger" onclick="stopApp()" id="stopBtn">停止</button>
-                    <button class="btn btn-warning" onclick="restartApp()" id="restartBtn">重启</button>
-                    <button class="btn btn-primary" onclick="refreshStatus()" id="refreshBtn">刷新</button>
+                    <button class="btn btn-primary" onclick="refreshServices()" id="refreshBtn">刷新</button>
                 </div>
-
                 <div id="appAlert" class="alert"></div>
             </div>
         </div>
