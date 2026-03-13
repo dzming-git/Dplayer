@@ -1,0 +1,222 @@
+version: '3.8'
+
+# 多实例部署配置示例
+# 支持在一台机器上运行多个Dplayer实例
+
+services:
+  # Dplayer实例1
+  dplayer-1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-instance-1
+    restart: unless-stopped
+    ports:
+      - "8081:80"  # 实例1使用8081端口
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=80
+      - DPLAYER_DEBUG=False
+      - DPLAYER_SECRET_KEY=secret-key-for-instance-1
+      - DPLAYER_THUMBNAIL_SERVICE_ENABLED=true
+      - DPLAYER_THUMBNAIL_SERVICE_URL=http://thumbnail-service-1:5001
+      - DPLAYER_THUMBNAIL_FALLBACK_ENABLED=true
+      - DPLAYER_GIT_ENABLED=true
+      - DPLAYER_GIT_USER_NAME=${GIT_USER_NAME:-Docker User 1}
+      - DPLAYER_GIT_USER_EMAIL=${GIT_USER_EMAIL:-docker1@example.com}
+      - DPLAYER_LOG_LEVEL=INFO
+      - INSTANCE_ID=1
+    volumes:
+      - ./data/instance1:/data
+      - ./logs/instance1:/logs
+      - ./config/instance1:/config
+      - ./videos:/data/videos:ro
+    networks:
+      - dplayer-network
+    depends_on:
+      - thumbnail-service-1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # 缩略图服务实例1
+  thumbnail-service-1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-thumbnail-service-1
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=5001
+      - DPLAYER_DEBUG=False
+      - SERVICE_TYPE=thumbnail
+      - INSTANCE_ID=1
+    volumes:
+      - ./data/instance1:/data
+      - ./logs/instance1:/logs
+    networks:
+      - dplayer-network
+    command: ["python", "thumbnail_service.py"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Dplayer实例2
+  dplayer-2:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-instance-2
+    restart: unless-stopped
+    ports:
+      - "8082:80"  # 实例2使用8082端口
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=80
+      - DPLAYER_DEBUG=False
+      - DPLAYER_SECRET_KEY=secret-key-for-instance-2
+      - DPLAYER_THUMBNAIL_SERVICE_ENABLED=true
+      - DPLAYER_THUMBNAIL_SERVICE_URL=http://thumbnail-service-2:5002
+      - DPLAYER_THUMBNAIL_FALLBACK_ENABLED=true
+      - DPLAYER_GIT_ENABLED=true
+      - DPLAYER_GIT_USER_NAME=${GIT_USER_NAME:-Docker User 2}
+      - DPLAYER_GIT_USER_EMAIL=${GIT_USER_EMAIL:-docker2@example.com}
+      - DPLAYER_LOG_LEVEL=INFO
+      - INSTANCE_ID=2
+    volumes:
+      - ./data/instance2:/data
+      - ./logs/instance2:/logs
+      - ./config/instance2:/config
+      - ./videos:/data/videos:ro
+    networks:
+      - dplayer-network
+    depends_on:
+      - thumbnail-service-2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # 缩略图服务实例2
+  thumbnail-service-2:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-thumbnail-service-2
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=5002
+      - DPLAYER_DEBUG=False
+      - SERVICE_TYPE=thumbnail
+      - INSTANCE_ID=2
+    volumes:
+      - ./data/instance2:/data
+      - ./logs/instance2:/logs
+    networks:
+      - dplayer-network
+    command: ["python", "thumbnail_service.py"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Dplayer实例3
+  dplayer-3:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-instance-3
+    restart: unless-stopped
+    ports:
+      - "8083:80"  # 实例3使用8083端口
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=80
+      - DPLAYER_DEBUG=False
+      - DPLAYER_SECRET_KEY=secret-key-for-instance-3
+      - DPLAYER_THUMBNAIL_SERVICE_ENABLED=true
+      - DPLAYER_THUMBNAIL_SERVICE_URL=http://thumbnail-service-3:5003
+      - DPLAYER_THUMBNAIL_FALLBACK_ENABLED=true
+      - DPLAYER_GIT_ENABLED=true
+      - DPLAYER_GIT_USER_NAME=${GIT_USER_NAME:-Docker User 3}
+      - DPLAYER_GIT_USER_EMAIL=${GIT_USER_EMAIL:-docker3@example.com}
+      - DPLAYER_LOG_LEVEL=INFO
+      - INSTANCE_ID=3
+    volumes:
+      - ./data/instance3:/data
+      - ./logs/instance3:/logs
+      - ./config/instance3:/config
+      - ./videos:/data/videos:ro
+    networks:
+      - dplayer-network
+    depends_on:
+      - thumbnail-service-3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # 缩略图服务实例3
+  thumbnail-service-3:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: dplayer-thumbnail-service-3
+    restart: unless-stopped
+    ports:
+      - "5003:5003"
+    environment:
+      - DPLAYER_HOST=0.0.0.0
+      - DPLAYER_PORT=5003
+      - DPLAYER_DEBUG=False
+      - SERVICE_TYPE=thumbnail
+      - INSTANCE_ID=3
+    volumes:
+      - ./data/instance3:/data
+      - ./logs/instance3:/logs
+    networks:
+      - dplayer-network
+    command: ["python", "thumbnail_service.py"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  dplayer-network:
+    driver: bridge
+
+# 数据卷定义
+volumes:
+  dplayer-data-1:
+    driver: local
+  dplayer-data-2:
+    driver: local
+  dplayer-data-3:
+    driver: local
+  dplayer-logs-1:
+    driver: local
+  dplayer-logs-2:
+    driver: local
+  dplayer-logs-3:
+    driver: local
