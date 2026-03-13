@@ -171,6 +171,11 @@ class TestFramework:
             print("错误: 必须指定 --all 或指定测试类别")
             return []
 
+        # 调试：打印tests_to_run的类型
+        if tests_to_run:
+            print(f"[调试] tests_to_run[0]类型: {type(tests_to_run[0])}")
+            print(f"[调试] tests_to_run[0]是否为TestCase: {isinstance(tests_to_run[0], TestCase)}")
+
         # 按优先级排序
         priority_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
         tests_to_run.sort(key=lambda tc: priority_order.get(tc.priority, 4))
@@ -192,10 +197,25 @@ class TestFramework:
                 print(f"\n[停止] 由于错误停止测试执行")
                 break
 
+        # 调试：打印results的类型
+        if results:
+            print(f"\n[调试] results[0]类型: {type(results[0])}")
+            print(f"[调试] results[0]是否为TestResult: {isinstance(results[0], TestResult)}")
+
         return results
 
     def generate_report(self, results: List[TestResult], output_file: str = None) -> str:
         """生成测试报告"""
+        # 调试：检查results
+        print(f"[generate_report] results类型: {type(results)}")
+        print(f"[generate_report] results长度: {len(results)}")
+        if results:
+            str_indices = [i for i, r in enumerate(results) if isinstance(r, str)]
+            if str_indices:
+                print(f"[generate_report] 警告: 发现字符串对象在位置: {str_indices[:5]}")
+                for idx in str_indices[:3]:
+                    print(f"[generate_report]   results[{idx}] = {results[idx]}")
+
         total = len(results)
         passed = sum(1 for r in results if r.status == TestStatus.PASSED)
         failed = sum(1 for r in results if r.status == TestStatus.FAILED)
