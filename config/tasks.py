@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from celery import shared_task, chain, group
 
-from celery_config import app, RESOURCE_LIMITS
-from resource_monitor import ResourceLimiter, ResourceLimit, ResourceType
-from config_manager import get_config
+from config.celery_config import app, RESOURCE_LIMITS
+from services.resource_monitor import ResourceLimiter, ResourceLimit, ResourceType
+from utils.config_manager import get_config
 
 logger = logging.getLogger(__name__)
 

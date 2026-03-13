@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, abort
 from werkzeug.utils import secure_filename
-from models import db, Video, Tag, VideoTag, UserInteraction, UserPreference
+from core.models import db, Video, Tag, VideoTag, UserInteraction, UserPreference
+from services.thumbnail_service_client import get_thumbnail_client, reset_thumbnail_client
 from datetime import datetime
 import random
 import os
@@ -17,7 +18,6 @@ from logging.handlers import RotatingFileHandler
 import traceback
 import psutil
 import socket
-from thumbnail_service_client import get_thumbnail_client, reset_thumbnail_client
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'

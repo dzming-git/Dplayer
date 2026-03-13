@@ -6,7 +6,7 @@
 """
 
 from flask import Blueprint, jsonify, request, abort
-from models import db, Playlist, PlaylistItem, Video
+from core.models import db, Playlist, PlaylistItem, Video
 from datetime import datetime
 import logging
 

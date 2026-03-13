@@ -6,8 +6,8 @@
 """
 
 from flask import Blueprint, jsonify, request, abort
-from models import db, Video
-from tasks import generate_thumbnail, batch_generate_thumbnails, regenerate_thumbnail, check_thumbnail_status
+from core.models import db, Video
+from config.tasks import generate_thumbnail, batch_generate_thumbnails, regenerate_thumbnail, check_thumbnail_status
 from celery.result import AsyncResult
 from datetime import datetime
 import logging

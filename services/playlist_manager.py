@@ -7,7 +7,7 @@
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict
-from models import db, Playlist, PlaylistItem, Video
+from core.models import db, Playlist, PlaylistItem, Video
 from sqlalchemy import desc, asc
 
 logger = logging.getLogger(__name__)
