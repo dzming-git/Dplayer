@@ -97,6 +97,11 @@
             color: white;
         }
 
+        .status-unknown {
+            background: #9ca3af;
+            color: white;
+        }
+
         .action-btn {
             padding: 8px 20px;
             border: none;
@@ -231,9 +236,35 @@
                     </tr>
                 </thead>
                 <tbody id="servicesBody">
-                    <tr>
-                        <td colspan="4" class="loading">加载中...</td>
+                    <!-- 服务行 - 由后端渲染基本信息,JS只更新状态 -->
+                    {% for svc in services %}
+                    <tr id="service-{{ svc.key }}" data-service-key="{{ svc.key }}">
+                        <td>
+                            <div class="service-name">{{ svc.name }}</div>
+                            <div class="service-desc">{{ svc.description }}</div>
+                        </td>
+                        <td>
+                            <span class="status-badge status-unknown">检测中...</span>
+                        </td>
+                        <td class="service-info">
+                            <div class="info-row">
+                                <span class="info-label">端口:</span> {{ svc.port }}
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">PID:</span> <span class="pid-display">检测中...</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">CPU:</span> <span class="cpu-display">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">内存:</span> <span class="memory-display">--</span>
+                            </div>
+                        </td>
+                        <td class="action-cell">
+                            <button class="action-btn btn-start" onclick="startService('{{ svc.key }}')">启动</button>
+                        </td>
                     </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
@@ -243,72 +274,121 @@
         // 当前服务是管理后台
         const CURRENT_SERVICE = 'admin';
 
+        // 存储服务状态缓存
+        let serviceStatusCache = {};
+
         async function refreshServices() {
             const refreshIcon = document.getElementById('refreshIcon');
             refreshIcon.classList.add('spinning');
 
             try {
-                const response = await fetch('/api/services/status');
-                const data = await response.json();
-
-                if (data.success) {
-                    renderServices(data.services);
-                } else {
-                    showMessage('获取服务状态失败: ' + data.message, 'error');
-                }
+                // 获取所有服务行,逐个加载状态
+                const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
+                rows.forEach(row => {
+                    const serviceKey = row.getAttribute('data-service-key');
+                    loadServiceStatus(serviceKey);
+                });
             } catch (error) {
                 showMessage('网络错误: ' + error.message, 'error');
             } finally {
-                refreshIcon.classList.remove('spinning');
+                setTimeout(() => {
+                    refreshIcon.classList.remove('spinning');
+                }, 500);
             }
         }
 
-        function renderServices(services) {
-            const tbody = document.getElementById('servicesBody');
-            tbody.innerHTML = '';
+        async function loadServiceStatus(serviceKey) {
+            try {
+                const response = await fetch(`/api/services/${serviceKey}/status`);
+                const data = await response.json();
 
-            services.forEach(service => {
-                const isSelf = service.key === CURRENT_SERVICE;
-                const row = document.createElement('tr');
-
-                // 状态徽章
-                let statusClass = service.running ? 'status-running' : 'status-stopped';
-                let statusText = service.running ? '运行中' : '已停止';
-                if (isSelf) {
-                    statusClass = 'status-self';
-                    statusText = '当前服务';
+                if (data.success) {
+                    serviceStatusCache[serviceKey] = data.service;
+                    updateServiceRow(serviceKey, data.service);
                 }
+            } catch (error) {
+                console.error(`获取服务 ${serviceKey} 状态失败:`, error);
+                // 更新为未知状态
+                updateServiceRowToUnknown(serviceKey);
+            }
+        }
 
-                // 构建表格行
-                row.innerHTML = `
-                    <td>
-                        <div class="service-name">${service.name}</div>
-                        <div class="service-desc">${service.description}</div>
-                    </td>
-                    <td>
-                        <span class="status-badge ${statusClass}">${statusText}</span>
-                    </td>
-                    <td class="service-info">
-                        <div class="info-row">
-                            <span class="info-label">PID:</span> ${service.pid || 'N/A'}
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">端口:</span> ${service.port}
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">CPU:</span> ${service.cpu_percent}%
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">内存:</span> ${service.memory_mb} MB
-                        </div>
-                    </td>
-                    <td>
-                        ${isSelf ? '<span class="status-badge status-self">当前模块</span>' : generateButtons(service)}
-                    </td>
-                `;
+        function updateServiceRow(serviceKey, service) {
+            const row = document.getElementById(`service-${serviceKey}`);
+            if (!row) return;
 
-                tbody.appendChild(row);
-            });
+            const isSelf = serviceKey === CURRENT_SERVICE;
+
+            // 更新状态徽章
+            let statusClass = service.running ? 'status-running' : 'status-stopped';
+            let statusText = service.running ? '运行中' : '已停止';
+            if (isSelf) {
+                statusClass = 'status-self';
+                statusText = '当前服务';
+            }
+
+            // 更新状态单元格
+            const statusCell = row.cells[1];
+            statusCell.innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+
+            // 更新PID
+            const pidDisplay = row.querySelector('.pid-display');
+            if (pidDisplay) {
+                pidDisplay.textContent = service.pid || 'N/A';
+            }
+
+            // 更新CPU
+            const cpuDisplay = row.querySelector('.cpu-display');
+            if (cpuDisplay) {
+                cpuDisplay.textContent = `${service.cpu_percent}%`;
+            }
+
+            // 更新内存
+            const memoryDisplay = row.querySelector('.memory-display');
+            if (memoryDisplay) {
+                memoryDisplay.textContent = `${service.memory_mb} MB`;
+            }
+
+            // 更新操作按钮
+            const actionCell = row.querySelector('.action-cell');
+            if (actionCell && !isSelf) {
+                actionCell.innerHTML = generateButtons(service);
+            }
+        }
+
+        function updateServiceRowToUnknown(serviceKey) {
+            const row = document.getElementById(`service-${serviceKey}`);
+            if (!row) return;
+
+            const isSelf = serviceKey === CURRENT_SERVICE;
+
+            // 更新状态徽章为未知
+            const statusCell = row.cells[1];
+            statusCell.innerHTML = '<span class="status-badge status-unknown">未知</span>';
+
+            // 更新PID
+            const pidDisplay = row.querySelector('.pid-display');
+            if (pidDisplay) {
+                pidDisplay.textContent = 'N/A';
+            }
+
+            // 更新CPU
+            const cpuDisplay = row.querySelector('.cpu-display');
+            if (cpuDisplay) {
+                cpuDisplay.textContent = '--';
+            }
+
+            // 更新内存
+            const memoryDisplay = row.querySelector('.memory-display');
+            if (memoryDisplay) {
+                memoryDisplay.textContent = '--';
+            }
+
+            // 更新操作按钮
+            const actionCell = row.querySelector('.action-cell');
+            if (actionCell && !isSelf) {
+                actionCell.innerHTML = `<button class="action-btn btn-start" onclick="startService('${serviceKey}')">启动</button>`;
+            }
         }
 
         function generateButtons(service) {
@@ -336,7 +416,8 @@
 
                 if (data.success) {
                     showMessage(data.message, 'success');
-                    await refreshServices();
+                    // 只刷新该服务状态
+                    await loadServiceStatus(serviceKey);
                 } else {
                     showMessage('启动失败: ' + data.message, 'error');
                 }
@@ -363,7 +444,8 @@
 
                 if (data.success) {
                     showMessage(data.message, 'success');
-                    await refreshServices();
+                    // 只刷新该服务状态
+                    await loadServiceStatus(serviceKey);
                 } else {
                     showMessage('停止失败: ' + data.message, 'error');
                 }
@@ -390,7 +472,8 @@
 
                 if (data.success) {
                     showMessage(data.message, 'success');
-                    await refreshServices();
+                    // 只刷新该服务状态
+                    await loadServiceStatus(serviceKey);
                 } else {
                     showMessage('重启失败: ' + data.message, 'error');
                 }
@@ -436,11 +519,28 @@
         }
 
         // 页面加载时自动刷新
-        window.onload = () => {
-            refreshServices();
-            // 每5秒自动刷新一次
-            setInterval(refreshServices, 5000);
-        };
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[DPlayer] 页面加载完成,开始加载服务状态...');
+
+            // 表格HTML已经由服务器渲染,直接开始异步加载状态
+            const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
+            console.log('[DPlayer] 找到服务行:', rows.length);
+
+            rows.forEach(row => {
+                const serviceKey = row.getAttribute('data-service-key');
+                console.log('[DPlayer] 开始加载服务:', serviceKey);
+                loadServiceStatus(serviceKey);
+            });
+
+            // 每5秒自动刷新一次(只更新已加载的服务状态,不重新渲染整个表格)
+            setInterval(() => {
+                const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
+                rows.forEach(row => {
+                    const serviceKey = row.getAttribute('data-service-key');
+                    loadServiceStatus(serviceKey);
+                });
+            }, 5000);
+        });
     </script>
 </body>
 </html>

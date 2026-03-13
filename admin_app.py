@@ -216,24 +216,69 @@ def start_main_app():
             admin_logger.warning(f"主应用已在运行 (PID: {pid})")
             return {'success': False, 'message': f'主应用已在运行 (PID: {pid})'}
 
+        # 检查端口是否被占用
+        if is_port_in_use(MAIN_APP_PORT):
+            admin_logger.warning(f"端口 {MAIN_APP_PORT} 已被占用")
+            return {'success': False, 'message': f'端口 {MAIN_APP_PORT} 已被占用'}
+
         # 启动主应用
         admin_logger.info("启动主应用...")
+
+        # 创建日志文件
+        service_log_file = os.path.join(LOG_DIR, 'main_startup.log')
+        with open(service_log_file, 'w', encoding='utf-8') as log_file:
+            log_file.write(f"=== 启动服务: 主应用 ===\n")
+            log_file.write(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            log_file.write(f"脚本: app.py\n")
+            log_file.write(f"端口: {MAIN_APP_PORT}\n")
+            log_file.write(f"工作目录: {BASEDIR}\n\n")
+
+        # 打开日志文件用于写入子进程输出
+        stdout_file = open(os.path.join(LOG_DIR, 'main_stdout.log'), 'w', encoding='utf-8')
+        stderr_file = open(os.path.join(LOG_DIR, 'main_stderr.log'), 'w', encoding='utf-8')
+
         process = subprocess.Popen(
-            [sys.executable, 'app.py'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=os.getcwd()
+            [sys.executable, os.path.join(BASEDIR, 'app.py')],
+            cwd=BASEDIR,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
         )
+
+        # 立即关闭文件句柄,让子进程自己管理
+        stdout_file.close()
+        stderr_file.close()
 
         # 保存PID
         with open(MAIN_APP_PID_FILE, 'w') as f:
             f.write(str(process.pid))
 
-        admin_logger.info(f"主应用启动成功 (PID: {process.pid})")
-        return {'success': True, 'message': f'主应用启动成功 (PID: {process.pid})', 'pid': process.pid}
+        admin_logger.info(f"主应用进程已启动 (PID: {process.pid})")
+
+        # 等待端口就绪（最多10秒）
+        for i in range(20):
+            time.sleep(0.5)
+            if is_port_in_use(MAIN_APP_PORT):
+                admin_logger.info(f"主应用启动成功 (PID: {process.pid}, 端口: {MAIN_APP_PORT})")
+                return {'success': True, 'message': f'主应用启动成功', 'pid': process.pid}
+
+        # 端口未就绪，检查进程状态
+        if not psutil.pid_exists(process.pid):
+            admin_logger.error(f"主应用进程已退出 (PID: {process.pid})")
+            # 读取错误日志
+            stderr_log = os.path.join(LOG_DIR, 'main_stderr.log')
+            if os.path.exists(stderr_log):
+                with open(stderr_log, 'r', encoding='utf-8') as f:
+                    error_content = f.read()
+                    admin_logger.error(f"启动错误日志:\n{error_content}")
+            return {'success': False, 'message': f'主应用启动失败，进程已退出(查看日志: logs/main_stderr.log)'}
+        else:
+            admin_logger.info(f"主应用进程存在但端口未就绪 (PID: {process.pid})")
+            return {'success': True, 'message': f'主应用进程已启动，等待端口就绪', 'pid': process.pid}
+
     except Exception as e:
-        admin_logger.error(f"启动主应用失败: {e}")
-        return {'success': False, 'message': f'启动失败: {str(e)}'}
+        admin_logger.error(f"启动主应用失败: {e}", exc_info=True)
+        return {'success': False, 'message': str(e)}
 
 
 def stop_main_app():
@@ -690,34 +735,62 @@ def start_service(svc_key):
         if svc_key == 'thumbnail':
             env['THUMBNAIL_SERVICE_PORT'] = str(port)
 
+        # 创建日志文件
+        service_log_file = os.path.join(LOG_DIR, f'{svc_key}_startup.log')
+        with open(service_log_file, 'w', encoding='utf-8') as log_file:
+            log_file.write(f"=== 启动服务: {svc['name']} ===\n")
+            log_file.write(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            log_file.write(f"脚本: {script}\n")
+            log_file.write(f"端口: {port}\n")
+            log_file.write(f"工作目录: {BASEDIR}\n\n")
+
+        # 打开日志文件用于写入子进程输出
+        stdout_file = open(os.path.join(LOG_DIR, f'{svc_key}_stdout.log'), 'w', encoding='utf-8')
+        stderr_file = open(os.path.join(LOG_DIR, f'{svc_key}_stderr.log'), 'w', encoding='utf-8')
+
         proc = subprocess.Popen(
             [sys.executable, script],
             cwd=BASEDIR,
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=stdout_file,
+            stderr=stderr_file,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
         )
+
+        # 立即关闭文件句柄,让子进程自己管理
+        stdout_file.close()
+        stderr_file.close()
 
         # 写入 PID 文件
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
         with open(pid_file, 'w') as f:
             f.write(str(proc.pid))
 
+        admin_logger.info(f"启动服务 {svc['name']} (PID: {proc.pid}, 脚本: {script})")
+
         # 等待端口就绪（最多10秒）
-        for _ in range(20):
+        for i in range(20):
             time.sleep(0.5)
             if _port_listening(port):
-                admin_logger.info(f"服务 {svc['name']} 启动成功 (PID: {proc.pid})")
+                admin_logger.info(f"服务 {svc['name']} 启动成功 (PID: {proc.pid}, 端口: {port})")
                 return {'success': True, 'message': f'{svc["name"]} 启动成功', 'pid': proc.pid}
 
-        # 端口未就绪，但进程可能还在启动中
-        if psutil.pid_exists(proc.pid):
+        # 端口未就绪，检查进程状态
+        if not psutil.pid_exists(proc.pid):
+            admin_logger.error(f"服务 {svc['name']} 进程已退出 (PID: {proc.pid})")
+            # 读取错误日志
+            stderr_log = os.path.join(LOG_DIR, f'{svc_key}_stderr.log')
+            if os.path.exists(stderr_log):
+                with open(stderr_log, 'r', encoding='utf-8') as f:
+                    error_content = f.read()
+                    admin_logger.error(f"启动错误日志:\n{error_content}")
+            return {'success': False, 'message': f'{svc["name"]} 启动失败，进程已退出(查看日志: logs/{svc_key}_stderr.log)'}
+        else:
+            admin_logger.info(f"服务 {svc['name']} 进程存在但端口未就绪 (PID: {proc.pid})")
             return {'success': True, 'message': f'{svc["name"]} 进程已启动，等待端口就绪', 'pid': proc.pid}
-        return {'success': False, 'message': f'{svc["name"]} 启动失败，进程已退出'}
 
     except Exception as e:
-        admin_logger.error(f"启动服务 {svc['name']} 失败: {e}")
+        admin_logger.error(f"启动服务 {svc['name']} 失败: {e}", exc_info=True)
         return {'success': False, 'message': str(e)}
 
 
@@ -794,7 +867,13 @@ def restart_service(svc_key):
 @app.route('/services')
 def page_services():
     """服务管理页面"""
-    return render_template('admin/services.html')
+    # 定义服务列表
+    services_list = [
+        {'key': 'main', 'name': '主应用', 'description': 'app.py - 用户界面', 'port': 80},
+        {'key': 'admin', 'name': '管理后台', 'description': 'admin_app.py - 管理界面', 'port': 8080},
+        {'key': 'thumbnail', 'name': '缩略图服务', 'description': 'thumbnail_service.py - 缩略图生成', 'port': 5001}
+    ]
+    return render_template('admin/services.html', services=services_list)
 
 
 @app.route('/api/services/status')
@@ -810,6 +889,22 @@ def api_services_status():
         })
     except Exception as e:
         admin_logger.error(f"获取服务状态失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/services/<svc_key>/status')
+def api_service_status(svc_key):
+    """获取单个服务的状态（用于异步加载）"""
+    try:
+        if svc_key not in SERVICES:
+            return jsonify({'success': False, 'message': '未知服务'}), 404
+        status = get_service_status(svc_key)
+        return jsonify({
+            'success': True,
+            'service': status
+        })
+    except Exception as e:
+        admin_logger.error(f"获取服务 {svc_key} 状态失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -1018,7 +1113,13 @@ def clear_data(data_type, dry_run=False):
 @app.route('/')
 def index():
     """管理后台首页"""
-    return render_template('admin/dashboard.html')
+    # 定义服务列表
+    services_list = [
+        {'key': 'main', 'name': '主应用', 'description': 'app.py - 用户界面', 'port': 80},
+        {'key': 'admin', 'name': '管理后台', 'description': 'admin_app.py - 管理界面', 'port': 8080},
+        {'key': 'thumbnail', 'name': '缩略图服务', 'description': 'thumbnail_service.py - 缩略图生成', 'port': 5001}
+    ]
+    return render_template('admin/index.html', services=services_list)
 
 
 @app.route('/api/status')
