@@ -29,6 +29,9 @@ import tests.test_performance
 import tests.test_integration
 import tests.test_security
 import tests.test_compatibility
+import tests.test_framework_tests
+import tests.test_routes_tests
+import tests.test_functions_tests
 
 # 获取测试框架
 framework = get_test_framework()
