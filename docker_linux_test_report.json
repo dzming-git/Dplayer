@@ -1,0 +1,43 @@
+{
+  "total": 7,
+  "passed": 7,
+  "failed": 0,
+  "pass_rate": "100.0%",
+  "results": [
+    {
+      "name": "平台检测",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "name": "路径处理",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "name": "挂载配置",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "name": "配置文件加载",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "name": "目录结构",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "name": "跨平台兼容性",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "name": "Docker特定功能",
+      "passed": true,
+      "status": "PASS"
+    }
+  ]
+}
