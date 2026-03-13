@@ -17,6 +17,7 @@ from logging.handlers import RotatingFileHandler
 import traceback
 import psutil
 import socket
+from thumbnail_service_client import get_thumbnail_client, reset_thumbnail_client
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
@@ -430,7 +431,20 @@ def parse_log_line(line):
 MAX_CONCURRENT_THUMBNAIL_GENERATION = 2  # 最多同时生成2个缩略图
 thumbnail_semaphore = threading.Semaphore(MAX_CONCURRENT_THUMBNAIL_GENERATION)
 thumbnail_generation_queue = {}
+# ========== 缩略图微服务集成 ==========
+
+# 缩略图服务配置
+THUMBNAIL_SERVICE_ENABLED = os.getenv('THUMBNAIL_SERVICE_ENABLED', 'true').lower() == 'true'
+THUMBNAIL_SERVICE_URL = os.getenv('THUMBNAIL_SERVICE_URL', 'http://localhost:5001')
+THUMBNAIL_FALLBACK_ENABLED = os.getenv('THUMBNAIL_FALLBACK_ENABLED', 'true').lower() == 'true'
+
+# 缩略图服务客户端
+thumbnail_client = None
+
+# 本地缩略图生成状态（降级模式使用）
 thumbnail_generation_status = {}  # 记录缩略图生成状态: 'pending', 'generating', 'ready', 'failed'
+thumbnail_locks = {}  # 缩略图生成锁
+thumbnail_locks_lock = threading.Lock()
 
 def get_thumbnail_lock(video_hash):
     """获取视频的缩略图生成锁"""
@@ -438,6 +452,32 @@ def get_thumbnail_lock(video_hash):
         if video_hash not in thumbnail_locks:
             thumbnail_locks[video_hash] = threading.Lock()
         return thumbnail_locks[video_hash]
+
+def initialize_thumbnail_service():
+    """初始化缩略图服务"""
+    global thumbnail_client
+    
+    if THUMBNAIL_SERVICE_ENABLED:
+        try:
+            thumbnail_client = get_thumbnail_client()
+            
+            # 检查服务健康状态
+            if thumbnail_client.check_health():
+                logger.info(f"缩略图微服务已连接: {THUMBNAIL_SERVICE_URL}")
+            else:
+                logger.warning(f"缩略图微服务不可用，将使用降级模式: {THUMBNAIL_SERVICE_URL}")
+                if THUMBNAIL_FALLBACK_ENABLED:
+                    logger.info("降级模式已启用")
+                else:
+                    logger.error("降级模式未启用，缩略图功能将不可用")
+        except Exception as e:
+            logger.error(f"初始化缩略图服务失败: {str(e)}")
+            if THUMBNAIL_FALLBACK_ENABLED:
+                logger.info("将使用降级模式（本地生成）")
+            else:
+                logger.error("降级模式未启用，缩略图功能将不可用")
+    else:
+        logger.info("缩略图微服务未启用，使用本地生成模式")
 
 # 初始化数据库
 db.init_app(app)
@@ -521,11 +561,18 @@ def serve_local_video(video_path):
 # 懒加载缩略图路由
 @app.route('/thumbnail/<video_hash>')
 def serve_lazy_thumbnail(video_hash):
-    """懒加载缩略图：如果不存在则触发异步生成并返回202"""
+    """
+    懒加载缩略图：如果不存在则触发异步生成并返回202
+    
+    优先使用缩略图微服务，如果微服务不可用则降级到本地生成
+    """
     request_time = datetime.now()
 
     # 调试日志：记录请求开始
     debug_log.debug(f"[缩略图请求] 开始处理: video_hash={video_hash}, time={request_time.strftime('%H:%M:%S.%f')}")
+    runtime_log.debug(f"[缩略图请求] video_hash={video_hash}")
+    service_used = "microservice" if thumbnail_client and thumbnail_client.is_available() else "local"
+    debug_log.debug(f"[缩略图服务] 使用服务: {service_used}")
     runtime_log.debug(f"[缩略图请求] video_hash={video_hash}")
 
     try:
@@ -1442,8 +1489,33 @@ def api_get_recommended_videos():
 
 @app.route('/api/thumbnail/<video_hash>/status', methods=['GET'])
 def check_thumbnail_status(video_hash):
-    """检查缩略图是否已生成"""
+    """
+    检查缩略图是否已生成
+    
+    优先查询缩略图微服务，如果微服务不可用则检查本地文件
+    """
     try:
+        # 如果微服务可用，使用微服务查询
+        if thumbnail_client and thumbnail_client.is_available():
+            debug_log.debug(f"[缩略图状态] 使用微服务查询: video_hash={video_hash}")
+            result = thumbnail_client.get_task_status_by_hash(video_hash)
+            
+            if result:
+                status = result.get('status')
+                thumbnail_format = result.get('format')
+                
+                return jsonify({
+                    'success': True,
+                    'status': status,
+                    'format': thumbnail_format,
+                    'thumbnail_url': f'/thumbnail/{video_hash}' if status == 'ready' else None,
+                    'service': 'microservice'
+                })
+            else:
+                debug_log.warning(f"[缩略图状态] 微服务查询失败，降级到本地: video_hash={video_hash}")
+        
+        # 降级到本地检查
+        debug_log.debug(f"[缩略图状态] 使用本地检查: video_hash={video_hash}")
         thumbnail_dir = os.path.join('static', 'thumbnails')
         gif_path = os.path.join(thumbnail_dir, f'{video_hash}.gif')
         jpg_path = os.path.join(thumbnail_dir, f'{video_hash}.jpg')
@@ -1454,26 +1526,29 @@ def check_thumbnail_status(video_hash):
         # 检查文件是否已存在
         if os.path.exists(gif_path):
             status = 'ready'
-            format = 'gif'
+            thumbnail_format = 'gif'
         elif os.path.exists(jpg_path):
             status = 'ready'
-            format = 'jpg'
+            thumbnail_format = 'jpg'
         elif generation_status in ['generating', 'pending']:
             # 正在生成或等待生成
             status = generation_status
-            format = None
+            thumbnail_format = None
         else:
             # 未触发生成
             status = 'pending'
-            format = None
+            thumbnail_format = None
 
         return jsonify({
+            'success': True,
             'status': status,
-            'format': format,
-            'thumbnail_url': f'/thumbnail/{video_hash}' if status == 'ready' else None
+            'format': thumbnail_format,
+            'thumbnail_url': f'/thumbnail/{video_hash}' if status == 'ready' else None,
+            'service': 'local'
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        debug_log.error(f"[缩略图状态] 查询异常: video_hash={video_hash}, error={str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/video/<video_hash>', methods=['GET'])
@@ -3079,6 +3154,15 @@ if __name__ == '__main__':
     print(f'[*] Starting Flask server on {HOST}:{PORT}')
     print(f'[*] Process ID: {os.getpid()}')
     init_db()  # 初始化数据库
+    
+    # 初始化缩略图服务
+    print(f'[*] Initializing thumbnail service...')
+    initialize_thumbnail_service()
+    
+    # 启动缩略图预生成任务
+    if THUMBNAIL_FALLBACK_ENABLED:
+        print(f'[*] Starting thumbnail pre-generation task...')
+        threading.Thread(target=generate_missing_thumbnails_async, daemon=True).start()
 
     # 启动缩略图预生成后台任务
     thumbnail_thread = threading.Thread(target=generate_missing_thumbnails_async, daemon=True)
