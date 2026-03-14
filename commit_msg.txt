@@ -1,0 +1,5 @@
+重构代码组织结构：
+1. node_manager -> src/common/libweb
+2. utils/logger.py -> src/common/liblog
+3. 新增微服务模块目录：src/msa-video/web, src/msa-tag/web, src/msa-system/web, src/msa-log
+4. 更新所有导入路径
