@@ -874,9 +874,8 @@ def start_service(svc_key):
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
         )
 
-        # 立即关闭文件句柄,让子进程自己管理
-        stdout_file.close()
-        stderr_file.close()
+        # 注意：不要立即关闭文件句柄，否则子进程输出无法写入日志
+        # 文件句柄会在进程结束时自动关闭
 
         # 写入 PID 文件
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
