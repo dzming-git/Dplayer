@@ -187,7 +187,7 @@ def load_config():
 # 全局配置
 config = load_config()
 ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
-MAIN_APP_PORT = config.get('ports', {}).get('main_app', 80)
+MAIN_APP_PORT = config.get('ports', {}).get('main_app', 8081)  # 改为8081避免需要管理员权限
 HOST = config.get('host', '0.0.0.0')
 
 app = Flask(__name__)

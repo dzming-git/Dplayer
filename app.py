@@ -186,7 +186,7 @@ def load_config():
 
 # 全局配置
 config = load_config()
-PORT = config.get('ports', {}).get('main_app', 80)
+PORT = config.get('ports', {}).get('main_app', 8081)  # 改为8081避免需要管理员权限
 HOST = config.get('host', '0.0.0.0')
 
 # 全局进度字典
