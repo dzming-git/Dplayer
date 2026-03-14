@@ -112,8 +112,8 @@ async function apiCall(url, method = 'GET', data = null) {
         const result = await response.json();
         return result;
     } catch (error) {
-        console.error('API调用失败:', error);
-        return { success: false, message: '网络请求失败' };
+        console.error('API call failed:', error);
+        return { success: false, message: 'Network request failed' };
     }
 }
 

@@ -58,7 +58,7 @@ def is_port_in_use(port):
             result = s.connect_ex(('localhost', port))
             return result == 0
     except Exception as e:
-        logger.error(f"检查端口 {port} 占用状态失败: {e}")
+        logger.error(f"Failed to check port {port} status: {e}")
         return False
 
 
@@ -81,9 +81,9 @@ def find_process_using_port(port, exclude_self=False):
                     proc = psutil.Process(conn.pid)
                     processes.append(proc)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    logger.warning(f"无法访问进程 {conn.pid}")
+                    logger.warning(f"Cannot access process {conn.pid}")
     except Exception as e:
-        logger.error(f"查找端口 {port} 的进程失败: {e}")
+        logger.error(f"Failed to find process using port {port}: {e}")
     return processes
 
 
@@ -95,22 +95,22 @@ def kill_process(process):
         process.terminate()  # 先尝试正常终止
         try:
             process.wait(timeout=5)
-            logger.info(f"成功终止进程 {name} (PID: {pid})")
+            logger.info(f"Successfully terminated process {name} (PID: {pid})")
             return True
         except psutil.TimeoutExpired:
-            # 正常终止超时，强制杀死
+            # Normal termination timeout, force kill
             process.kill()
             process.wait(timeout=2)
-            logger.info(f"强制杀死进程 {name} (PID: {pid})")
+            logger.info(f"Force killed process {name} (PID: {pid})")
             return True
     except psutil.NoSuchProcess:
-        logger.warning(f"进程已不存在")
+        logger.warning(f"Process does not exist")
         return True
     except psutil.AccessDenied:
-        logger.error(f"没有权限终止进程 (PID: {process.pid})")
+        logger.error(f"No permission to terminate process (PID: {process.pid})")
         return False
     except Exception as e:
-        logger.error(f"终止进程失败: {e}")
+        logger.error(f"Failed to terminate process: {e}")
         return False
 
 
@@ -128,9 +128,9 @@ def kill_all_processes_using_port(port, exclude_self=False):
     }
     processes = find_process_using_port(port, exclude_self=exclude_self)
     if not processes:
-        logger.info(f"端口 {port} 没有被占用")
+        logger.info(f"Port {port} is not in use")
         return result
-    logger.warning(f"端口 {port} 被 {len(processes)} 个进程占用")
+    logger.warning(f"Port {port} is occupied by {len(processes)} processes")
     for proc in processes:
         proc_info = {
             'pid': proc.pid,
@@ -141,12 +141,12 @@ def kill_all_processes_using_port(port, exclude_self=False):
             result['killed_count'] += 1
             proc_info['status'] = 'killed'
         result['processes'].append(proc_info)
-    # 验证端口是否已释放
+    # Verify if port is released
     if is_port_in_use(port):
         result['success'] = False
-        logger.error(f"端口 {port} 仍然被占用，可能有新进程启动")
+        logger.error(f"Port {port} is still in use, new process may have started")
     else:
-        logger.info(f"端口 {port} 已成功释放")
+        logger.info(f"Port {port} has been successfully released")
     return result
 
 
@@ -158,16 +158,16 @@ def ensure_port_available(port, exclude_self=False):
         exclude_self: 是否排除当前进程（避免在debug模式下杀死自己）
     """
     if not is_port_in_use(port):
-        logger.info(f"端口 {port} 可用")
+        logger.info(f"Port {port} is available")
         return {
             'success': True,
             'action': 'none',
-            'message': f'端口 {port} 可用'
+            'message': f'Port {port} is available'
         }
-    logger.warning(f"端口 {port} 被占用，正在强制释放...")
+    logger.warning(f"Port {port} is in use, forcefully releasing...")
     result = kill_all_processes_using_port(port, exclude_self=exclude_self)
     result['action'] = 'killed'
-    result['message'] = f'已终止 {result["killed_count"]} 个进程以释放端口 {port}'
+    result['message'] = f'Terminated {result["killed_count"]} processes to release port {port}'
     return result
 
 
@@ -181,7 +181,7 @@ def load_config():
         else:
             return {}
     except Exception as e:
-        logger.error(f"读取配置文件失败: {e}")
+        logger.error(f"Failed to read config file: {e}")
         return {}
 
 # 全局配置
@@ -403,7 +403,7 @@ def get_log_lines(log_file, line_count=100, search=None, level=None):
         # 不再反转，直接返回倒序的结果
         return lines
     except Exception as e:
-        logger.error(f"读取日志文件失败: {e}")
+        logger.error(f"Failed to read log file: {e}")
         return []
 
 def parse_log_line(line):
@@ -504,21 +504,21 @@ def initialize_thumbnail_service():
             
             # 检查服务健康状态
             if thumbnail_client.check_health():
-                logger.info(f"缩略图微服务已连接: {THUMBNAIL_SERVICE_URL}")
+                logger.info(f"Thumbnail microservice connected: {THUMBNAIL_SERVICE_URL}")
             else:
-                logger.warning(f"缩略图微服务不可用，将使用降级模式: {THUMBNAIL_SERVICE_URL}")
+                logger.warning(f"Thumbnail microservice unavailable, will use fallback mode: {THUMBNAIL_SERVICE_URL}")
                 if THUMBNAIL_FALLBACK_ENABLED:
-                    logger.info("降级模式已启用")
+                    logger.info("Fallback mode enabled")
                 else:
-                    logger.error("降级模式未启用，缩略图功能将不可用")
+                    logger.error("Fallback mode not enabled, thumbnail feature will be unavailable")
         except Exception as e:
-            logger.error(f"初始化缩略图服务失败: {str(e)}")
+            logger.error(f"Failed to initialize thumbnail service: {str(e)}")
             if THUMBNAIL_FALLBACK_ENABLED:
-                logger.info("将使用降级模式（本地生成）")
+                logger.info("Will use fallback mode (local generation)")
             else:
-                logger.error("降级模式未启用，缩略图功能将不可用")
+                logger.error("Fallback mode not enabled, thumbnail feature will be unavailable")
     else:
-        logger.info("缩略图微服务未启用，使用本地生成模式")
+        logger.info("Thumbnail microservice not enabled, using local generation mode")
 
 # 初始化数据库
 db.init_app(app)
@@ -675,13 +675,13 @@ def serve_lazy_thumbnail(video_hash):
                     error_time = datetime.now()
                     debug_log.error(f"[缩略图异步] 视频不存在: video_hash={video_hash}, 耗时={(error_time - start_time).total_seconds():.3f}s")
                     thumbnail_generation_status[video_hash] = 'failed'
-                    runtime_log.warning(f"[缩略图生成失败] 视频不存在: video_hash={video_hash}")
+                    runtime_log.warning(f"[Thumbnail generation failed] Video does not exist: video_hash={video_hash}")
                     return
 
                 # 更新状态为generating
                 generating_time = datetime.now()
                 thumbnail_generation_status[video_hash] = 'generating'
-                runtime_log.info(f"[缩略图生成开始] video_title={video.title}, video_hash={video_hash}, local_path={video.local_path}")
+                runtime_log.info(f"[Thumbnail generation started] video_title={video.title}, video_hash={video_hash}, local_path={video.local_path}")
                 debug_log.debug(f"[缩略图异步] 状态更新为generating: video_hash={video_hash}, 耗时={(generating_time - start_time).total_seconds():.3f}s")
 
                 # 确保目录存在
@@ -710,7 +710,7 @@ def serve_lazy_thumbnail(video_hash):
                         debug_log.debug(f"[缩略图异步] 静态缩略图生成成功: video_hash={video_hash}, 耗时={(jpg_end - jpg_start).total_seconds():.3f}s")
                         thumbnail_generation_status[video_hash] = 'ready'
                         total_time = (datetime.now() - start_time).total_seconds()
-                        runtime_log.info(f"[缩略图生成成功] 格式=JPG, video_title={video.title}, video_hash={video_hash}, 总耗时={total_time:.3f}s, 路径={jpg_path}")
+                        runtime_log.info(f"[Thumbnail generation successful] Format=JPG, video_title={video.title}, video_hash={video_hash}, total_time={total_time:.3f}s, path={jpg_path}")
                         return
 
                     # 如果静态图失败，尝试生成GIF
@@ -723,14 +723,14 @@ def serve_lazy_thumbnail(video_hash):
                         debug_log.debug(f"[缩略图异步] GIF生成成功: video_hash={video_hash}, 耗时={(gif_end - gif_start).total_seconds():.3f}s")
                         thumbnail_generation_status[video_hash] = 'ready'
                         total_time = (datetime.now() - start_time).total_seconds()
-                        runtime_log.info(f"[缩略图生成成功] 格式=GIF, video_title={video.title}, video_hash={video_hash}, 总耗时={total_time:.3f}s, 路径={gif_path}")
+                        runtime_log.info(f"[Thumbnail generation successful] Format=GIF, video_title={video.title}, video_hash={video_hash}, total_time={total_time:.3f}s, path={gif_path}")
                         return
 
                     # 两种格式都失败
                     total_time = (datetime.now() - start_time).total_seconds()
                     debug_log.error(f"[缩略图异步] 所有格式生成失败: video_hash={video_hash}, 耗时={total_time:.3f}s")
                     thumbnail_generation_status[video_hash] = 'failed'
-                    runtime_log.error(f"[缩略图生成失败] video_title={video.title}, video_hash={video_hash}, local_path={video.local_path}, 耗时={total_time:.3f}s")
+                    runtime_log.error(f"[Thumbnail generation failed] video_title={video.title}, video_hash={video_hash}, local_path={video.local_path}, time_spent={total_time:.3f}s")
 
             except Exception as e:
                 error_time = datetime.now()
@@ -739,7 +739,7 @@ def serve_lazy_thumbnail(video_hash):
                 import traceback
                 debug_log.error(f"[缩略图异步] 堆栈跟踪:\n{traceback.format_exc()}")
                 thumbnail_generation_status[video_hash] = 'failed'
-                runtime_log.error(f"[缩略图生成异常] video_hash={video_hash}, error={str(e)}, 耗时={total_time:.3f}s")
+                runtime_log.error(f"[Thumbnail generation exception] video_hash={video_hash}, error={str(e)}, time_spent={total_time:.3f}s")
 
         # 启动异步生成线程
         thread_start = datetime.now()
@@ -760,7 +760,7 @@ def serve_lazy_thumbnail(video_hash):
     except Exception as e:
         error_time = datetime.now()
         debug_log.error(f"[缩略图异常] 缩略图服务错误: video_hash={video_hash}, error={str(e)}, 耗时={(error_time - request_time).total_seconds():.3f}s")
-        runtime_log.error(f"[缩略图异常] {video_hash}: {str(e)}")
+        runtime_log.error(f"[Thumbnail exception] {video_hash}: {str(e)}")
         import traceback
         debug_log.error(f"[缩略图异常] 堆栈跟踪:\n{traceback.format_exc()}")
         # 返回错误和默认缩略图
@@ -1003,7 +1003,7 @@ def generate_video_gif(video_path, output_path, num_frames=6, size=(320, 180), d
     """
     start_time = datetime.now()
 
-    debug_log.debug(f"[GIF生成] 开始生成: video_path={video_path}, output={output_path}, num_frames={num_frames}, size={size}, duration={duration}ms")
+    debug_log.debug(f"[GIF generation] Start generating: video_path={video_path}, output={output_path}, num_frames={num_frames}, size={size}, duration={duration}ms")
     print(f'[DEBUG] 开始生成GIF: {output_path}')
 
     try:
@@ -1321,7 +1321,7 @@ def index():
                     db.session.commit()
                     debug_log.debug(f"[时长更新] 自动更新时长: {video.title} = {duration}秒")
             except Exception as e:
-                debug_log.warning(f"[时长更新] 更新失败: {video.title}, error={e}")
+                debug_log.warning(f"[Duration update] Update failed: {video.title}, error={e}")
 
     popular_tags = get_popular_tags(limit=10)
 
@@ -1537,7 +1537,7 @@ def api_get_recommended_videos():
                     db.session.commit()
                     debug_log.debug(f"[时长更新] 自动更新时长: {video.title} = {duration}秒")
             except Exception as e:
-                debug_log.warning(f"[时长更新] 更新失败: {video.title}, error={e}")
+                debug_log.warning(f"[Duration update] Update failed: {video.title}, error={e}")
 
     return jsonify({
         'videos': [v.to_dict() for v in recommended_videos],
@@ -1606,7 +1606,7 @@ def check_thumbnail_status(video_hash):
             'service': 'local'
         })
     except Exception as e:
-        debug_log.error(f"[缩略图状态] 查询异常: video_hash={video_hash}, error={str(e)}")
+        debug_log.error(f"[Thumbnail status] Query exception: video_hash={video_hash}, error={str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

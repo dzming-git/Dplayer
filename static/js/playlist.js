@@ -39,10 +39,10 @@ async function loadPlaylists() {
             allPlaylists = data.playlists;
             renderPlaylists(allPlaylists);
         } else {
-            console.error('加载播放列表失败:', data.error);
+            console.error('Failed to load playlists:', data.error);
         }
     } catch (error) {
-        console.error('加载播放列表失败:', error);
+        console.error('Failed to load playlists:', error);
     }
 }
 

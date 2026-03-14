@@ -1,214 +1,481 @@
-# DPlayer 服务控制脚本使用文档
+# DPlayer Service Controller - Usage Guide
 
-## 概述
+## Overview
 
-本项目提供了统一的服务控制脚本，可以方便地管理所有DPlayer Windows服务。
+`service_controller.py` is unified service management tool for DPlayer. It provides cross-platform support for both Windows and Linux systems, replacing all previous batch and shell scripts.
 
-## 脚本文件
+## Features
 
-1. **service_controller.bat** - 批处理版本（推荐，兼容性最好）
-2. **service_controller.ps1** - PowerShell版本（功能更强大，彩色输出）
-3. **verify_controller.py** - 验证脚本（测试脚本和服务的状态）
+- **Cross-platform**: Works on Windows and Linux
+- **Unified interface**: Single command for all service operations
+- **Status monitoring**: Real-time service status and port monitoring
+- **Auto-start management**: Configure services to start automatically (Linux)
+- **Port management**: Detect and clear port conflicts with process details
+- **Comprehensive logging**: Detailed status information and error reporting
 
-## 功能
+## Requirements
 
-所有脚本支持以下操作：
+### Windows
+- Python 3.x
+- pywin32 package (for service control)
+- psutil package (for port management)
+- Administrator privileges for service operations
 
-| 操作 | 说明 | 支持的服务 |
-|------|------|------------|
-| `install` | 注册所有DPlayer服务到Windows | all（所有） |
-| `uninstall` | 从Windows卸载所有DPlayer服务 | all（所有） |
-| `start` | 启动服务 | admin, main, thumbnail, all |
-| `stop` | 停止服务 | admin, main, thumbnail, all |
-| `restart` | 重启服务 | admin, main, thumbnail, all |
-| `status` | 查询服务状态 | admin, main, thumbnail, all |
-
-## 服务列表
-
-- **admin** / **DPlayer-Admin** - 管理服务（端口8080）
-- **main** / **DPlayer-Main** - 主应用服务（端口80）
-- **thumbnail** / **DPlayer-Thumbnail** - 缩略图服务（端口5001）
-
-## 使用方法
-
-### 批处理版本（推荐）
-
-```batch
-# 以管理员身份运行
-scripts\service_controller.bat [操作] [服务]
+Install dependencies:
+```bash
+pip install pywin32 psutil
 ```
 
-**示例：**
+### Linux
+- Python 3.x
+- systemd service manager
+- psutil package (for port management)
+- Root privileges for service operations
 
-```batch
-# 查询所有服务状态
-scripts\service_controller.bat status
-
-# 启动所有服务
-scripts\service_controller.bat start all
-
-# 停止主应用服务
-scripts\service_controller.bat stop main
-
-# 重启管理服务
-scripts\service_controller.bat restart admin
-
-# 注册所有服务
-scripts\service_controller.bat install
-
-# 卸载所有服务
-scripts\service_controller.bat uninstall
+Install psutil:
+```bash
+pip install psutil
 ```
 
-### PowerShell版本
+## Usage
 
-```powershell
-# 以管理员身份运行
-.\scripts\service_controller.ps1 [操作] [服务]
+### Basic Syntax
+
+```bash
+python service_controller.py [operation] [service/port] [options]
 ```
 
-**示例：**
+### Operations
 
-```powershell
-# 查询所有服务状态
-.\scripts\service_controller.ps1 status
+| Operation | Description | Privileges Required |
+|-----------|-------------|---------------------|
+| `start` | Start services | Admin/Root |
+| `stop` | Stop services | Admin/Root |
+| `restart` | Restart services | Admin/Root |
+| `status` | Query service status | None |
+| `clear-ports` | Clear all DPlayer service ports | Admin/Root |
+| `clear-port` | Clear a specific service port or port number | Admin/Root |
+| `autostart-enable` | Enable auto-start | Root (Linux only) |
+| `autostart-disable` | Disable auto-start | Root (Linux only) |
 
-# 启动所有服务
-.\scripts\service_controller.ps1 start all
+### Services
 
-# 停止主应用服务
-.\scripts\service_controller.ps1 stop main
+| Service | System Name | Description | Default Port |
+|---------|------------|-------------|---------------|
+| `admin` | DPlayer-Admin | Admin Panel | 8080 |
+| `main` | DPlayer-Main | Main Application | 8081 |
+| `thumbnail` | DPlayer-Thumbnail | Thumbnail Service | 5001 |
+| `all` | All services | All DPlayer services | - |
 
-# 重启管理服务
-.\scripts\service_controller.ps1 restart admin
+### Options
 
-# 注册所有服务
-.\scripts\service_controller.ps1 install
+| Option | Description |
+|--------|-------------|
+| `-f, --force` | Force mode - skip confirmation for port clearing |
+| `--dry-run` | Dry-run mode - show only, make no changes |
 
-# 卸载所有服务
-.\scripts\service_controller.ps1 uninstall
+## Examples
+
+### Service Management
+
+#### Start all services
+```bash
+python service_controller.py start
 ```
 
-## 验证脚本
-
-运行验证脚本可以检查：
-- 服务包装器脚本是否存在
-- 当前服务状态
-- 端口监听状态
-
-```batch
-scripts\verify_controller.py
+#### Start a specific service
+```bash
+python service_controller.py start admin
 ```
 
-验证输出示例：
+#### Stop all services
+```bash
+python service_controller.py stop
+```
+
+#### Restart main service
+```bash
+python service_controller.py restart main
+```
+
+#### Check service status
+```bash
+python service_controller.py status
+```
+
+#### Check specific service status
+```bash
+python service_controller.py status admin
+```
+
+### Port Management (NEW!)
+
+#### Clear all DPlayer service ports
+```bash
+python service_controller.py clear-ports
+```
+
+This will:
+- Check all DPlayer service ports (8080, 8081, 5001)
+- Detect any processes using these ports
+- Show PID, process name, and command line
+- Ask for confirmation before killing processes
+- Verify port is free after clearing
+
+#### Clear port for a specific service
+```bash
+python service_controller.py clear-port admin
+python service_controller.py clear-port main
+python service_controller.py clear-port thumbnail
+```
+
+This will:
+- Read port from service configuration
+- Detect processes using the port
+- Show process details
+- Ask for confirmation
+- Verify port is free
+
+#### Clear a specific port number
+```bash
+python service_controller.py clear-port 8080
+python service_controller.py clear-port 9999
+```
+
+This allows clearing any port, not just DPlayer service ports.
+
+#### Force mode (no confirmation)
+```bash
+python service_controller.py clear-ports --force
+python service_controller.py clear-port 8080 -f
+```
+
+Useful for automation or when you're sure about the operation.
+
+#### Dry-run mode (preview only)
+```bash
+python service_controller.py clear-ports --dry-run
+python service_controller.py clear-port admin --dry-run
+```
+
+Shows what would be done without actually making changes. Great for debugging or before running force mode.
+
+### Linux Auto-Start Management
+
+#### Enable auto-start for all services
+```bash
+sudo python service_controller.py autostart-enable
+```
+
+#### Disable auto-start for specific service
+```bash
+sudo python service_controller.py autostart-disable main
+```
+
+## Output Format
+
+The service controller provides color-coded output:
+
+- **Green [OK]**: Success messages
+- **Red [ERROR]**: Error messages
+- **Yellow [WARN]**: Warning messages
+- **Blue/Info**: Informational messages
+- **Cyan**: Headers and section titles
+
+### Status Output Example
 
 ```
-╔══════════════════════════════╗
-║                    服务控制脚本验证                   ║
-╚══════════════════════════════╝
-
 ============================================================
-测试服务包装器脚本
+  Admin Service (DPlayer-Admin)
 ============================================================
-
-[OK] services\admin_service.py
-[OK] services\main_service.py
-[OK] services\thumbnail_service_win.py
-
-============================================================
-测试当前服务状态
-============================================================
-
-[OK] DPlayer-Admin 已注册
-      状态: 运行中
-[OK] DPlayer-Main 已注册
-      状态: 运行中
-[OK] DPlayer-Thumbnail 已注册
-      状态: 运行中
-
-============================================================
-测试端口监听
-============================================================
-
-[OK] 管理服务 (Admin) - 端口 8080 正在监听
-[OK] 主应用服务 (Main) - 端口 80 正在监听
-[OK] 缩略图服务 (Thumbnail) - 端口 5001 正在监听
+Status: [RUNNING]
+PID: 10468
+Port: 8080 [LISTENING]
+Start Type: 2   AUTO_START (Auto-start)
 ```
 
-## 管理界面集成
+### Port Clearing Output Example
 
-服务控制脚本与管理后台页面集成：
+```
+============================================================
+  Clear Port for Admin Service [interactive]
+============================================================
+[INFO] Checking port 8080 for Admin Service...
 
-- **服务管理页面** (`http://localhost:8080/services`)
-- **API端点**:
-  - `GET /api/services/status` - 获取所有服务状态
-  - `POST /api/services/{key}/start` - 启动指定服务
-  - `POST /api/services/{key}/stop` - 停止指定服务
-  - `POST /api/services/{key}/restart` - 重启指定服务
-
-**注意**：管理后台服务自身不能被停止或重启。
-
-## 注意事项
-
-1. **管理员权限**：所有服务控制操作都需要管理员权限
-2. **服务状态**：脚本会自动等待服务状态变更（最多30秒超时）
-3. **端口验证**：启动/重启操作后会验证端口是否正确监听
-4. **PID验证**：重启操作会验证PID是否变更，确保服务真正重启
-
-## 故障排查
-
-### 服务无法启动
-
-1. 运行验证脚本检查服务状态：
-   ```batch
-   scripts\verify_controller.py
-   ```
-
-2. 检查Windows事件查看器：
-   - 按 `Win+R` 输入 `eventvwr.msc`
-   - 查看"Windows 日志" → "应用程序"
-
-3. 查看服务日志：
-   - `logs/admin.log` - 管理服务日志
-   - `logs/app.log` - 主应用服务日志
-   - `logs/thumbnail.log` - 缩略图服务日志
-
-### 端口被占用
-
-```batch
-# 查看端口占用
-netstat -ano | findstr "8080"
-netstat -ano | findstr ":80"
-netstat -ano | findstr ":5001"
+[WARN] Port 8080 is occupied by 1 process(es):
+  PID 2400  pythonservice.exe
+  CMD C:\Users\...\pythonservice.exe
+  Kill 1 process(es)? [y/N] y
+  -> PID 2400 [killed]
+[OK] Port 8080 is now free
 ```
 
-如果端口被占用，运行：
-```batch
-scripts\service_controller.bat stop all
+### Summary Statistics
+
+The `status` command provides a summary at end:
+
+```
+============================================================
+  Summary Statistics
+============================================================
+Running: 3
+Stopped: 0
+Not Registered: 0
 ```
 
-### 服务未注册
+## Port Configuration
 
-运行安装命令：
-```batch
-scripts\service_controller.bat install
+Ports are read from `config/config.json`. To change ports:
+
+1. Edit `config/config.json`
+2. Modify the `ports` section
+3. Restart services
+
+Example:
+```json
+{
+  "ports": {
+    "admin_app": 8080,
+    "main_app": 8081,
+    "thumbnail": 5001
+  }
+}
 ```
 
-## 相关脚本
+The service controller automatically reads this configuration for:
+- Service status checking
+- Port clearing operations
+- Port listening verification
 
-- `restart_services.py` - 简单的服务重启脚本
-- `install_services.bat` - 服务安装脚本
-- `start_all_services.bat` - 批量启动脚本
-- `stop_all_services.bat` - 批量停止脚本
+## Troubleshooting
 
-## 版本信息
+### Windows
 
-- **创建日期**：2026-03-14
-- **最新更新**：2026-03-14（添加 Python 版本）
-- **版本**：2.0
-- **兼容性**：Windows 10/11 Server
+**Error: "This operation requires administrator privileges!"**
 
-## 相关文档
+Solution: Run Command Prompt or PowerShell as Administrator.
 
-- **SERVICE_CONTROLLER_PYTHON.md** - Python 版本详细说明
-- **SERVICE_CONTROLLER_COMPARISON.md** - 版本对比分析报告
+**Error: "pywin32 not installed"**
+
+Solution: Install pywin32:
+```bash
+pip install pywin32
+```
+
+**Error: "psutil not installed"**
+
+Solution: Install psutil:
+```bash
+pip install psutil
+```
+
+**Error: "Insufficient permissions to query network connections"**
+
+Solution: Run as Administrator to query all processes using ports.
+
+### Linux
+
+**Error: "This operation requires root privileges!"**
+
+Solution: Use sudo:
+```bash
+sudo python service_controller.py start
+```
+
+**Error: "psutil not installed"**
+
+Solution: Install psutil:
+```bash
+sudo pip install psutil
+```
+
+**Service not found**
+
+Ensure services are registered. For Linux, make sure systemd service files exist in `/etc/systemd/system/`.
+
+**Port still occupied after clearing**
+
+Some processes may respawn. Check:
+1. Is the service auto-starting?
+2. Are there multiple instances running?
+3. Try force mode with `--force`
+
+## Migration from Old Scripts
+
+### Replaced Windows Scripts
+
+The following Windows batch scripts have been replaced:
+
+- `restart_admin.bat` → Use: `python service_controller.py restart admin`
+- `restart_all.bat` → Use: `python service_controller.py restart`
+- `scripts/clean_all_dplayer.bat` → Use: `python service_controller.py stop`
+- `scripts/diagnose_network.bat` → Integrated into main service controller
+- `scripts/fix_network_issues.bat` → Integrated into main service controller
+- `scripts/run_tests.bat` → Use standard test runners
+- `scripts/setup_docker.bat` → Docker setup should be done separately
+- `scripts/setup_firewall.bat` → Use system firewall configuration tools
+- `scripts/setup_restart_perms.bat` → Integrated into service controller
+- `scripts/start_all_services.bat` → Use: `python service_controller.py start`
+- `scripts/stop_all_services.bat` → Use: `python service_controller.py stop`
+
+### Replaced Linux Scripts
+
+The following Linux shell scripts have been replaced:
+
+- `scripts/setup_docker.sh` → Docker setup should be done separately
+- `scripts/setup_firewall.sh` → Use system firewall configuration tools (ufw, firewalld)
+- `scripts/service/install_linux_services.sh` → Use: `sudo systemctl enable dplayer-*.service`
+
+### Replaced kill_ports.py
+
+The port management functionality has been integrated:
+
+```bash
+# Old
+python scripts/kill_ports.py
+
+# New
+python scripts/service_controller.py clear-ports
+```
+
+```bash
+# Old - Force mode
+python scripts/kill_ports.py -f
+
+# New
+python scripts/service_controller.py clear-ports --force
+```
+
+```bash
+# Old - Dry-run
+python scripts/kill_ports.py --dry-run
+
+# New
+python scripts/service_controller.py clear-ports --dry-run
+```
+
+```bash
+# Old - Specific port
+python scripts/kill_ports.py -f 8080
+
+# New
+python scripts/service_controller.py clear-port 8080 --force
+```
+
+## Advanced Usage
+
+### Check specific service status
+```bash
+python service_controller.py status admin
+```
+
+### Start multiple services
+```bash
+python service_controller.py start admin main
+```
+
+### Restart with status verification
+The `restart` command automatically verifies status after restart and checks if PID has changed.
+
+### Chain operations for clean restart
+```bash
+# Clear ports, then restart
+python service_controller.py clear-ports --force
+python service_controller.py restart
+```
+
+### Debug port conflicts
+```bash
+# See what's using ports without killing
+python service_controller.py clear-ports --dry-run
+```
+
+## Platform-Specific Notes
+
+### Windows
+
+- Uses Windows Service Manager (sc.exe) and pywin32
+- Service names: DPlayer-Admin, DPlayer-Main, DPlayer-Thumbnail
+- Install services using: `python <service_script>.py install`
+- Configure auto-start using Windows Services Manager (services.msc)
+- ANSI colors enabled for better output
+
+### Linux
+
+- Uses systemd service manager
+- Service files are located in `scripts/service/` directory
+- Service files should be symlinked to `/etc/systemd/system/`
+- Auto-start management is fully supported via `autostart-enable` and `autostart-disable` commands
+- Use sudo for privileged operations
+
+## Getting Help
+
+To see all available commands and options:
+
+```bash
+python service_controller.py
+```
+
+Or run without arguments to display help.
+
+## Common Workflows
+
+### Fresh Start
+```bash
+# Stop everything
+python service_controller.py stop
+
+# Clear any stuck ports
+python service_controller.py clear-ports --force
+
+# Start all services
+python service_controller.py start
+
+# Verify status
+python service_controller.py status
+```
+
+### Restart Specific Service
+```bash
+# Restart just the admin panel
+python service_controller.py restart admin
+```
+
+### Debug Port Issues
+```bash
+# Check what's using ports
+python service_controller.py clear-ports --dry-run
+
+# Clear if needed
+python service_controller.py clear-ports
+```
+
+### Automated Restart
+```bash
+# Force restart without prompts
+python service_controller.py clear-ports --force
+python service_controller.py restart
+```
+
+## Best Practices
+
+1. **Use dry-run first**: Before force operations, check with `--dry-run`
+2. **Verify after changes**: Always run `status` after start/stop/restart
+3. **Clear ports before restart**: If having issues, clear ports first
+4. **Check logs**: If services won't start, check system logs
+5. **Use specific service names**: When possible, target specific services vs. "all"
+
+## Support
+
+For issues or questions about the service controller:
+
+1. Check this documentation first
+2. Run `python service_controller.py status` to see current service states
+3. Run `python service_controller.py clear-ports --dry-run` to check port usage
+4. Check system logs for error messages:
+   - Windows: Event Viewer → Windows Logs → Application
+   - Linux: `journalctl -u dplayer-*`
+
+## License
+
+This service controller is part of DPlayer project.
