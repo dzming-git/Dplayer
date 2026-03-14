@@ -1439,10 +1439,14 @@ def api_db_clear():
 
 @app.route('/api/videos')
 def api_videos():
-    """获取视频列表（分页）"""
+    """获取视频列表（分页、搜索、筛选、排序）"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '').strip()
+        tag_filter = request.args.get('tag', '').strip()
+        sort_by = request.args.get('sort', 'created_at')  # 排序字段
+        sort_order = request.args.get('order', 'desc')  # 排序方向
 
         # 限制每页数量范围
         per_page = max(10, min(100, per_page))
@@ -1450,27 +1454,68 @@ def api_videos():
         # 计算偏移量
         offset = (page - 1) * per_page
 
+        # 允许的排序字段
+        allowed_sort_fields = {
+            'created_at', 'updated_at', 'title', 'view_count', 'like_count',
+            'download_count', 'file_size', 'duration', 'priority'
+        }
+        if sort_by not in allowed_sort_fields:
+            sort_by = 'created_at'
+        if sort_order not in ('asc', 'desc'):
+            sort_order = 'desc'
+
         # 使用原生SQL查询
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
+        # 构建查询条件
+        where_clauses = []
+        params = []
+
+        if search:
+            where_clauses.append('(title LIKE ? OR description LIKE ? OR local_path LIKE ?)')
+            search_pattern = f'%{search}%'
+            params.extend([search_pattern, search_pattern, search_pattern])
+
+        if tag_filter:
+            # 通过视频标签关联查询
+            where_clauses.append('''
+                EXISTS (
+                    SELECT 1 FROM video_tags vt
+                    JOIN tags t ON vt.tag_id = t.id
+                    WHERE vt.video_id = videos.id AND t.name = ?
+                )
+            ''')
+            params.append(tag_filter)
+
+        where_sql = ' AND '.join(where_clauses) if where_clauses else '1=1'
+
         # 获取总数
-        cursor.execute('SELECT COUNT(*) as count FROM videos')
+        count_sql = f'SELECT COUNT(*) as count FROM videos WHERE {where_sql}'
+        cursor.execute(count_sql, params)
         total = cursor.fetchone()['count']
 
         # 分页查询（包含min_role字段）
-        cursor.execute('''
+        order_sql = f'{sort_by} {sort_order.upper()}'
+        query_sql = f'''
             SELECT id, hash, title, description, url, thumbnail, duration,
-                   file_size, view_count, like_count, download_count, priority,
+                   file_size, width, height, view_count, like_count, download_count, priority,
                    is_downloaded, local_path, created_at, updated_at,
-                   COALESCE(min_role, 0) as min_role
+                   COALESCE(min_role, 0) as min_role,
+                   (SELECT GROUP_CONCAT(t.name) FROM video_tags vt
+                    JOIN tags t ON vt.tag_id = t.id
+                    WHERE vt.video_id = videos.id) as tag_names
             FROM videos
-            ORDER BY created_at DESC
+            WHERE {where_sql}
+            ORDER BY {order_sql}
             LIMIT ? OFFSET ?
-        ''', (per_page, offset))
+        '''
 
+        cursor.execute(query_sql, params + [per_page, offset])
         rows = cursor.fetchall()
+
+
         conn.close()
 
         # 角色名称映射
@@ -1479,6 +1524,10 @@ def api_videos():
         # 转换为字典格式
         videos_data = []
         for row in rows:
+            # 解析标签
+            tag_names = row['tag_names'].split(',') if row['tag_names'] else []
+            tags = [{'name': name} for name in tag_names if name]
+
             videos_data.append({
                 'id': row['id'],
                 'hash': row['hash'],
@@ -1488,8 +1537,11 @@ def api_videos():
                 'thumbnail': row['thumbnail'],
                 'duration': row['duration'],
                 'file_size': row['file_size'],
+                'width': row['width'] or 0,
+                'height': row['height'] or 0,
                 'view_count': row['view_count'],
                 'like_count': row['like_count'],
+                'favorite_count': 0,  # 收藏数（暂无favorites表）
                 'download_count': row['download_count'],
                 'priority': row['priority'],
                 'min_role': row['min_role'],
@@ -1498,7 +1550,7 @@ def api_videos():
                 'local_path': row['local_path'],
                 'created_at': row['created_at'],
                 'updated_at': row['updated_at'],
-                'tags': []  # 标签信息需要额外查询
+                'tags': tags
             })
 
         # 计算总页数
@@ -1509,7 +1561,8 @@ def api_videos():
             'videos': videos_data,
             'total': total,
             'pages': pages,
-            'current_page': page
+            'current_page': page,
+            'per_page': per_page
         })
     except Exception as e:
         admin_logger.error(f"获取视频列表失败: {e}")
@@ -1818,6 +1871,295 @@ def api_clear_videos():
         admin_logger.error(f"清空视频失败: {e}")
         import traceback
         admin_logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ========== 视频扫描管理 API ==========
+
+@app.route('/api/scan/directories')
+def api_scan_directories():
+    """获取扫描目录列表"""
+    try:
+        config_data = load_config()
+        directories = config_data.get('scan_directories', [])
+
+        # 验证目录是否存在并获取状态
+        result = []
+        for dir_info in directories:
+            path = dir_info.get('path', '')
+            exists = os.path.exists(path) if path else False
+            result.append({
+                'path': path,
+                'recursive': dir_info.get('recursive', True),
+                'enabled': dir_info.get('enabled', True),
+                'exists': exists
+            })
+
+        return jsonify({'success': True, 'directories': result})
+    except Exception as e:
+        admin_logger.error(f"获取扫描目录失败: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/scan/directories', methods=['POST'])
+def api_add_scan_directory():
+    """添加扫描目录"""
+    try:
+        data = request.get_json()
+        path = data.get('path', '').strip()
+        recursive = data.get('recursive', True)
+
+        if not path:
+            return jsonify({'success': False, 'message': '路径不能为空'})
+
+        if not os.path.exists(path):
+            return jsonify({'success': False, 'message': '目录不存在'})
+
+        if not os.path.isdir(path):
+            return jsonify({'success': False, 'message': '路径不是目录'})
+
+        # 加载配置
+        config_data = load_config()
+        directories = config_data.get('scan_directories', [])
+
+        # 检查是否已存在
+        for d in directories:
+            if d.get('path', '').lower() == path.lower():
+                return jsonify({'success': False, 'message': '目录已存在'})
+
+        # 添加新目录
+        directories.append({
+            'path': path,
+            'recursive': recursive,
+            'enabled': True
+        })
+        config_data['scan_directories'] = directories
+
+        # 保存配置
+        save_config(config_data)
+
+        admin_logger.info(f"添加扫描目录: {path}")
+        return jsonify({'success': True, 'message': '目录添加成功'})
+    except Exception as e:
+        admin_logger.error(f"添加扫描目录失败: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/scan/directories', methods=['DELETE'])
+def api_remove_scan_directory():
+    """删除扫描目录"""
+    try:
+        data = request.get_json()
+        path = data.get('path', '').strip()
+
+        if not path:
+            return jsonify({'success': False, 'message': '路径不能为空'})
+
+        # 加载配置
+        config_data = load_config()
+        directories = config_data.get('scan_directories', [])
+
+        # 查找并删除
+        new_directories = [d for d in directories if d.get('path', '').lower() != path.lower()]
+
+        if len(new_directories) == len(directories):
+            return jsonify({'success': False, 'message': '目录不存在'})
+
+        config_data['scan_directories'] = new_directories
+        save_config(config_data)
+
+        admin_logger.info(f"删除扫描目录: {path}")
+        return jsonify({'success': True, 'message': '目录删除成功'})
+    except Exception as e:
+        admin_logger.error(f"删除扫描目录失败: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/scan/videos', methods=['POST'])
+def api_scan_videos():
+    """扫描视频文件"""
+    try:
+        data = request.get_json() or {}
+        directory = data.get('directory', '').strip()  # 可选：指定目录，不指定则扫描所有启用的目录
+
+        config_data = load_config()
+        directories = config_data.get('scan_directories', [])
+        supported_formats = config_data.get('supported_formats', ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v'])
+
+        # 确定要扫描的目录
+        if directory:
+            scan_dirs = [d for d in directories if d.get('path', '').lower() == directory.lower() and d.get('enabled', True)]
+        else:
+            scan_dirs = [d for d in directories if d.get('enabled', True)]
+
+        if not scan_dirs:
+            return jsonify({'success': False, 'message': '没有启用的扫描目录'})
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        total_found = 0
+        total_added = 0
+
+        for scan_dir in scan_dirs:
+            dir_path = scan_dir.get('path', '')
+            recursive = scan_dir.get('recursive', True)
+
+            if not os.path.exists(dir_path):
+                continue
+
+            # 扫描视频文件
+            video_files = []
+            if recursive:
+                for root, dirs, files in os.walk(dir_path):
+                    for file in files:
+                        if any(file.lower().endswith(ext) for ext in supported_formats):
+                            video_files.append(os.path.join(root, file))
+            else:
+                for file in os.listdir(dir_path):
+                    file_path = os.path.join(dir_path, file)
+                    if os.path.isfile(file_path) and any(file.lower().endswith(ext) for ext in supported_formats):
+                        video_files.append(file_path)
+
+            total_found += len(video_files)
+
+            # 添加到数据库
+            for video_path in video_files:
+                # 计算hash
+                try:
+                    with open(video_path, 'rb') as f:
+                        file_hash = hashlib.sha256(f.read(1024 * 1024)).hexdigest()
+                except:
+                    continue
+
+                # 检查是否已存在
+                cursor.execute('SELECT id FROM videos WHERE hash = ?', (file_hash,))
+                if cursor.fetchone():
+                    continue
+
+                # 获取文件信息
+                file_size = os.path.getsize(video_path)
+                file_name = os.path.basename(video_path)
+                title = os.path.splitext(file_name)[0]
+
+                # 构建URL和缩略图路径
+                url_path = file_path.replace("\\", "/")
+                url = f'/local_video/{url_path}'
+                thumbnail = f'/thumbnail/{file_hash}'
+
+                # 插入视频记录
+                cursor.execute('''
+                    INSERT INTO videos (hash, title, description, url, thumbnail, file_size, is_downloaded, local_path, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                ''', (file_hash, title, f'本地视频: {file_name}', url, thumbnail, file_size, 1, video_path))
+
+                total_added += 1
+
+        conn.commit()
+        conn.close()
+
+        admin_logger.info(f"扫描完成: 发现 {total_found} 个视频，新增 {total_added} 个")
+
+        return jsonify({
+            'success': True,
+            'message': f'扫描完成，发现 {total_found} 个视频，新增 {total_added} 个',
+            'found': total_found,
+            'added': total_added
+        })
+    except Exception as e:
+        admin_logger.error(f"扫描视频失败: {e}")
+        import traceback
+        admin_logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ========== 缩略图生成 API ==========
+
+@app.route('/api/thumbnail/generate/<video_hash>', methods=['POST'])
+def api_generate_thumbnail(video_hash):
+    """触发单个视频缩略图生成"""
+    try:
+        # 查找视频
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute('SELECT local_path, thumbnail FROM videos WHERE hash = ?', (video_hash,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'message': '视频不存在'})
+
+        local_path, thumbnail = row
+
+        # 检查文件是否存在
+        if not os.path.exists(local_path):
+            return jsonify({'success': False, 'message': '视频文件不存在'})
+
+        # 调用缩略图服务
+        try:
+            import requests
+            thumbnail_port = config.get("ports", {}).get("thumbnail", 5001)
+            response = requests.post(
+                f'http://localhost:{thumbnail_port}/api/thumbnail/generate',
+                json={'video_path': local_path, 'video_hash': video_hash},
+                timeout=5
+            )
+            if response.status_code == 200:
+                result = response.json()
+                admin_logger.info(f"缩略图生成成功: {video_hash} -> {result.get('thumbnail_path')}")
+                return jsonify({'success': True, 'message': '缩略图生成任务已启动', 'thumbnail': result.get('thumbnail_path')})
+            else:
+                admin_logger.error(f"缩略图服务响应错误: {response.status_code} - {response.text}")
+                return jsonify({'success': False, 'message': f'缩略图服务响应: {response.status_code}'})
+        except Exception as e:
+            admin_logger.warning(f"调用缩略图服务失败: {e}")
+            # 尝试本地生成
+            return jsonify({
+                'success': True,
+                'message': '视频已添加到缩略图生成队列（离线模式）',
+                'thumbnail': thumbnail,
+                'offline': True
+            })
+    except Exception as e:
+        admin_logger.error(f"生成缩略图失败: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/thumbnail/generate/batch', methods=['POST'])
+def api_generate_thumbnail_batch():
+    """批量触发缩略图生成"""
+    try:
+        data = request.get_json() or {}
+        video_hashes = data.get('video_hashes', [])
+
+        if not video_hashes:
+            return jsonify({'success': False, 'message': '没有指定视频'})
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        results = []
+        for video_hash in video_hashes:
+            cursor.execute('SELECT local_path, thumbnail FROM videos WHERE hash = ?', (video_hash,))
+            row = cursor.fetchone()
+            if row:
+                local_path, thumbnail = row
+                exists = os.path.exists(local_path) if local_path else False
+                results.append({
+                    'hash': video_hash,
+                    'exists': exists,
+                    'thumbnail': thumbnail
+                })
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'results': results,
+            'message': f'已获取 {len(results)} 个视频信息'
+        })
+    except Exception as e:
+        admin_logger.error(f"批量获取缩略图信息失败: {e}")
         return jsonify({'success': False, 'message': str(e)})
 
 

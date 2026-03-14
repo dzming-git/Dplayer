@@ -435,6 +435,7 @@ def generate_thumbnail_endpoint():
     """生成缩略图API"""
     try:
         data = request.get_json()
+        logger.info(f"收到缩略图生成请求: {data}")
         
         # 验证请求
         if not data:
@@ -444,10 +445,12 @@ def generate_thumbnail_endpoint():
         video_hash = data.get('video_hash')
         
         if not video_path or not video_hash:
+            logger.warning(f"缺少必要参数: video_path={video_path}, video_hash={video_hash}")
             return jsonify({'success': False, 'message': '缺少必要参数'}), 400
         
         # 检查视频文件是否存在
         if not os.path.exists(video_path):
+            logger.warning(f"视频文件不存在: {video_path}")
             return jsonify({'success': False, 'message': '视频文件不存在'}), 404
         
         # 配置参数
@@ -458,13 +461,17 @@ def generate_thumbnail_endpoint():
         }
         
         # 创建任务
+        logger.info(f"开始创建缩略图任务: video_hash={video_hash}, video_path={video_path}")
         task = task_manager.create_task(video_path, video_hash, config)
         
         if task is None:
+            logger.warning("任务队列已满")
             return jsonify({
                 'success': False,
                 'message': '任务队列已满，请稍后重试'
             }), 503
+        
+        logger.info(f"缩略图任务创建成功: task_id={task.task_id}, status={task.status}")
         
         # 返回任务信息
         return jsonify({

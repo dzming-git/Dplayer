@@ -69,7 +69,35 @@ function switchTab(tabName) {
     // 刷新数据
     if (tabName === 'services') {
         refreshServices();
-    } else if (tabName === 'database') {
+    } else if (tabName === 'data') {
+        refreshDbStats();
+    }
+}
+
+// 子标签切换
+function switchSubTab(subTabName) {
+    // 隐藏所有子标签内容
+    document.querySelectorAll('.sub-tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+
+    // 移除所有子按钮的 active 类
+    document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // 显示选中的子标签内容
+    document.getElementById(`sub-tab-${subTabName}`).classList.add('active');
+
+    // 激活对应的子按钮
+    event.target.classList.add('active');
+
+    // 根据子标签加载对应数据
+    if (subTabName === 'data-videos') {
+        loadVideos();
+    } else if (subTabName === 'data-tags') {
+        loadTags();
+    } else if (subTabName === 'data-summary') {
         refreshDbStats();
     }
 }

@@ -1374,6 +1374,7 @@
             font-size: 0.85rem;
             color: var(--color-text-secondary);
             border-bottom: 2px solid var(--color-border);
+            white-space: nowrap;
         }
 
         .data-table td {
@@ -1459,6 +1460,62 @@
         .data-action-btn.delete:hover {
             background: var(--color-danger);
             color: white;
+        }
+
+        /* 视频标题单元格 */
+        .video-title-cell {
+            max-width: 250px;
+        }
+
+        .video-title {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .video-path {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px;
+        }
+
+        /* 分页信息 */
+        .pagination-info {
+            margin-left: 16px;
+            color: var(--color-text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* 表头排序 */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        th.sortable:hover {
+            background: var(--color-bg-tertiary);
+        }
+
+        .sort-icon {
+            font-size: 0.7rem;
+            margin-left: 4px;
+            color: var(--color-primary);
+            white-space: nowrap;
+        }
+
+        /* 表单信息文本 */
+        .info-text {
+            padding: 12px;
+            background: var(--color-bg-secondary);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            word-break: break-all;
         }
 
         /* 标签颜色点 */
@@ -2310,35 +2367,6 @@
 
         <!-- 数据管理标签页 -->
         <div class="tab-content" id="tab-database">
-            <!-- 数据概览 -->
-            <div class="stats-grid" id="dbStats">
-                <div class="stat-card">
-                    <div class="stat-icon">🎬</div>
-                    <div class="stat-value" id="videoCount">--</div>
-                    <div class="stat-label">视频总数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">🏷️</div>
-                    <div class="stat-value" id="tagCount">--</div>
-                    <div class="stat-label">标签总数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">❤️</div>
-                    <div class="stat-value" id="favoriteCount">--</div>
-                    <div class="stat-label">收藏数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">👁️</div>
-                    <div class="stat-value" id="viewCount">--</div>
-                    <div class="stat-label">浏览数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">💾</div>
-                    <div class="stat-value" id="dbSize">--</div>
-                    <div class="stat-label">数据库大小</div>
-                </div>
-            </div>
-
             <!-- 子页签导航 -->
             <div class="sub-tabs-nav">
                 <button class="sub-tab-btn active" onclick="switchSubTab('db-overview')" id="subTab-btn-db-overview">
@@ -2354,7 +2382,37 @@
 
             <!-- 数据概览子页签 -->
             <div class="sub-tab-content active" id="subTab-db-overview">
-                <div class="button-group">
+                <!-- 数据概览卡片 -->
+                <div class="stats-grid" id="dbStats">
+                    <div class="stat-card">
+                        <div class="stat-icon">🎬</div>
+                        <div class="stat-value" id="videoCount">--</div>
+                        <div class="stat-label">视频总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏷️</div>
+                        <div class="stat-value" id="tagCount">--</div>
+                        <div class="stat-label">标签总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">❤️</div>
+                        <div class="stat-value" id="favoriteCount">--</div>
+                        <div class="stat-label">收藏数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">👁️</div>
+                        <div class="stat-value" id="viewCount">--</div>
+                        <div class="stat-label">浏览数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💾</div>
+                        <div class="stat-value" id="dbSize">--</div>
+                        <div class="stat-label">数据库大小</div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="button-group" style="margin-top: 24px;">
                     <button class="btn btn-primary" onclick="refreshDbStats()">🔄 刷新统计</button>
                     <button class="btn btn-danger" onclick="confirmClear()">🗑️ 清理数据</button>
                 </div>
@@ -2364,7 +2422,8 @@
             <div class="sub-tab-content" id="subTab-video">
                 <!-- 顶部操作栏 -->
                 <div class="data-toolbar">
-                    <button class="btn btn-primary" onclick="openVideoDrawer()">➕ 新增视频</button>
+                    <button class="btn btn-primary" onclick="scanVideos()">🔍 扫描视频</button>
+                    <button class="btn btn-secondary" onclick="batchGenerateThumbnails()">🖼️ 批量生成缩略图</button>
                     <div class="data-search-box">
                         <input type="text" id="videoSearchInput" placeholder="搜索视频标题..." oninput="searchVideos()">
                     </div>
@@ -2379,17 +2438,23 @@
                         <thead>
                             <tr>
                                 <th style="width: 40px;"><input type="checkbox" id="videoSelectAll" onclick="toggleVideoSelectAll()"></th>
-                                <th style="width: 60px;">ID</th>
-                                <th style="width: 100px;">封面</th>
-                                <th>标题</th>
+                                <th style="width: 50px;">ID</th>
+                                <th style="width: 80px;">封面</th>
+                                <th class="sortable" onclick="changeVideoSort('title')">标题 <span class="sort-icon"></span></th>
                                 <th>标签</th>
-                                <th style="width: 80px;">大小</th>
-                                <th style="width: 150px;">创建时间</th>
-                                <th style="width: 100px;">操作</th>
+                                <th class="sortable" onclick="changeVideoSort('duration')">时长 <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="changeVideoSort('file_size')">大小 <span class="sort-icon"></span></th>
+                                <th style="width: 80px;">分辨率</th>
+                                <th class="sortable" onclick="changeVideoSort('view_count')">浏览 <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="changeVideoSort('like_count')">点赞 <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="changeVideoSort('favorite_count')">收藏 <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="changeVideoSort('created_at')">创建时间 <span class="sort-icon"></span></th>
+                                <th class="sortable" onclick="changeVideoSort('updated_at')">更新时间 <span class="sort-icon"></span></th>
+                                <th style="width: 120px;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="videoTableBody">
-                            <tr><td colspan="8" style="text-align: center; padding: 40px;">加载中...</td></tr>
+                            <tr><td colspan="14" style="text-align: center; padding: 40px;">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2546,6 +2611,28 @@
             if (tabName === 'monitor') {
                 refreshSystemMonitor();
             }
+
+            // 数据管理标签页：恢复子标签页状态
+            if (tabName === 'database') {
+                restoreActiveSubTab();
+            }
+        }
+
+        // ========== 恢复子标签页状态 ==========
+        function restoreActiveSubTab() {
+            const savedSubTab = localStorage.getItem('admin_active_subtab');
+            if (savedSubTab && document.getElementById(`subTab-${savedSubTab}`)) {
+                // 找到对应的子标签按钮并触发点击
+                const buttons = document.querySelectorAll('.sub-tab-btn');
+                buttons.forEach(btn => {
+                    if (btn.id === `subTab-btn-${savedSubTab}`) {
+                        btn.click();
+                    }
+                });
+            } else {
+                // 默认选中数据概览
+                loadDbStats();
+            }
         }
 
         // ========== 恢复上次选中的标签页 ==========
@@ -2581,7 +2668,9 @@
             localStorage.setItem('admin_active_subtab', subTabName);
 
             // 加载数据
-            if (subTabName === 'video') {
+            if (subTabName === 'db-overview') {
+                loadDbStats();
+            } else if (subTabName === 'video') {
                 loadVideos();
                 loadTagsForFilter();
             } else if (subTabName === 'tag') {
@@ -2592,22 +2681,125 @@
         // ========== 视频管理功能 ==========
         let videoPage = 1;
         let videoPageSize = 20;
+        let videoTotal = 0;
+        let videoPages = 1;
         let currentVideos = [];
+        let videoSortBy = 'created_at';
+        let videoSortOrder = 'desc';
 
         async function loadVideos() {
-            const result = await apiCall('/api/videos');
+            // 清除列宽缓存，强制重新计算
+            videoColumnWidths = null;
+
+            const search = document.getElementById('videoSearchInput').value;
+            const tagFilter = document.getElementById('videoTagFilter').value;
+
+            let url = `/api/videos?page=${videoPage}&per_page=${videoPageSize}&sort=${videoSortBy}&order=${videoSortOrder}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (tagFilter) url += `&tag=${encodeURIComponent(tagFilter)}`;
+
+            const result = await apiCall(url);
             if (result.success) {
                 currentVideos = result.videos || [];
+                videoTotal = result.total || 0;
+                videoPages = result.pages || 1;
                 renderVideoTable(currentVideos);
+                renderVideoPagination();
             }
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '-';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '-';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+            return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+        }
+
+        // 计算列宽配置
+        let videoColumnWidths = null;
+
+        function calculateColumnWidths(videos) {
+            if (!videos || videos.length === 0) return null;
+
+            // 计算每列内容的最大字符宽度
+            const charWidth = 10; // 假设每个字符约10px
+            const maxWidth = window.innerWidth * 0.15; // 最大不超过屏幕宽度的15%
+            const minWidth = 60; // 最小宽度
+
+            // 预定义列的最大字符数
+            const maxChars = {
+                duration: 8,      // H:MM:SS 格式最多8字符
+                size: 10,         // XX.XX GB 格式最多10字符
+                resolution: 12,   // 3840x2160 格式最多12字符
+                viewCount: 8,     // 浏览数最多8位
+                likeCount: 8,     // 点赞数最多8位
+                favoriteCount: 8, // 收藏数最多8位
+                createdTime: 10,  // 2026/3/14 格式
+                updatedTime: 10   // 2026/3/14 格式
+            };
+
+            const widths = {};
+
+            // 计算每列实际最大宽度
+            videos.forEach(video => {
+                // 时长
+                const duration = formatDuration(video.duration);
+                widths.duration = Math.max(widths.duration || 0, duration.length);
+
+                // 大小
+                const size = (video.file_size && video.file_size > 0) ? formatFileSize(video.file_size) : '-';
+                widths.size = Math.max(widths.size || 0, size.length);
+
+                // 分辨率
+                const resolution = (video.width && video.height) ? `${video.width}x${video.height}` : '-';
+                widths.resolution = Math.max(widths.resolution || 0, resolution.length);
+
+                // 浏览/赞/收藏
+                widths.viewCount = Math.max(widths.viewCount || 0, String(video.view_count || 0).length);
+                widths.likeCount = Math.max(widths.likeCount || 0, String(video.like_count || 0).length);
+                widths.favoriteCount = Math.max(widths.favoriteCount || 0, String(video.favorite_count || 0).length);
+
+                // 时间
+                const createdTime = video.created_at ? new Date(video.created_at).toLocaleDateString('zh-CN') : '-';
+                const updatedTime = video.updated_at ? new Date(video.updated_at).toLocaleDateString('zh-CN') : '-';
+                widths.createdTime = Math.max(widths.createdTime || 0, createdTime.length);
+                widths.updatedTime = Math.max(widths.updatedTime || 0, updatedTime.length);
+            });
+
+            // 应用最大字符限制，并转换为像素宽度
+            const result = {};
+            for (const key in widths) {
+                const maxCharsKey = maxChars[key] || 10;
+                const actualChars = Math.min(widths[key], maxCharsKey);
+                result[key] = Math.max(Math.ceil(actualChars * charWidth), minWidth);
+            }
+
+            return result;
         }
 
         function renderVideoTable(videos) {
             const tbody = document.getElementById('videoTableBody');
             if (!videos || videos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" style="text-align: center; padding: 40px;">暂无数据</td></tr>';
                 return;
             }
+
+            // 计算列宽（只计算一次）
+            if (!videoColumnWidths) {
+                videoColumnWidths = calculateColumnWidths(videos);
+            }
+
+            const w = videoColumnWidths || {};
 
             let html = '';
             videos.forEach(video => {
@@ -2616,24 +2808,43 @@
                     `<span class="data-tag">${t.name || t}</span>`
                 ).join('') + (tags.length > 3 ? `<span class="data-tag">+${tags.length - 3}</span>` : '');
 
-                const size = video.size ? (video.size / 1024 / 1024).toFixed(1) + ' MB' : '-';
+                const size = (video.file_size && video.file_size > 0) ? formatFileSize(video.file_size) : '-';
+                const duration = formatDuration(video.duration);
+                const resolution = (video.width && video.height) ? `${video.width}x${video.height}` : '-';
                 const createdTime = video.created_at ? new Date(video.created_at).toLocaleDateString('zh-CN') : '-';
+                const updatedTime = video.updated_at ? new Date(video.updated_at).toLocaleDateString('zh-CN') : '-';
+                const viewCount = video.view_count || 0;
+                const likeCount = video.like_count || 0;
+                const favoriteCount = video.favorite_count || 0;
+
+                // 懒加载缩略图 - 使用data-src
+                const thumbnailHtml = video.thumbnail ?
+                    `<div class="data-thumbnail"><img class="lazy-thumb" data-src="${video.thumbnail}" data-hash="${video.hash}" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="封面"></div>` :
+                    `<div class="data-thumbnail"><div class="data-thumbnail-placeholder">🎬</div></div>`;
 
                 html += `
                     <tr>
-                        <td><input type="checkbox" class="video-checkbox" value="${video.hash}"></td>
-                        <td>${video.id || '-'}</td>
+                        <td style="width:40px;"><input type="checkbox" class="video-checkbox" value="${video.hash}"></td>
+                        <td style="width:50px;">${video.id || '-'}</td>
+                        <td style="width:80px;">${thumbnailHtml}</td>
                         <td>
-                            <div class="data-thumbnail">
-                                ${video.thumbnail ? `<img src="${video.thumbnail}" alt="封面">` : '<div class="data-thumbnail-placeholder">🎬</div>'}
+                            <div class="video-title-cell">
+                                <div class="video-title">${video.title || video.name || '-'}</div>
+                                <div class="video-path">${video.local_path || '-'}</div>
                             </div>
                         </td>
-                        <td>${video.title || video.name || '-'}</td>
                         <td>${tagHtml || '-'}</td>
-                        <td>${size}</td>
-                        <td>${createdTime}</td>
-                        <td>
+                        <td style="width:${w.duration || 60}px;text-align:right;">${duration}</td>
+                        <td style="width:${w.size || 70}px;text-align:right;">${size}</td>
+                        <td style="width:${w.resolution || 80}px;text-align:center;">${resolution}</td>
+                        <td style="width:${w.viewCount || 60}px;text-align:right;">${viewCount}</td>
+                        <td style="width:${w.likeCount || 60}px;text-align:right;">${likeCount}</td>
+                        <td style="width:${w.favoriteCount || 60}px;text-align:right;">${favoriteCount}</td>
+                        <td style="width:${w.createdTime || 100}px;">${createdTime}</td>
+                        <td style="width:${w.updatedTime || 100}px;">${updatedTime}</td>
+                        <td style="width:120px;">
                             <div class="data-action-buttons">
+                                <button class="data-action-btn" onclick="generateThumbnail('${video.hash}')" title="生成缩略图">🖼️</button>
                                 <button class="data-action-btn edit" onclick="editVideo('${video.hash}')" title="编辑">✏️</button>
                                 <button class="data-action-btn delete" onclick="deleteVideo('${video.hash}')" title="删除">🗑️</button>
                             </div>
@@ -2642,30 +2853,158 @@
                 `;
             });
             tbody.innerHTML = html;
+
+            // 懒加载缩略图
+            lazyLoadThumbnails();
         }
 
-        async function searchVideos() {
-            const keyword = document.getElementById('videoSearchInput').value.toLowerCase();
-            const result = await apiCall('/api/videos');
-            if (result.success) {
-                let videos = result.videos || [];
-                if (keyword) {
-                    videos = videos.filter(v => (v.title || v.name || '').toLowerCase().includes(keyword));
+        // 懒加载缩略图
+        function lazyLoadThumbnails() {
+            const images = document.querySelectorAll('.lazy-thumb');
+            images.forEach(img => {
+                const src = img.dataset.src;
+                const hash = img.dataset.hash;
+
+                img.onload = function() {
+                    img.classList.remove('lazy-thumb');
+                };
+
+                img.onerror = function() {
+                    // 检查是否是404
+                    if (img.complete && img.naturalWidth === 0) {
+                        const retried = img.dataset.retried || 'false';
+                        if (retried === 'false') {
+                            img.dataset.retried = 'true';
+                            generateThumbnailAndRetry(hash, img);
+                        } else {
+                            // 已经重试过了，显示占位符
+                            img.style.display = 'none';
+                            const placeholder = img.parentElement.querySelector('.data-thumbnail-placeholder');
+                            if (!placeholder) {
+                                const div = document.createElement('div');
+                                div.className = 'data-thumbnail-placeholder';
+                                div.textContent = '🎬';
+                                img.parentElement.appendChild(div);
+                            }
+                        }
+                    }
+                };
+
+                // 加载图片
+                img.src = src;
+            });
+        }
+
+        // 生成缩略图并重试加载
+        async function generateThumbnailAndRetry(hash, imgEl) {
+            try {
+                const encodedHash = encodeURIComponent(hash);
+                const result = await apiCall(`/api/thumbnail/generate/${encodedHash}`, 'POST');
+                if (result.success) {
+                    // 等待生成完成后重新加载图片
+                    setTimeout(() => {
+                        imgEl.src = imgEl.dataset.src + '?t=' + Date.now();
+                    }, 2000);
                 }
-                renderVideoTable(videos);
+            } catch (e) {
+                console.error('自动生成缩略图失败:', e);
             }
+        }
+
+        function renderVideoPagination() {
+            const pagination = document.getElementById('videoPagination');
+            if (videoPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+
+            // 上一页
+            html += `<button ${videoPage <= 1 ? 'disabled' : ''} onclick="goToVideoPage(${videoPage - 1})">上一页</button>`;
+
+            // 页码
+            const maxVisible = 5;
+            let startPage = Math.max(1, videoPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(videoPages, startPage + maxVisible - 1);
+
+            if (endPage - startPage < maxVisible - 1) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+
+            if (startPage > 1) {
+                html += `<button onclick="goToVideoPage(1)">1</button>`;
+                if (startPage > 2) html += `<span>...</span>`;
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button class="${i === videoPage ? 'active' : ''}" onclick="goToVideoPage(${i})">${i}</button>`;
+            }
+
+            if (endPage < videoPages) {
+                if (endPage < videoPages - 1) html += `<span>...</span>`;
+                html += `<button onclick="goToVideoPage(${videoPages})">${videoPages}</button>`;
+            }
+
+            // 下一页
+            html += `<button ${videoPage >= videoPages ? 'disabled' : ''} onclick="goToVideoPage(${videoPage + 1})">下一页</button>`;
+
+            // 总数信息
+            html += `<span class="pagination-info">共 ${videoTotal} 条</span>`;
+
+            pagination.innerHTML = html;
+        }
+
+        function goToVideoPage(page) {
+            if (page < 1 || page > videoPages) return;
+            videoPage = page;
+            loadVideos();
+        }
+
+        function changeVideoSort(field) {
+            if (videoSortBy === field) {
+                videoSortOrder = videoSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                videoSortBy = field;
+                videoSortOrder = 'desc';  // 第一次点击倒序
+            }
+            updateSortIcons(field, videoSortOrder);
+            loadVideos();
+        }
+
+        // 更新排序图标
+        function updateSortIcons(field, order) {
+            // 清除所有排序图标
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.innerHTML = '';
+            });
+
+            // 找到对应的表头并添加排序图标
+            const headers = document.querySelectorAll('th.sortable');
+            headers.forEach(th => {
+                const onclick = th.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${field}'`)) {
+                    const icon = th.querySelector('.sort-icon');
+                    if (icon) {
+                        icon.innerHTML = order === 'asc' ? '▲' : '▼';
+                    }
+                }
+            });
+        }
+
+        // 搜索（带防抖）
+        let videoSearchTimer = null;
+        async function searchVideos() {
+            if (videoSearchTimer) clearTimeout(videoSearchTimer);
+            videoSearchTimer = setTimeout(() => {
+                videoPage = 1;
+                loadVideos();
+            }, 300);
         }
 
         async function filterVideosByTag() {
-            const tagFilter = document.getElementById('videoTagFilter').value;
-            const result = await apiCall('/api/videos');
-            if (result.success) {
-                let videos = result.videos || [];
-                if (tagFilter) {
-                    videos = videos.filter(v => (v.tags || []).some(t => (t.name || t) === tagFilter));
-                }
-                renderVideoTable(videos);
-            }
+            videoPage = 1;
+            loadVideos();
         }
 
         async function loadTagsForFilter() {
@@ -2682,6 +3021,53 @@
         function toggleVideoSelectAll() {
             const checked = document.getElementById('videoSelectAll').checked;
             document.querySelectorAll('.video-checkbox').forEach(cb => cb.checked = checked);
+        }
+
+        // 生成缩略图
+        async function generateThumbnail(hash) {
+            showMessage('正在生成缩略图...', 'info');
+            const encodedHash = encodeURIComponent(hash);
+            const result = await apiCall(`/api/thumbnail/generate/${encodedHash}`, 'POST');
+            if (result.success) {
+                showMessage(result.message, 'success');
+                // 延迟刷新，重新加载视频数据
+                setTimeout(() => loadVideos(), 2000);
+            } else {
+                showMessage('生成失败: ' + result.message, 'error');
+            }
+        }
+
+        // 批量生成缩略图
+        async function batchGenerateThumbnails() {
+            const checkboxes = document.querySelectorAll('.video-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showMessage('请选择要生成缩略图的视频', 'error');
+                return;
+            }
+
+            const hashes = Array.from(checkboxes).map(cb => cb.value);
+            showMessage(`正在生成 ${hashes.length} 个视频的缩略图...`, 'info');
+
+            for (const hash of hashes) {
+                const encodedHash = encodeURIComponent(hash);
+                await apiCall(`/api/thumbnail/generate/${encodedHash}`, 'POST');
+            }
+
+            showMessage('缩略图生成任务已提交', 'success');
+            setTimeout(() => loadVideos(), 3000);
+        }
+
+        // 扫描视频
+        async function scanVideos() {
+            showMessage('正在扫描视频文件夹...', 'info');
+            const result = await apiCall('/api/scan/videos', 'POST', {});
+            if (result.success) {
+                showMessage(result.message, 'success');
+                loadVideos();
+                refreshDbStats();
+            } else {
+                showMessage('扫描失败: ' + result.message, 'error');
+            }
         }
 
         function openVideoDrawer(video = null) {
@@ -2710,6 +3096,16 @@
                         <!-- 标签选项将通过JS加载 -->
                     </select>
                 </div>
+                ${video ? `
+                <div class="form-group">
+                    <label>文件路径</label>
+                    <div class="info-text">${video.local_path || '-'}</div>
+                </div>
+                <div class="form-group">
+                    <label>视频信息</label>
+                    <div class="info-text">时长: ${formatDuration(video.duration)} | 大小: ${formatFileSize(video.file_size)}</div>
+                </div>
+                ` : ''}
                 <div class="form-actions">
                     <button class="btn btn-secondary" onclick="closeDataDrawer()">取消</button>
                     <button class="btn btn-primary" onclick="saveVideo('${video ? video.hash : ''}')">保存</button>
@@ -3524,6 +3920,12 @@
         }
 
         // ========== 数据管理 ==========
+        // 加载数据概览统计
+        async function loadDbStats() {
+            await refreshDbStats();
+        }
+
+        // 刷新数据概览统计
         async function refreshDbStats() {
             const result = await apiCall('/api/db/stats');
 
