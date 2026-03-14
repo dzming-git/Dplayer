@@ -1944,6 +1944,23 @@
             color: #e74c3c;
         }
 
+        /* 多行日志后续行样式 */
+        .log-table tbody tr.log-continue {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .log-table tbody tr.log-continue td:first-child {
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+
+        .log-table tbody tr.log-continue td:last-child {
+            padding-left: 24px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+        }
+
         .log-summary {
             max-width: 400px;
             overflow: hidden;
@@ -4445,6 +4462,14 @@
             loadLogs(500);
         }
 
+        // HTML转义函数
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // 加载日志
         async function loadLogs(lines = 500) {
             const result = await apiCall(`/api/logs?type=${currentLogType}&lines=${lines}`);
@@ -4460,29 +4485,76 @@
 
         // 解析日志行为结构化数据
         function parseLogs(logLines) {
-            return logLines.map((line, index) => {
+            const result = [];
+            let lastTime = '';
+            let lastLevel = 'INFO';
+            let lastService = currentLogType;
+
+            for (let i = 0; i < logLines.length; i++) {
+                const line = logLines[i].trim();
+                if (!line) continue;
+
                 // 解析格式: 2026-03-14 10:30:45 [INFO] [admin] 消息内容
-                const match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s*\[(\w+)\]\s*(.*)$/);
+                // 或: 2026-03-14 10:30:45 [ERROR] 消息内容（无服务标签）
+                let match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s*\[(\w+)\]\s*(.*)$/);
                 if (match) {
-                    return {
-                        id: index,
-                        time: match[1],
-                        level: match[2],
-                        service: match[3],
+                    lastTime = match[1];
+                    lastLevel = match[2];
+                    lastService = match[3];
+                    result.push({
+                        id: i,
+                        time: lastTime,
+                        level: lastLevel,
+                        service: lastService,
                         summary: match[4],
                         fullContent: line
-                    };
+                    });
+                    continue;
                 }
-                // 备用解析
-                return {
-                    id: index,
+
+                // 尝试匹配无服务标签的格式: 时间 [级别] 消息
+                match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)$/);
+                if (match) {
+                    lastTime = match[1];
+                    lastLevel = match[2];
+                    result.push({
+                        id: i,
+                        time: lastTime,
+                        level: lastLevel,
+                        service: lastService,
+                        summary: match[3],
+                        fullContent: line
+                    });
+                    continue;
+                }
+
+                // 多行日志（无时间戳），继承上一行的时间戳和级别
+                // 常见于Traceback堆栈信息
+                if (line && !line.match(/^\d{4}-\d{2}-\d{2}/)) {
+                    result.push({
+                        id: i,
+                        time: lastTime,
+                        level: lastLevel,
+                        service: lastService,
+                        summary: line,
+                        fullContent: line,
+                        isContinuation: true  // 标记为后续行
+                    });
+                    continue;
+                }
+
+                // 无法解析的行
+                result.push({
+                    id: i,
                     time: '',
                     level: 'INFO',
                     service: currentLogType,
                     summary: line,
                     fullContent: line
-                };
-            });
+                });
+            }
+
+            return result;
         }
 
         // 筛选日志
@@ -4531,14 +4603,16 @@
                 return;
             }
 
-            tbody.innerHTML = filteredLogs.map(log => `
-                <tr onclick="showLogDetail(${log.id})" data-log-id="${log.id}">
+            tbody.innerHTML = filteredLogs.map(log => {
+                const isCont = log.isContinuation ? 'log-continue' : '';
+                return `
+                <tr onclick="showLogDetail(${log.id})" data-log-id="${log.id}" class="${isCont}">
                     <td style="width: 180px;">${log.time}</td>
-                    <td style="width: 80px;"><span class="log-level-badge ${log.level}">${log.level}</span></td>
+                    <td style="width: 80px;">${log.isContinuation ? '' : `<span class="log-level-badge ${log.level}">${log.level}</span>`}</td>
                     <td style="width: 100px;">${log.service}</td>
-                    <td class="log-summary">${log.summary}</td>
+                    <td class="log-summary">${escapeHtml(log.summary)}</td>
                 </tr>
-            `).join('');
+            `}).join('');
 
             // 如果是实时模式，自动滚动到底部
             if (currentLogTimeFilter === 'realtime') {
@@ -4564,7 +4638,7 @@
             detailBody.innerHTML = `
                 <div class="log-detail-item">
                     <div class="log-detail-label">时间</div>
-                    <div class="log-detail-value">${log.time || '-'}</div>
+                    <div class="log-detail-value">${escapeHtml(log.time) || '-'}</div>
                 </div>
                 <div class="log-detail-item">
                     <div class="log-detail-label">级别</div>
@@ -4572,15 +4646,15 @@
                 </div>
                 <div class="log-detail-item">
                     <div class="log-detail-label">服务</div>
-                    <div class="log-detail-value">${log.service}</div>
+                    <div class="log-detail-value">${escapeHtml(log.service)}</div>
                 </div>
                 <div class="log-detail-item">
                     <div class="log-detail-label">摘要</div>
-                    <div class="log-detail-value">${log.summary}</div>
+                    <div class="log-detail-value">${escapeHtml(log.summary)}</div>
                 </div>
                 <div class="log-detail-item">
                     <div class="log-detail-label">完整内容</div>
-                    <div class="log-detail-content">${log.fullContent}</div>
+                    <div class="log-detail-content">${escapeHtml(log.fullContent)}</div>
                 </div>
             `;
 
