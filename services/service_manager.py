@@ -68,21 +68,24 @@ SERVICES = {
         'display_name': '管理服务',
         'port': config.get('ports', {}).get('admin_app', 8080),
         'script': os.path.join(BASEDIR, 'admin_app.py'),
-        'pid_file': os.path.join(BASEDIR, '.admin.pid'),
+        'pid_file': os.path.join(BASEDIR, 'instance', 'admin_app.pid'),
+        'task_name': 'dplayer-admin',
     },
     'main': {
         'name': 'DPlayer-Main',
         'display_name': '主应用',
         'port': config.get('ports', {}).get('main_app', 8081),
         'script': os.path.join(BASEDIR, 'app.py'),
-        'pid_file': os.path.join(BASEDIR, '.main.pid'),
+        'pid_file': os.path.join(BASEDIR, 'instance', 'main_app.pid'),
+        'task_name': 'dplayer-main',
     },
     'thumbnail': {
         'name': 'DPlayer-Thumbnail',
         'display_name': '缩略图服务',
         'port': config.get('ports', {}).get('thumbnail', 5001),
         'script': os.path.join(BASEDIR, 'thumbnail_service.py'),
-        'pid_file': os.path.join(BASEDIR, '.thumbnail.pid'),
+        'pid_file': os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid'),
+        'task_name': 'dplayer-thumbnail',
     }
 }
 
@@ -90,6 +93,74 @@ SERVICES = {
 # ============================================================
 # 辅助函数
 # ============================================================
+
+def _run_powershell(script):
+    """执行 PowerShell 命令并返回结果"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-Command', script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            encoding='utf-8',
+            errors='replace'
+        )
+        return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return -1, '', 'PowerShell 执行超时'
+    except Exception as e:
+        return -1, '', str(e)
+
+
+def _get_scheduled_task_status(task_name):
+    """通过 Get-ScheduledTask 获取任务状态"""
+    if not IS_WINDOWS:
+        return None, 'Not a Windows system'
+
+    script = f'Get-ScheduledTask -TaskName "{task_name}" -ErrorAction SilentlyContinue | Select-Object -Property TaskName,State | ConvertTo-Json'
+    code, stdout, stderr = _run_powershell(script)
+
+    if code != 0 or not stdout.strip():
+        return None, stderr or 'Task not found'
+
+    try:
+        import json
+        data = json.loads(stdout)
+        # State: 3=Ready, 4=Running, 5=Disabled, etc.
+        state_map = {3: 'Ready', 4: 'Running', 5: 'Disabled', 0: 'Unknown'}
+        state = state_map.get(data.get('State', 0), 'Unknown')
+        return {'task_name': data.get('TaskName'), 'state': state}, ''
+    except Exception as e:
+        return None, str(e)
+
+
+def _start_scheduled_task(task_name):
+    """启动Windows计划任务"""
+    if not IS_WINDOWS:
+        return False, 'Not a Windows system'
+
+    script = f'Start-ScheduledTask -TaskName "{task_name}"'
+    code, stdout, stderr = _run_powershell(script)
+
+    if code == 0:
+        return True, 'Task started'
+    else:
+        return False, stderr or 'Task start failed'
+
+
+def _stop_scheduled_task(task_name):
+    """停止Windows计划任务"""
+    if not IS_WINDOWS:
+        return False, 'Not a Windows system'
+
+    script = f'Stop-ScheduledTask -TaskName "{task_name}"'
+    code, stdout, stderr = _run_powershell(script)
+
+    if code == 0:
+        return True, 'Task stopped'
+    else:
+        return False, stderr or 'Task stop failed'
 
 def _port_listening(port):
     """检查端口是否在监听"""
@@ -200,7 +271,7 @@ def _kill_processes_on_port(port):
 
 def start_service(svc_key, force=False, silent=False):
     """
-    启动指定服务
+    启动指定服务（优先使用Windows计划任务）
 
     Args:
         svc_key: 服务键名 ('admin', 'main', 'thumbnail')
@@ -217,6 +288,7 @@ def start_service(svc_key, force=False, silent=False):
     port = svc['port']
     pid_file = svc['pid_file']
     script = svc['script']
+    task_name = svc.get('task_name')
 
     if not silent:
         service_logger.info(f"准备启动服务: {svc['display_name']} (端口: {port})")
@@ -257,7 +329,34 @@ def start_service(svc_key, force=False, silent=False):
 
         time.sleep(1)  # 等待端口完全释放
 
-    # 启动进程
+    # Windows 下优先尝试使用计划任务
+    if IS_WINDOWS and task_name:
+        task_result, _ = _get_scheduled_task_status(task_name)
+        if task_result:
+            if not silent:
+                service_logger.info(f"通过计划任务启动: {task_name}")
+            # 任务存在，使用 Start-ScheduledTask 启动
+            success, msg = _start_scheduled_task(task_name)
+            if success:
+                # 等待端口就绪（最多10秒）
+                if not silent:
+                    service_logger.info(f"等待端口 {port} 就绪...")
+                for i in range(20):
+                    time.sleep(0.5)
+                    if _port_listening(port):
+                        pid = _pid_for_port(port)
+                        if not silent:
+                            service_logger.info(f"服务 {svc['display_name']} 通过计划任务启动成功 (PID: {pid})")
+                        return {'success': True, 'message': f'{svc["display_name"]} 启动成功（计划任务）', 'pid': pid}
+                return {'success': True, 'message': f'{svc["display_name"]} 计划任务已启动，等待端口就绪'}
+            else:
+                if not silent:
+                    service_logger.warning(f"计划任务启动失败: {msg}，尝试直接启动")
+
+    # 计划任务不存在或失败时，直接启动（保留代码热重载特性）
+    if not silent:
+        service_logger.info(f"直接启动服务: {script}")
+
     try:
         # 设置环境变量
         env = os.environ.copy()
@@ -354,7 +453,7 @@ def start_service(svc_key, force=False, silent=False):
 
 def stop_service(svc_key, silent=False):
     """
-    停止指定服务
+    停止指定服务（优先使用Windows计划任务）
 
     Args:
         svc_key: 服务键名
@@ -369,11 +468,36 @@ def stop_service(svc_key, silent=False):
     svc = SERVICES[svc_key]
     port = svc['port']
     pid_file = svc['pid_file']
+    task_name = svc.get('task_name')
 
     if not silent:
         service_logger.info(f"准备停止服务: {svc['display_name']}")
 
-    # 获取进程PID
+    # 自己不能停止自己
+    if svc_key == 'admin' and os.getpid() == _get_pid_from_file(pid_file):
+        return {'success': False, 'message': '管理后台不能停止自身'}
+
+    # Windows 下优先尝试使用计划任务停止
+    if IS_WINDOWS and task_name:
+        task_result, _ = _get_scheduled_task_status(task_name)
+        if task_result and task_result.get('state') == 'Running':
+            if not silent:
+                service_logger.info(f"通过计划任务停止: {task_name}")
+            # 任务正在运行，使用 Stop-ScheduledTask 停止
+            success, msg = _stop_scheduled_task(task_name)
+            if success:
+                # 等待端口释放
+                for _ in range(10):
+                    time.sleep(0.5)
+                    if not _port_listening(port):
+                        if not silent:
+                            service_logger.info(f"服务 {svc['display_name']} 通过计划任务已停止")
+                        return {'success': True, 'message': f'{svc["display_name"]} 已停止（计划任务）'}
+            else:
+                if not silent:
+                    service_logger.warning(f"计划任务停止失败: {msg}，尝试直接终止进程")
+
+    # 计划任务不存在或失败时，直接终止进程
     pid = _pid_for_port(port) or _get_pid_from_file(pid_file)
 
     if not pid:

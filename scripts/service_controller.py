@@ -34,21 +34,6 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
-# 导入通用服务管理器
-sys.path.insert(0, str(Path(__file__).parent.parent))
-try:
-    from services.service_manager import (
-        start_service as sm_start_service,
-        stop_service as sm_stop_service,
-        restart_service as sm_restart_service,
-        get_service_status as sm_get_service_status,
-        SERVICES as SERVICES_CONFIG,
-    )
-    HAS_SERVICE_MANAGER = True
-except ImportError:
-    HAS_SERVICE_MANAGER = False
-    SERVICES_CONFIG = {}
-
 
 # ============================================================
 # Configuration
@@ -70,30 +55,27 @@ ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
 MAIN_APP_PORT = config.get('ports', {}).get('main_app', 8081)
 THUMBNAIL_PORT = config.get('ports', {}).get('thumbnail', 5001)
 
-# Service definitions - 使用service_manager的配置
-if HAS_SERVICE_MANAGER:
-    SERVICES = SERVICES_CONFIG
-else:
-    SERVICES = {
-        'admin': {
-            'name': 'DPlayer-Admin',
-            'display_name': 'Admin Service',
-            'port': ADMIN_PORT,
-            'description': f'DPlayer Admin Panel, Port {ADMIN_PORT}'
-        },
-        'main': {
-            'name': 'DPlayer-Main',
-            'display_name': 'Main Service',
-            'port': MAIN_APP_PORT,
-            'description': f'DPlayer Main Application, Port {MAIN_APP_PORT}'
-        },
-        'thumbnail': {
-            'name': 'DPlayer-Thumbnail',
-            'display_name': 'Thumbnail Service',
-            'port': THUMBNAIL_PORT,
-            'description': f'DPlayer Thumbnail Service, Port {THUMBNAIL_PORT}'
-        }
+# Service definitions
+SERVICES = {
+    'admin': {
+        'name': 'DPlayer-Admin',
+        'display_name': 'Admin Service',
+        'port': ADMIN_PORT,
+        'description': f'DPlayer Admin Panel, Port {ADMIN_PORT}'
+    },
+    'main': {
+        'name': 'DPlayer-Main',
+        'display_name': 'Main Service',
+        'port': MAIN_APP_PORT,
+        'description': f'DPlayer Main Application, Port {MAIN_APP_PORT}'
+    },
+    'thumbnail': {
+        'name': 'DPlayer-Thumbnail',
+        'display_name': 'Thumbnail Service',
+        'port': THUMBNAIL_PORT,
+        'description': f'DPlayer Thumbnail Service, Port {THUMBNAIL_PORT}'
     }
+}
 
 
 # ============================================================
@@ -765,46 +747,57 @@ def get_service_start_type(service_name):
 
 
 def start_service(service_key, force=False):
-    """Start service (使用通用服务管理器)"""
-    if HAS_SERVICE_MANAGER:
-        # 使用通用服务管理器
-        result = sm_start_service(service_key, force=force, silent=False)
-        if result['success']:
-            print_success(result['message'])
-        else:
-            print_error(result['message'])
-        return result['success']
-    else:
-        # 回退到原有的Windows服务启动逻辑
-        svc = SERVICES[service_key]
-        print_info(f"Starting {svc['display_name']}...")
+    """Start service (cross-platform)"""
+    svc = SERVICES[service_key]
+    print_info(f"Starting {svc['display_name']}...")
 
-        # Check if service exists
-        status = get_service_status(svc['name'])
-        if status == "NOT_FOUND":
-            print_error(f"{svc['display_name']} not registered")
-            return False
+    # Check if service exists
+    status = get_service_status(svc['name'])
+    if status == "NOT_FOUND":
+        print_error(f"{svc['display_name']} not registered")
+        return False
 
-        if status == "RUNNING" or status == "active":
-            print_info(f"{svc['display_name']} already running")
-            return True
+    if status == "RUNNING" or status == "active":
+        print_info(f"{svc['display_name']} already running")
+        return True
 
-        # Check if port is occupied
-        port = svc['port']
-        pids = find_pids_for_port(port)
-        if pids:
-            print_warn(f"Port {port} is occupied by {len(pids)} process(es):")
+    # Check if port is occupied
+    port = svc['port']
+    pids = find_pids_for_port(port)
+    if pids:
+        print_warn(f"Port {port} is occupied by {len(pids)} process(es):")
+        for p in pids:
+            print(f"  PID {p['pid']}  {p['name']}")
+            if p["cmdline"]:
+                print(f"  CMD {p['cmdline']}")
+
+        if force:
+            # Force mode: kill without asking
+            print_info("Force mode: killing processes...")
             for p in pids:
-                print(f"  PID {p['pid']}  {p['name']}")
-                if p["cmdline"]:
-                    print(f"  CMD {p['cmdline']}")
+                ok = kill_pid(p["pid"])
+                status_msg = "[killed]" if ok else "[FAILED]"
+                print(f"  -> PID {p['pid']} {status_msg}")
 
-            if force:
-                # Force mode: kill without asking
-                print_info("Force mode: killing processes...")
+            # Wait a moment
+            time.sleep(1)
+            pids_after = find_pids_for_port(port)
+            if pids_after:
+                print_error(f"Failed to clear port {port}")
+                return False
+            else:
+                print_success(f"Port {port} cleared")
+        else:
+            # Interactive mode: ask user
+            try:
+                ans = input(f"  Kill {len(pids)} process(es) and start service? [y/N] ").strip().lower()
+            except EOFError:
+                ans = 'n'
+
+            if ans == "y":
                 for p in pids:
                     ok = kill_pid(p["pid"])
-                    status_msg = "[killed]" if ok else "[FAILED]"
+                    status_msg = Colors.OKGREEN + "[killed]" + Colors.ENDC if ok else Colors.FAIL + "[FAILED]" + Colors.ENDC
                     print(f"  -> PID {p['pid']} {status_msg}")
 
                 # Wait a moment
@@ -816,164 +809,116 @@ def start_service(service_key, force=False):
                 else:
                     print_success(f"Port {port} cleared")
             else:
-                # Interactive mode: ask user
-                try:
-                    ans = input(f"  Kill {len(pids)} process(es) and start service? [y/N] ").strip().lower()
-                except EOFError:
-                    ans = 'n'
+                print_info("Aborted")
+                return False
 
-                if ans == "y":
-                    for p in pids:
-                        ok = kill_pid(p["pid"])
-                        status_msg = Colors.OKGREEN + "[killed]" + Colors.ENDC if ok else Colors.FAIL + "[FAILED]" + Colors.ENDC
-                        print(f"  -> PID {p['pid']} {status_msg}")
+    # Start service
+    if IS_WINDOWS:
+        success = start_service_win(svc['name'], svc['display_name'])
+    else:
+        success = start_service_linux(svc['name'], svc['display_name'])
 
-                    # Wait a moment
-                    time.sleep(1)
-                    pids_after = find_pids_for_port(port)
-                    if pids_after:
-                        print_error(f"Failed to clear port {port}")
-                        return False
-                    else:
-                        print_success(f"Port {port} cleared")
-                else:
-                    print_info("Aborted")
-                    return False
+    if not success:
+        return False
 
-        # Start service
-        if IS_WINDOWS:
-            success = start_service_win(svc['name'], svc['display_name'])
+    # Wait for service to start
+    desired_state = 'RUNNING' if IS_WINDOWS else 'active'
+    success = wait_for_service_state(svc['name'], desired_state)
+    if success:
+        time.sleep(2)
+
+        # Check port listening
+        listening = check_port_listening(svc['port'])
+        if listening:
+            print_success(f"{svc['display_name']} started successfully, port {svc['port']} is listening")
         else:
-            success = start_service_linux(svc['name'], svc['display_name'])
+            print_warn(f"{svc['display_name']} started but port {svc['port']} is not listening yet")
 
-        if not success:
-            return False
-
-        # Wait for service to start
-        desired_state = 'RUNNING' if IS_WINDOWS else 'active'
-        success = wait_for_service_state(svc['name'], desired_state)
-        if success:
-            time.sleep(2)
-
-            # Check port listening
-            listening = check_port_listening(svc['port'])
-            if listening:
-                print_success(f"{svc['display_name']} started successfully, port {svc['port']} is listening")
-            else:
-                print_warn(f"{svc['display_name']} started but port {svc['port']} is not listening yet")
-
-        return success
+    return success
 
 
 def stop_service(service_key, silent=False):
-    """Stop service (使用通用服务管理器)"""
-    if HAS_SERVICE_MANAGER:
-        # 使用通用服务管理器
-        result = sm_stop_service(service_key, silent=silent)
-        if result['success'] and not silent:
-            print_success(result['message'])
-        elif not result['success'] and not silent:
-            print_error(result['message'])
-        return result['success']
-    else:
-        # 回退到原有的Windows服务停止逻辑
-        svc = SERVICES[service_key]
+    """Stop service (cross-platform)"""
+    svc = SERVICES[service_key]
 
+    if not silent:
+        print_info(f"Stopping {svc['display_name']}...")
+
+    # Check if service exists
+    status = get_service_status(svc['name'])
+    if status == "NOT_FOUND":
         if not silent:
-            print_info(f"Stopping {svc['display_name']}...")
+            print_info(f"{svc['display_name']} not registered, skipping")
+        return True
 
-        # Check if service exists
-        status = get_service_status(svc['name'])
-        if status == "NOT_FOUND":
-            if not silent:
-                print_info(f"{svc['display_name']} not registered, skipping")
-            return True
+    if status == "STOPPED" or status == "inactive":
+        if not silent:
+            print_info(f"{svc['display_name']} already stopped")
+        return True
 
-        if status == "STOPPED" or status == "inactive":
-            if not silent:
-                print_info(f"{svc['display_name']} already stopped")
-            return True
+    # Stop service
+    if IS_WINDOWS:
+        success = stop_service_win(svc['name'], svc['display_name'], silent)
+    else:
+        success = stop_service_linux(svc['name'], svc['display_name'], silent)
 
-        # Stop service
-        if IS_WINDOWS:
-            success = stop_service_win(svc['name'], svc['display_name'], silent)
+    if not success:
+        return False
+
+    # Wait for service to stop
+    success = wait_for_service_state(svc['name'], 'STOPPED')
+    if success and not silent:
+        time.sleep(1)
+        listening = check_port_listening(svc['port'])
+        if not listening:
+            print_success(f"{svc['display_name']} stopped successfully, port {svc['port']} released")
         else:
-            success = stop_service_linux(svc['name'], svc['display_name'], silent)
+            print_warn(f"{svc['display_name']} stopped but port {svc['port']} still in use")
 
-        if not success:
-            return False
-
-        # Wait for service to stop
-        success = wait_for_service_state(svc['name'], 'STOPPED')
-        if success and not silent:
-            time.sleep(1)
-            listening = check_port_listening(svc['port'])
-            if not listening:
-                print_success(f"{svc['display_name']} stopped successfully, port {svc['port']} released")
-            else:
-                print_warn(f"{svc['display_name']} stopped but port {svc['port']} still in use")
-
-        return success
+    return success
 
 
 def restart_service(service_key, force=False):
-    """Restart service (使用通用服务管理器)"""
-    if HAS_SERVICE_MANAGER:
-        # 使用通用服务管理器
-        print()
-        print(f"{Colors.OKCYAN}{'-' * 60}{Colors.ENDC}")
-        print(f"{Colors.OKCYAN}Restart {SERVICES[service_key]['display_name']}{Colors.ENDC}")
-        print(f"{Colors.OKCYAN}{'-' * 60}{Colors.ENDC}")
+    """Restart service (cross-platform)"""
+    svc = SERVICES[service_key]
 
-        result = sm_restart_service(service_key, force=force, silent=False)
-        if result['success']:
-            print_success(result['message'])
-            if result.get('pid'):
-                print_info(f"PID: {result.get('pid')}")
-        else:
-            print_error(result['message'])
-        return result['success']
+    print()
+    print(f"{Colors.OKCYAN}{'-' * 60}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}Restart {svc['display_name']}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{'-' * 60}{Colors.ENDC}")
+
+    # Get PID before restart
+    old_pid = get_service_pid(svc['name'])
+    print_info(f"PID before restart: {old_pid}")
+
+    # Stop service
+    stop_success = stop_service(service_key)
+    if not stop_success:
+        print_error("Stop failed, cannot continue restart")
+        return False
+
+    # Wait for complete stop
+    time.sleep(2)
+
+    # Start service (pass force flag)
+    start_success = start_service(service_key, force=force)
+    if not start_success:
+        print_error("Start failed, restart incomplete")
+        return False
+
+    # Verify PID change
+    time.sleep(2)
+    new_pid = get_service_pid(svc['name'])
+    print_info(f"PID after restart: {new_pid}")
+
+    if old_pid and new_pid and old_pid != new_pid:
+        print_success(f"PID changed ({old_pid} -> {new_pid}), service restarted successfully!")
+    elif old_pid == new_pid:
+        print_warn("PID unchanged, service may not have restarted properly")
     else:
-        # 回退到原有的Windows服务重启逻辑
-        svc = SERVICES[service_key]
+        print_info("Unable to verify PID change")
 
-        print()
-        print(f"{Colors.OKCYAN}{'-' * 60}{Colors.ENDC}")
-        print(f"{Colors.OKCYAN}Restart {svc['display_name']}{Colors.ENDC}")
-        print(f"{Colors.OKCYAN}{'-' * 60}{Colors.ENDC}")
-
-        # Get PID before restart
-        old_pid = get_service_pid(svc['name'])
-        print_info(f"PID before restart: {old_pid}")
-
-        # Stop service
-        stop_success = stop_service(service_key)
-        if not stop_success:
-            print_error("Stop failed, cannot continue restart")
-            return False
-
-        # Wait for complete stop
-        time.sleep(2)
-
-        # Start service (pass force flag)
-        start_success = start_service(service_key, force=force)
-        if not start_success:
-            print_error("Start failed, restart incomplete")
-            return False
-
-        # Verify PID change
-        time.sleep(2)
-        new_pid = get_service_pid(svc['name'])
-        print_info(f"PID after restart: {new_pid}")
-
-        if old_pid and new_pid and old_pid != new_pid:
-            print_success(f"PID changed ({old_pid} -> {new_pid}), service restarted successfully!")
-        elif old_pid == new_pid:
-            print_warn("PID unchanged, service may not have restarted properly")
-        else:
-            print_info("Unable to verify PID change")
-
-        return True
+    return True
 
 
 def show_service_status(service_key):
