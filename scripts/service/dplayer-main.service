@@ -1,0 +1,31 @@
+[Unit]
+Description=DPlayer 主应用 (app.py)
+Documentation=https://github.com/your-repo/dplayer
+After=network.target
+Wants=dplayer-thumbnail.service
+
+[Service]
+Type=simple
+# !! 部署时修改以下两行 !!
+User=www-data
+WorkingDirectory=/opt/dplayer
+
+ExecStart=/opt/dplayer/venv/bin/python /opt/dplayer/app.py
+ExecStop=/bin/kill -TERM $MAINPID
+
+# 崩溃后自动重启，最多重试 5 次，间隔 5 秒
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# 标准输出写入日志
+StandardOutput=append:/opt/dplayer/logs/main_app.log
+StandardError=append:/opt/dplayer/logs/main_app.log
+
+# 环境变量
+Environment=FLASK_ENV=production
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

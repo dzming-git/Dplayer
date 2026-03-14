@@ -468,6 +468,165 @@
             min-height: 100px;
             resize: vertical;
         }
+
+        /* 手机端响应式样式 */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .header p {
+                font-size: 0.9em;
+            }
+
+            .tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                gap: 8px;
+                padding-bottom: 5px;
+            }
+
+            .tab-btn {
+                padding: 10px 16px;
+                font-size: 0.9em;
+                white-space: nowrap;
+            }
+
+            .card {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .card h2 {
+                font-size: 1.1em;
+                margin-bottom: 15px;
+            }
+
+            /* 服务列表 */
+            .services-list {
+                margin-bottom: 15px;
+            }
+
+            .service-item {
+                padding: 12px;
+                margin-bottom: 10px;
+            }
+
+            .service-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .service-name {
+                font-size: 1em;
+            }
+
+            .service-info {
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+
+            .service-actions {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .service-actions .btn {
+                flex: 1;
+                min-width: 60px;
+                padding: 6px 10px;
+                font-size: 0.8em;
+            }
+
+            /* 表格 */
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .data-table {
+                min-width: 600px;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 10px 8px;
+                font-size: 0.85em;
+            }
+
+            /* 按钮 */
+            .btn {
+                padding: 8px 16px;
+                font-size: 0.85em;
+            }
+
+            /* 表单 */
+            .form-row {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .form-group {
+                margin-bottom: 12px;
+            }
+
+            .form-group input,
+            .form-group textarea,
+            .form-group select {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+
+            /* 操作栏 */
+            .action-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .action-bar .btn {
+                width: 100%;
+            }
+
+            /* 搜索 */
+            .search-box {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .search-box input {
+                width: 100%;
+            }
+
+            .search-box .btn {
+                width: 100%;
+            }
+        }
+
+        /* 更小屏幕 */
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.3em;
+            }
+
+            .header p {
+                font-size: 0.8em;
+            }
+
+            .service-info {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 12px;
+                border-radius: 10px;
+            }
+        }
     </style>
 </head>
 <body>

@@ -635,210 +635,6 @@
             font-size: 0.9em;
             opacity: 0.8;
         }
-
-        /* 手机端响应式样式 */
-        @media (max-width: 768px) {
-            body {
-                padding: 12px;
-            }
-
-            .header h1 {
-                font-size: 1.5em;
-            }
-
-            .header p {
-                font-size: 0.9em;
-            }
-
-            .dashboard {
-                grid-template-columns: 1fr;
-                gap: 15px;
-            }
-
-            .card {
-                padding: 15px;
-            }
-
-            .card h2 {
-                font-size: 1.1em;
-                margin-bottom: 15px;
-            }
-
-            /* 服务列表手机端 */
-            .service-item {
-                padding: 12px;
-                margin-bottom: 10px;
-            }
-
-            .service-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-
-            .service-name {
-                font-size: 1em;
-            }
-
-            .service-info {
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
-            }
-
-            .service-actions {
-                width: 100%;
-                justify-content: flex-start;
-            }
-
-            .service-actions .btn {
-                flex: 1;
-                min-width: 60px;
-                padding: 6px 10px;
-                font-size: 0.8em;
-            }
-
-            /* 系统状态 */
-            .status-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .status-item {
-                padding: 12px;
-            }
-
-            /* 监控卡片 */
-            .monitor-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-            }
-
-            .monitor-card {
-                padding: 12px;
-            }
-
-            .monitor-card .value {
-                font-size: 1.8em;
-            }
-
-            /* 标签页 */
-            .tabs-container {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .tabs {
-                flex-wrap: nowrap;
-                gap: 8px;
-            }
-
-            .tab-btn {
-                padding: 10px 16px;
-                font-size: 0.9em;
-                white-space: nowrap;
-            }
-
-            /* 表格手机端 */
-            .data-table {
-                display: block;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .data-table table {
-                min-width: 600px;
-            }
-
-            .data-table th,
-            .data-table td {
-                padding: 10px 8px;
-                font-size: 0.85em;
-            }
-
-            /* 按钮手机端 */
-            .btn {
-                padding: 8px 16px;
-                font-size: 0.85em;
-            }
-
-            .btn-group {
-                flex-direction: column;
-                gap: 6px;
-            }
-
-            .btn-group .btn {
-                width: 100%;
-            }
-
-            /* 表单 */
-            .form-group {
-                margin-bottom: 12px;
-            }
-
-            .form-group input,
-            .form-group select,
-            .form-group textarea {
-                padding: 10px 12px;
-                font-size: 14px;
-            }
-
-            /* 搜索框 */
-            .search-box {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .search-box input {
-                width: 100%;
-            }
-
-            .search-box .btn {
-                width: 100%;
-            }
-
-            /* 分页 */
-            .pagination {
-                flex-wrap: wrap;
-                gap: 5px;
-            }
-
-            .pagination .btn {
-                padding: 6px 10px;
-                font-size: 0.8em;
-            }
-        }
-
-        /* 更小屏幕 */
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.3em;
-            }
-
-            .header p {
-                font-size: 0.8em;
-            }
-
-            .card {
-                padding: 12px;
-                border-radius: 10px;
-            }
-
-            .service-info {
-                grid-template-columns: 1fr;
-            }
-
-            .monitor-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .action-bar {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .action-bar .btn {
-                width: 100%;
-            }
-        }
     </style>
 </head>
 <body>
@@ -847,106 +643,45 @@
             <h1>🎬 Dplayer 管理后台</h1>
             <p>双端口架构 · 独立管理 · 细粒度控制</p>
             <div class="refresh-time">最后更新: <span id="refreshTime">--</span></div>
+            <div style="margin-top:14px;">
+                <a href="/services" style="display:inline-flex;align-items:center;gap:8px;background:rgba(124,140,251,0.18);color:#7c8cfb;border:1px solid rgba(124,140,251,0.35);border-radius:8px;padding:8px 18px;text-decoration:none;font-size:14px;font-weight:600;transition:background 0.2s;" onmouseover="this.style.background='rgba(124,140,251,0.3)'" onmouseout="this.style.background='rgba(124,140,251,0.18)'">
+                    📊 服务管理中心
+                </a>
+            </div>
         </div>
 
-        <!-- 标签页容器 -->
-        <div class="tabs-container">
-            <!-- 标签导航 -->
-            <div class="tabs-nav">
-                <button class="tab-btn active" onclick="switchTab('services')">
-                    🔧 服务管理
-                </button>
-                <button class="tab-btn" onclick="switchTab('monitor')">
-                    📊 系统监控
-                </button>
-                <button class="tab-btn" onclick="switchTab('database')">
-                    💾 数据库管理
-                </button>
-                <button class="tab-btn" onclick="switchTab('logs')">
-                    📋 系统日志
-                </button>
-            </div>
-
-            <!-- 服务管理标签页 -->
-            <div class="tab-content active" id="tab-services">
-                <div class="refresh-controls" style="text-align: right; margin-bottom: 20px;">
-                    <button class="btn btn-primary" onclick="refreshServices()">
-                        🔄 刷新状态
-                    </button>
-                </div>
-                <div id="messageArea"></div>
-                <div class="services-table-wrapper">
-                    <table class="services-table">
-                        <thead>
-                            <tr>
-                                <th>模块名称</th>
-                                <th>状态</th>
-                                <th>进程信息</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="servicesBody">
-                            <!-- 服务行 - 由后端渲染基本信息,JS只更新状态 -->
-                            {% for svc in services %}
-                            <tr id="service-{{ svc.key }}" data-service-key="{{ svc.key }}">
-                                <td>
-                                    <div class="service-name">{{ svc.name }}</div>
-                                    <div class="service-desc">{{ svc.description }}</div>
-                                </td>
-                                <td>
-                                    <span class="status-badge status-unknown">检测中...</span>
-                                </td>
-                                <td class="service-info">
-                                    <div class="info-row">
-                                        <span class="info-label">端口:</span> {{ svc.port }}
-                                    </div>
-                                    <div class="info-row">
-                                        <span class="info-label">PID:</span> <span class="pid-display">检测中...</span>
-                                    </div>
-                                    <div class="info-row">
-                                        <span class="info-label">CPU:</span> <span class="cpu-display">--</span>
-                                    </div>
-                                    <div class="info-row">
-                                        <span class="info-label">内存:</span> <span class="memory-display">--</span>
-                                    </div>
-                                </td>
-                                <td class="action-cell">
-                                    {% if svc.key == 'admin' %}
-                                    <span style="color: #999; font-style: italic;">当前服务</span>
-                                    {% else %}
-                                    <span class="loading-hint" style="color: #999; font-style: italic;">检测中...</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 系统监控标签页 -->
-            <div class="tab-content" id="tab-monitor">
-                <div class="monitor-grid">
-                    <div class="monitor-card">
-                        <h3>系统负载</h3>
-                        <div class="value" id="cpuValue">--</div>
-                        <div class="unit">% CPU 使用</div>
-                    </div>
-                    <div class="monitor-card">
-                        <h3>内存使用</h3>
-                        <div class="value" id="memoryValue">--</div>
-                        <div class="unit">GB / 百分比</div>
-                    </div>
-                    <div class="monitor-card">
-                        <h3>磁盘使用</h3>
-                        <div class="value" id="diskValue">--</div>
-                        <div class="unit">GB / 百分比</div>
+        <div class="dashboard">
+            <!-- 应用控制 - 服务管理 -->
+            <div class="card app-control">
+                <h2>服务管理</h2>
+                <div class="services-list" id="servicesList">
+                    <div class="service-item">
+                        <div class="service-name">加载中...</div>
                     </div>
                 </div>
+                <div class="system-status" id="systemStatus" style="display:none;">
+                    <div class="status-item" style="margin-bottom:10px;">
+                        <div class="status-label">系统负载</div>
+                        <div class="status-value">--</div>
+                    </div>
+                    <div class="status-item" style="margin-bottom:10px;">
+                        <div class="status-label">内存使用</div>
+                        <div class="status-value">--</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">磁盘使用</div>
+                        <div class="status-value">--</div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="refreshServices()" id="refreshBtn">刷新</button>
+                </div>
+                <div id="appAlert" class="alert"></div>
             </div>
 
-            <!-- 数据库管理标签页 -->
-            <div class="tab-content" id="tab-database">
+            <!-- 数据库管理 -->
+            <div class="card db-control">
+                <h2>数据库管理</h2>
                 <div class="db-stats" id="dbStats">
                     <div class="db-stat-item">
                         <span class="db-stat-label">视频总数</span>
@@ -978,8 +713,9 @@
                 <div id="dbAlert" class="alert"></div>
             </div>
 
-            <!-- 系统日志标签页 -->
-            <div class="tab-content" id="tab-logs">
+            <!-- 日志查看 -->
+            <div class="card logs">
+                <h2>系统日志</h2>
                 <div class="button-group">
                     <button class="btn btn-primary" onclick="loadLogs('admin', 100)">管理日志</button>
                     <button class="btn btn-primary" onclick="loadLogs('app', 100)">应用日志</button>
@@ -1043,48 +779,10 @@
     </div>
 
     <script>
-        // ========== 标签页切换 ==========
-
-        function switchTab(tabName) {
-            // 隐藏所有标签内容
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-
-            // 移除所有标签按钮的激活状态
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // 显示选中的标签内容
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-
-            // 激活对应的标签按钮
-            event.target.classList.add('active');
-
-            // 如果切换到系统监控,立即加载系统状态
-            if (tabName === 'monitor') {
-                refreshSystemMonitor();
-            }
-        }
-
         // ========== 状态管理 ==========
 
         let autoRefreshInterval = null;
         let autoRefreshEnabled = false;
-
-        function showMessage(message, type) {
-            const messageArea = document.getElementById('messageArea');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = type;
-            messageDiv.textContent = message;
-            messageArea.appendChild(messageDiv);
-
-            // 5秒后自动消失
-            setTimeout(() => {
-                messageDiv.remove();
-            }, 5000);
-        }
 
         function showAppAlert(message, type) {
             const alert = document.getElementById('appAlert');
@@ -1134,232 +832,158 @@
             }
         }
 
-        // ========== 系统监控 ==========
-
-        async function refreshSystemMonitor() {
-            try {
-                const response = await fetch('/api/services/status');
-                const data = await response.json();
-
-                if (data.success && data.system) {
-                    const sys = data.system;
-
-                    // 更新CPU
-                    const cpuValue = document.getElementById('cpuValue');
-                    if (cpuValue) {
-                        cpuValue.textContent = sys.cpu_percent.toFixed(1);
-                    }
-
-                    // 更新内存
-                    const memoryValue = document.getElementById('memoryValue');
-                    if (memoryValue) {
-                        const memoryGb = sys.memory_total_gb * sys.memory_percent / 100;
-                        memoryValue.textContent = `${memoryGb.toFixed(1)}GB (${sys.memory_percent.toFixed(1)}%)`;
-                    }
-
-                    // 更新磁盘
-                    const diskValue = document.getElementById('diskValue');
-                    if (diskValue) {
-                        const diskGb = sys.disk_total_gb * sys.disk_percent / 100;
-                        diskValue.textContent = `${diskGb.toFixed(1)}GB (${sys.disk_percent.toFixed(1)}%)`;
-                    }
-                }
-            } catch (error) {
-                console.error('获取系统监控数据失败:', error);
-            }
-        }
-
         // ========== 服务管理 ==========
 
         async function refreshServices() {
-            console.log('[DPlayer] 刷新服务状态...');
-            // 获取所有服务行,逐个加载状态
-            const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
-            rows.forEach(row => {
-                const serviceKey = row.getAttribute('data-service-key');
-                console.log('[DPlayer] 开始加载服务:', serviceKey);
-                loadServiceStatus(serviceKey);
-            });
-        }
-
-        async function loadServiceStatus(serviceKey) {
-            try {
-                const response = await fetch(`/api/services/${serviceKey}/status`);
-                const data = await response.json();
-
-                if (data.success) {
-                    updateServiceRow(serviceKey, data.service);
-                }
-            } catch (error) {
-                console.error(`获取服务 ${serviceKey} 状态失败:`, error);
-                updateServiceRowToUnknown(serviceKey);
-            }
-        }
-
-        function updateServiceRow(serviceKey, service) {
-            const row = document.getElementById(`service-${serviceKey}`);
-            if (!row) return;
-
-            const isSelf = serviceKey === 'admin';
-
-            // 更新状态徽章
-            let statusClass = service.running ? 'status-running' : 'status-stopped';
-            let statusText = service.running ? '运行中' : '已停止';
-            if (isSelf) {
-                statusClass = 'status-self';
-                statusText = '当前服务';
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '加载中...';
             }
 
-            const statusCell = row.cells[1];
-            statusCell.innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+            const result = await apiCall('/api/services/status');
 
-            // 更新PID
-            const pidDisplay = row.querySelector('.pid-display');
-            if (pidDisplay) {
-                pidDisplay.textContent = service.pid || 'N/A';
+            if (refreshBtn) {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '刷新';
             }
 
-            // 更新CPU
-            const cpuDisplay = row.querySelector('.cpu-display');
-            if (cpuDisplay) {
-                cpuDisplay.textContent = `${service.cpu_percent}%`;
-            }
+            if (result.success) {
+                const services = result.services;
+                const container = document.getElementById('servicesList');
 
-            // 更新内存
-            const memoryDisplay = row.querySelector('.memory-display');
-            if (memoryDisplay) {
-                memoryDisplay.textContent = `${service.memory_mb} MB`;
-            }
+                container.innerHTML = services.map(svc => {
+                    const statusClass = svc.running ? 'success' : 'danger';
+                    const statusText = svc.running ? '运行中' : '已停止';
+                    const statusIcon = svc.running ? '🟢' : '🔴';
+                    const canControl = svc.key !== 'admin'; // admin 服务不能被控制
 
-            // 更新操作按钮
-            const actionCell = row.querySelector('.action-cell');
-            if (actionCell && !isSelf) {
-                if (service.running) {
-                    actionCell.innerHTML = `
-                        <button class="btn btn-warning" onclick="stopService('${serviceKey}')">⏹️ 停止</button>
-                        <button class="btn btn-primary" onclick="restartService('${serviceKey}')">🔄 重启</button>
+                    return `
+                        <div class="service-item" style="border-left-color: ${svc.running ? '#28a745' : '#dc3545'};">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                        <span style="font-weight: bold; font-size: 1.1em;">${svc.name}</span>
+                                        <span class="status-badge status-${statusClass}">${statusIcon} ${statusText}</span>
+                                    </div>
+                                    <div style="color: #666; font-size: 0.9em; margin-bottom: 5px;">
+                                        <span>🏷️ 名称: ${svc.name}</span>
+                                        <span style="margin-left: 15px;">🌐 端口: ${svc.port}</span>
+                                    </div>
+                                    ${svc.pid ? `<div style="color: #888; font-size: 0.85em;">📊 PID: ${svc.pid}</div>` : ''}
+                                </div>
+                                ${canControl ? `
+                                    <div class="service-actions">
+                                        ${!svc.running ? `
+                                            <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.85em;"
+                                                    onclick="startService('${svc.key}')" id="start-${svc.key}">
+                                                ▶️ 启动
+                                            </button>
+                                        ` : ''}
+                                        ${svc.running ? `
+                                            <button class="btn btn-warning" style="padding: 6px 12px; font-size: 0.85em;"
+                                                    onclick="stopService('${svc.key}')" id="stop-${svc.key}">
+                                                ⏹️ 停止
+                                            </button>
+                                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85em;"
+                                                    onclick="restartService('${svc.key}')" id="restart-${svc.key}">
+                                                🔄 重启
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                ` : `
+                                    <div style="color: #999; font-size: 0.85em; font-style: italic;">
+                                        当前服务
+                                    </div>
+                                `}
+                            </div>
+                        </div>
                     `;
-                } else {
-                    actionCell.innerHTML = `
-                        <button class="btn btn-success" onclick="startService('${serviceKey}')">▶️ 启动</button>
-                    `;
+                }).join('');
+
+                // 更新系统状态
+                const system = result.system;
+                const systemStatus = document.getElementById('systemStatus');
+                if (systemStatus && system) {
+                    systemStatus.style.display = 'block';
+                    const statusItems = systemStatus.querySelectorAll('.status-item');
+                    statusItems[0].querySelector('.status-value').textContent = `${system.cpu_percent}%`;
+                    statusItems[1].querySelector('.status-value').textContent = `${system.memory_used.toFixed(1)}GB (${system.memory_percent}%)`;
+                    statusItems[2].querySelector('.status-value').textContent = `${system.disk_used.toFixed(1)}GB (${system.disk_percent}%)`;
+                }
+
+                // 更新时间
+                updateRefreshTime();
+
+                // 显示成功消息
+                const runningCount = services.filter(s => s.running).length;
+                showAppAlert(`服务状态: ${runningCount}/${services.length} 运行中`, 'success');
+            } else {
+                showAppAlert('获取服务状态失败: ' + result.message, 'error');
+            }
+        }
+
+        async function startService(svcKey) {
+            const btn = document.getElementById(`start-${svcKey}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '启动中...';
+            }
+
+            const result = await apiCall(`/api/services/${svcKey}/start`, 'POST');
+
+            if (result.success) {
+                showAppAlert(result.message, 'success');
+                setTimeout(refreshServices, 3000);
+            } else {
+                showAppAlert(result.message, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '▶️ 启动';
                 }
             }
         }
 
-        function updateServiceRowToUnknown(serviceKey) {
-            const row = document.getElementById(`service-${serviceKey}`);
-            if (!row) return;
-
-            const isSelf = serviceKey === 'admin';
-
-            // 更新状态徽章为未知
-            const statusCell = row.cells[1];
-            statusCell.innerHTML = '<span class="status-badge status-unknown">未知</span>';
-
-            // 更新PID
-            const pidDisplay = row.querySelector('.pid-display');
-            if (pidDisplay) {
-                pidDisplay.textContent = 'N/A';
+        async function stopService(svcKey) {
+            const btn = document.getElementById(`stop-${svcKey}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '停止中...';
             }
 
-            // 更新CPU
-            const cpuDisplay = row.querySelector('.cpu-display');
-            if (cpuDisplay) {
-                cpuDisplay.textContent = '--';
-            }
+            const result = await apiCall(`/api/services/${svcKey}/stop`, 'POST');
 
-            // 更新内存
-            const memoryDisplay = row.querySelector('.memory-display');
-            if (memoryDisplay) {
-                memoryDisplay.textContent = '--';
-            }
-
-            // 更新操作按钮
-            const actionCell = row.querySelector('.action-cell');
-            if (actionCell && !isSelf) {
-                actionCell.innerHTML = `<button class="btn btn-success" onclick="startService('${serviceKey}')">▶️ 启动</button>`;
-            }
-        }
-
-        async function startService(serviceKey) {
-            showMessage(`正在启动 ${getServiceName(serviceKey)}...`, 'success');
-
-            try {
-                const response = await fetch(`/api/services/${serviceKey}/start`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showMessage(data.message, 'success');
-                    // 只刷新该服务状态
-                    await loadServiceStatus(serviceKey);
-                } else {
-                    showMessage('启动失败: ' + data.message, 'error');
+            if (result.success) {
+                showAppAlert(result.message, 'success');
+                setTimeout(refreshServices, 3000);
+            } else {
+                showAppAlert(result.message, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '⏹️ 停止';
                 }
-            } catch (error) {
-                showMessage('网络错误: ' + error.message, 'error');
             }
         }
 
-        async function stopService(serviceKey) {
-            if (!confirm(`确定要停止 ${getServiceName(serviceKey)} 吗?`)) {
-                return;
+        async function restartService(svcKey) {
+            const btn = document.getElementById(`restart-${svcKey}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '重启中...';
             }
 
-            showMessage(`正在停止 ${getServiceName(serviceKey)}...`, 'success');
+            const result = await apiCall(`/api/services/${svcKey}/restart`, 'POST');
 
-            try {
-                const response = await fetch(`/api/services/${serviceKey}/stop`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showMessage(data.message, 'success');
-                    // 只刷新该服务状态
-                    await loadServiceStatus(serviceKey);
-                } else {
-                    showMessage('停止失败: ' + data.message, 'error');
+            if (result.success) {
+                showAppAlert(result.message, 'success');
+                setTimeout(refreshServices, 5000); // 重启需要更长时间
+            } else {
+                showAppAlert(result.message, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 重启';
                 }
-            } catch (error) {
-                showMessage('网络错误: ' + error.message, 'error');
             }
-        }
-
-        async function restartService(serviceKey) {
-            if (!confirm(`确定要重启 ${getServiceName(serviceKey)} 吗?`)) {
-                return;
-            }
-
-            showMessage(`正在重启 ${getServiceName(serviceKey)}...`, 'success');
-
-            try {
-                const response = await fetch(`/api/services/${serviceKey}/restart`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    showMessage(data.message, 'success');
-                    // 只刷新该服务状态
-                    await loadServiceStatus(serviceKey);
-                } else {
-                    showMessage('重启失败: ' + data.message, 'error');
-                }
-            } catch (error) {
-                showMessage('网络错误: ' + error.message, 'error');
-            }
-        }
-
-        function getServiceName(serviceKey) {
-            const names = {
-                'main': '主应用',
-                'admin': '管理后台',
-                'thumbnail': '缩略图服务'
-            };
-            return names[serviceKey] || serviceKey;
         }
 
         // ========== 数据库管理 ==========
@@ -1494,28 +1118,11 @@
         // ========== 初始化 ==========
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('[DPlayer] 页面加载完成,开始加载服务状态...');
-
-            // 表格HTML已经由服务器渲染,直接开始异步加载状态
-            const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
-            console.log('[DPlayer] 找到服务行:', rows.length);
-
-            rows.forEach(row => {
-                const serviceKey = row.getAttribute('data-service-key');
-                console.log('[DPlayer] 开始加载服务:', serviceKey);
-                loadServiceStatus(serviceKey);
-            });
-
+            refreshServices();
             refreshDbStats();
 
-            // 每5秒自动刷新服务状态(只更新已加载的服务状态,不重新渲染整个表格)
-            setInterval(() => {
-                const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
-                rows.forEach(row => {
-                    const serviceKey = row.getAttribute('data-service-key');
-                    loadServiceStatus(serviceKey);
-                });
-            }, 5000);
+            // 每分钟自动刷新服务状态
+            setInterval(refreshServices, 60000);
         });
     </script>
 </body>

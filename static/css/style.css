@@ -472,11 +472,71 @@ body {
     .search-bar {
         margin: 0;
         max-width: 100%;
+        order: 3;
     }
 
     .header-actions {
         width: 100%;
-        justify-content: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        order: 2;
+    }
+
+    .header-actions .nav-link {
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+
+    /* 用户区域手机端样式 */
+    #userArea {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+    }
+
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        background: rgba(0, 174, 236, 0.1);
+        border-radius: 16px;
+    }
+
+    .user-avatar {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
+
+    .user-name {
+        font-size: 12px;
+        max-width: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .user-role {
+        font-size: 10px;
+        padding: 2px 6px;
+        display: none;
+    }
+
+    .btn-login {
+        padding: 6px 14px;
+        font-size: 13px;
+    }
+
+    .btn-logout {
+        padding: 4px 10px;
+        font-size: 11px;
+    }
+
+    .btn-logout span {
+        display: none;
     }
 
     .video-grid {
@@ -486,6 +546,52 @@ body {
 
     .result-thumbnail {
         width: 120px;
+    }
+}
+
+/* 更小屏幕 */
+@media (max-width: 480px) {
+    .header-content {
+        padding: 10px 8px;
+    }
+
+    .logo-text {
+        font-size: 20px;
+    }
+
+    .search-bar {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .search-bar input {
+        width: 100%;
+    }
+
+    .search-bar button {
+        width: 100%;
+    }
+
+    .header-actions {
+        justify-content: center;
+    }
+
+    .nav-link {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+
+    /* 用户区域更小屏幕 */
+    .user-info {
+        padding: 3px 6px;
+    }
+
+    .user-name {
+        max-width: 50px;
+    }
+
+    #userArea {
+        gap: 6px;
     }
 }
 

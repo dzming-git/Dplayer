@@ -1,0 +1,26 @@
+[Unit]
+Description=DPlayer 管理后台 (admin_app.py)
+Documentation=https://github.com/your-repo/dplayer
+After=network.target dplayer-main.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/dplayer
+
+ExecStart=/opt/dplayer/venv/bin/python /opt/dplayer/admin_app.py
+ExecStop=/bin/kill -TERM $MAINPID
+
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+StandardOutput=append:/opt/dplayer/logs/admin_app.log
+StandardError=append:/opt/dplayer/logs/admin_app.log
+
+Environment=FLASK_ENV=production
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

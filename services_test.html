@@ -208,166 +208,6 @@
         .spinning {
             animation: spin 1s linear infinite;
         }
-
-        /* 手机端响应式样式 */
-        @media (max-width: 768px) {
-            body {
-                padding: 12px;
-            }
-
-            .container {
-                padding: 0 10px;
-            }
-
-            .header {
-                text-align: center;
-                margin-bottom: 20px;
-                padding: 15px;
-            }
-
-            .header h1 {
-                font-size: 1.5em;
-                margin-bottom: 8px;
-            }
-
-            .header p {
-                font-size: 0.85em;
-            }
-
-            .controls {
-                flex-direction: column;
-                gap: 10px;
-                margin-bottom: 15px;
-            }
-
-            .controls select {
-                width: 100%;
-                padding: 10px;
-                font-size: 14px;
-            }
-
-            .controls .btn {
-                width: 100%;
-                padding: 10px;
-                font-size: 14px;
-            }
-
-            /* 表格手机端 */
-            .services-table {
-                border-radius: 10px;
-                overflow: hidden;
-            }
-
-            .services-table thead {
-                display: none;
-            }
-
-            .services-table tbody tr {
-                display: block;
-                padding: 12px;
-                border-bottom: 1px solid #eee;
-            }
-
-            .services-table tbody tr:last-child {
-                border-bottom: none;
-            }
-
-            .services-table tbody td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px 0;
-                border: none;
-            }
-
-            .services-table tbody td::before {
-                content: attr(data-label);
-                font-weight: 600;
-                color: #666;
-                font-size: 0.85em;
-            }
-
-            .services-table td:first-child {
-                display: block;
-                padding-bottom: 10px;
-            }
-
-            .services-table td:first-child::before {
-                display: none;
-            }
-
-            /* 状态徽章 */
-            .status-badge {
-                font-size: 0.75em;
-                padding: 4px 10px;
-            }
-
-            /* 操作按钮 */
-            .action-cell {
-                display: flex;
-                gap: 8px;
-                padding-top: 10px;
-            }
-
-            .action-btn {
-                flex: 1;
-                padding: 8px 10px;
-                font-size: 0.8em;
-                min-width: 50px;
-            }
-
-            /* PID, CPU, 内存列 */
-            .pid-display,
-            .cpu-display,
-            .memory-display {
-                font-size: 0.9em;
-            }
-
-            /* 刷新按钮 */
-            .refresh-btn {
-                padding: 8px 16px;
-                font-size: 0.85em;
-            }
-
-            /* 分页 */
-            .pagination {
-                flex-wrap: wrap;
-                gap: 8px;
-                justify-content: center;
-            }
-
-            .pagination .btn {
-                padding: 8px 12px;
-                font-size: 0.85em;
-            }
-        }
-
-        /* 更小屏幕 */
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.3em;
-            }
-
-            .header p {
-                font-size: 0.8em;
-            }
-
-            .action-cell {
-                flex-direction: column;
-            }
-
-            .action-btn {
-                width: 100%;
-            }
-
-            .services-table tbody tr {
-                padding: 10px;
-            }
-
-            .service-name {
-                font-size: 1em;
-            }
-        }
     </style>
 </head>
 <body>
@@ -397,18 +237,18 @@
                 </thead>
                 <tbody id="servicesBody">
                     <!-- 服务行 - 由后端渲染基本信息,JS只更新状态 -->
-                    {% for svc in services %}
-                    <tr id="service-{{ svc.key }}" data-service-key="{{ svc.key }}">
+                    
+                    <tr id="service-main" data-service-key="main">
                         <td>
-                            <div class="service-name">{{ svc.name }}</div>
-                            <div class="service-desc">{{ svc.description }}</div>
+                            <div class="service-name">主应用</div>
+                            <div class="service-desc">app.py - 用户界面</div>
                         </td>
                         <td>
                             <span class="status-badge status-unknown">检测中...</span>
                         </td>
                         <td class="service-info">
                             <div class="info-row">
-                                <span class="info-label">端口:</span> {{ svc.port }}
+                                <span class="info-label">端口:</span> 80
                             </div>
                             <div class="info-row">
                                 <span class="info-label">PID:</span> <span class="pid-display">检测中...</span>
@@ -421,10 +261,64 @@
                             </div>
                         </td>
                         <td class="action-cell">
-                            <button class="action-btn btn-start" onclick="startService('{{ svc.key }}')">启动</button>
+                            <button class="action-btn btn-start" onclick="startService('main')">启动</button>
                         </td>
                     </tr>
-                    {% endfor %}
+                    
+                    <tr id="service-admin" data-service-key="admin">
+                        <td>
+                            <div class="service-name">管理后台</div>
+                            <div class="service-desc">admin_app.py - 管理界面</div>
+                        </td>
+                        <td>
+                            <span class="status-badge status-unknown">检测中...</span>
+                        </td>
+                        <td class="service-info">
+                            <div class="info-row">
+                                <span class="info-label">端口:</span> 8080
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">PID:</span> <span class="pid-display">检测中...</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">CPU:</span> <span class="cpu-display">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">内存:</span> <span class="memory-display">--</span>
+                            </div>
+                        </td>
+                        <td class="action-cell">
+                            <button class="action-btn btn-start" onclick="startService('admin')">启动</button>
+                        </td>
+                    </tr>
+                    
+                    <tr id="service-thumbnail" data-service-key="thumbnail">
+                        <td>
+                            <div class="service-name">缩略图服务</div>
+                            <div class="service-desc">thumbnail_service.py - 缩略图生成</div>
+                        </td>
+                        <td>
+                            <span class="status-badge status-unknown">检测中...</span>
+                        </td>
+                        <td class="service-info">
+                            <div class="info-row">
+                                <span class="info-label">端口:</span> 5001
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">PID:</span> <span class="pid-display">检测中...</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">CPU:</span> <span class="cpu-display">--</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">内存:</span> <span class="memory-display">--</span>
+                            </div>
+                        </td>
+                        <td class="action-cell">
+                            <button class="action-btn btn-start" onclick="startService('thumbnail')">启动</button>
+                        </td>
+                    </tr>
+                    
                 </tbody>
             </table>
         </div>
@@ -680,15 +574,10 @@
 
         // 页面加载时自动刷新
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('[DPlayer] 页面加载完成,开始加载服务状态...');
-
             // 表格HTML已经由服务器渲染,直接开始异步加载状态
             const rows = document.querySelectorAll('#servicesBody tr[data-service-key]');
-            console.log('[DPlayer] 找到服务行:', rows.length);
-
             rows.forEach(row => {
                 const serviceKey = row.getAttribute('data-service-key');
-                console.log('[DPlayer] 开始加载服务:', serviceKey);
                 loadServiceStatus(serviceKey);
             });
 

@@ -27,6 +27,8 @@ from collections import deque
 import traceback
 import cv2
 import hashlib
+from utils.network_optimize import optimize_flask_app
+from utils.system_optimizer import optimize_system
 
 # ========== 配置 ==========
 
@@ -46,6 +48,15 @@ if not os.path.exists(THUMBNAIL_DIR):
 # 创建Flask应用
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB
+
+# 优化网络连接配置，解决局域网访问偶现失败问题
+try:
+    optimize_flask_app(app)
+    logger.info('网络连接优化已启用')
+except Exception as e:
+    logger.warning(f'网络优化失败: {e}')
+
+
 
 # ========== 日志配置 ==========
 
@@ -629,6 +640,17 @@ if __name__ == '__main__':
     logger.info(f"任务超时时间: {TASK_TIMEOUT}秒")
     logger.info(f"日志级别: {LOG_LEVEL}")
     logger.info(f"缩略图目录: {os.path.abspath(THUMBNAIL_DIR)}")
+
+    # 执行系统网络优化（防火墙、TCP、DNS等）
+    logger.info("执行系统网络优化...")
+    try:
+        optimize_system(
+            ports=[THUMBNAIL_SERVICE_PORT],
+            service_names=['缩略图服务']
+        )
+    except Exception as e:
+        logger.warning(f"系统优化失败: {e}")
+
 
     # 检测是否作为 Windows 服务运行
     is_service = 'windows_service' in os.environ.get('RUN_MODE', '').lower()

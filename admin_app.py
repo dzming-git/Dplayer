@@ -15,6 +15,8 @@ import requests
 import json
 import time
 import socket
+from utils.network_optimize import optimize_flask_app
+from utils.system_optimizer import optimize_system
 
 # ========== 日志配置 ==========
 
@@ -181,9 +183,18 @@ HOST = config.get('host', '0.0.0.0')
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'admin-secret-key-change-in-production'
 
+# 优化网络连接配置，解决局域网访问偶现失败问题
+try:
+    optimize_flask_app(app)
+    admin_logger.info('网络连接优化已启用')
+except Exception as e:
+    admin_logger.warning(f'网络优化失败: {e}')
+
 # 配置数据库
 # 注意：admin_app使用原生SQL查询，不使用SQLAlchemy ORM
 # 这是为了避免与app.py的SQLAlchemy实例冲突
+
+
 
 
 # ========== 应用管理功能 ==========
@@ -2143,7 +2154,17 @@ if __name__ == '__main__':
 
     admin_logger.info(f"启动管理后台，端口: {ADMIN_PORT}")
     admin_logger.info(f"工作目录: {os.getcwd()}")
-    
+
+    # 执行系统网络优化（防火墙、TCP、DNS等）
+    admin_logger.info("执行系统网络优化...")
+    try:
+        optimize_system(
+            ports=[ADMIN_PORT],
+            service_names=['管理后台']
+        )
+    except Exception as e:
+        admin_logger.warning(f"系统优化失败: {e}")
+
     # 作为 Windows 服务运行时，跳过端口检查（避免杀死自己的进程）
     is_service = 'windows_service' in os.environ.get('RUN_MODE', '').lower()
     
