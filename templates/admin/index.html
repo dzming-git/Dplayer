@@ -40,6 +40,88 @@
             opacity: 0.9;
         }
 
+        /* 移动端菜单按钮 */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.5);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .mobile-menu-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .mobile-menu-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 移动端下拉菜单 */
+        .mobile-dropdown {
+            display: none;
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 999;
+            min-width: 200px;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+
+        .mobile-dropdown.show {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .mobile-dropdown-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95em;
+        }
+
+        .mobile-dropdown-item:hover {
+            background: #f8f9fa;
+        }
+
+        .mobile-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .mobile-dropdown-item.active {
+            color: #667eea;
+            font-weight: 600;
+            background: #f0f4ff;
+        }
+
         .dashboard {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -636,80 +718,376 @@
             opacity: 0.8;
         }
 
+        /* 移动端菜单按钮 */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.5);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .mobile-menu-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .mobile-menu-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 移动端下拉菜单 */
+        .mobile-dropdown {
+            display: none;
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 999;
+            min-width: 200px;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+
+        .mobile-dropdown.show {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .mobile-dropdown-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95em;
+        }
+
+        .mobile-dropdown-item:hover {
+            background: #f8f9fa;
+        }
+
+        .mobile-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .mobile-dropdown-item.active {
+            color: #667eea;
+            font-weight: 600;
+            background: #f0f4ff;
+        }
+
         /* 手机端响应式样式 */
         @media (max-width: 768px) {
+            /* 显示移动端菜单按钮 */
+            .mobile-menu-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
             body {
-                padding: 12px;
+                padding: 8px;
+                padding-bottom: 80px; /* 为悬浮按钮留出空间 */
+            }
+
+            .container {
+                padding: 0;
+            }
+
+            .header {
+                text-align: center;
+                margin-bottom: 15px;
+                padding: 20px 15px;
             }
 
             .header h1 {
-                font-size: 1.5em;
+                font-size: 1.4em;
+                margin-bottom: 8px;
             }
 
             .header p {
-                font-size: 0.9em;
+                font-size: 0.8em;
+                margin-bottom: 5px;
             }
 
-            .dashboard {
-                grid-template-columns: 1fr;
-                gap: 15px;
+            .refresh-time {
+                font-size: 0.75em;
             }
 
-            .card {
+            /* 标签页容器 */
+            .tabs-container {
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+            }
+
+            .tabs-nav {
+                flex-wrap: wrap;
+                gap: 0;
+            }
+
+            .tab-btn {
+                flex: 1 1 50%;
+                padding: 14px 10px;
+                font-size: 0.85em;
+                gap: 6px;
+                white-space: nowrap;
+                min-width: auto;
+            }
+
+            .tab-btn.active {
+                border-bottom: 3px solid #667eea;
+            }
+
+            /* 标签页内容 */
+            .tab-content {
                 padding: 15px;
             }
 
-            .card h2 {
-                font-size: 1.1em;
-                margin-bottom: 15px;
+            /* 服务管理表格 */
+            .services-table-wrapper {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                border-radius: 8px;
             }
 
-            /* 服务列表手机端 */
-            .service-item {
-                padding: 12px;
-                margin-bottom: 10px;
+            .services-table {
+                min-width: 600px;
             }
 
-            .service-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
+            .services-table thead {
+                background: #f8f9fa;
             }
 
-            .service-name {
-                font-size: 1em;
+            .services-table th {
+                padding: 10px 8px;
+                font-size: 0.8em;
+                font-weight: 600;
             }
 
-            .service-info {
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
-            }
-
-            .service-actions {
-                width: 100%;
-                justify-content: flex-start;
-            }
-
-            .service-actions .btn {
-                flex: 1;
-                min-width: 60px;
-                padding: 6px 10px;
+            .services-table td {
+                padding: 12px 8px;
                 font-size: 0.8em;
             }
 
-            /* 系统状态 */
-            .status-grid {
-                grid-template-columns: 1fr;
+            .service-name {
+                font-size: 0.95em;
             }
 
-            .status-item {
-                padding: 12px;
+            .service-desc {
+                font-size: 0.75em;
+                margin-top: 3px;
+            }
+
+            .service-info .info-row {
+                margin: 4px 0;
+                font-size: 0.75em;
+            }
+
+            .info-label {
+                font-size: 0.7em;
+            }
+
+            .status-badge {
+                font-size: 0.7em;
+                padding: 4px 8px;
+            }
+
+            /* 操作按钮 */
+            .action-cell {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .action-cell .btn {
+                flex: 1;
+                min-width: 50px;
+                padding: 6px 8px;
+                font-size: 0.75em;
+                white-space: nowrap;
+            }
+
+            /* 刷新控制 */
+            .refresh-controls {
+                margin-bottom: 12px;
+            }
+
+            .refresh-controls .btn {
+                padding: 8px 12px;
+                font-size: 0.8em;
             }
 
             /* 监控卡片 */
             .monitor-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
+                grid-template-columns: 1fr;
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+
+            .monitor-card {
+                padding: 15px;
+                border-radius: 10px;
+            }
+
+            .monitor-card h3 {
+                font-size: 0.8em;
+                margin-bottom: 8px;
+            }
+
+            .monitor-card .value {
+                font-size: 1.6em;
+                margin-bottom: 3px;
+            }
+
+            .monitor-card .unit {
+                font-size: 0.75em;
+            }
+
+            /* 数据库统计 */
+            .db-stats {
+                margin-top: 15px;
+            }
+
+            .db-stat-item {
+                padding: 8px 10px;
+                margin-bottom: 6px;
+                border-radius: 6px;
+            }
+
+            .db-stat-label {
+                font-size: 0.8em;
+            }
+
+            .db-stat-value {
+                font-size: 0.9em;
+            }
+
+            /* 按钮组 */
+            .button-group {
+                flex-direction: column;
+                gap: 8px;
+                margin-top: 12px;
+            }
+
+            .button-group .btn {
+                width: 100%;
+                padding: 10px 15px;
+                font-size: 0.85em;
+            }
+
+            /* 日志容器 */
+            .logs-container {
+                padding: 10px;
+                max-height: 300px;
+                font-size: 0.7em;
+                line-height: 1.3;
+            }
+
+            /* 确认对话框 */
+            .confirm-dialog {
+                padding: 10px;
+            }
+
+            .confirm-box {
+                padding: 20px;
+                max-width: 95%;
+            }
+
+            .confirm-box h3 {
+                font-size: 1.2em;
+                margin-bottom: 12px;
+            }
+
+            .confirm-box p {
+                font-size: 0.9em;
+                margin-bottom: 15px;
+            }
+
+            .checkbox-item {
+                padding: 8px;
+            }
+
+            .checkbox-item input[type="checkbox"] {
+                width: 18px;
+                height: 18px;
+            }
+
+            .checkbox-item label {
+                font-size: 0.85em;
+            }
+
+            .checkbox-item .count {
+                font-size: 0.75em;
+            }
+
+            /* 提示框 */
+            .alert {
+                padding: 10px 12px;
+                font-size: 0.85em;
+                margin-top: 12px;
+            }
+        }
+
+        /* 更小屏幕 */
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .header {
+                padding: 15px 10px;
+            }
+
+            .header h1 {
+                font-size: 1.2em;
+            }
+
+            .header p {
+                font-size: 0.75em;
+            }
+
+            .tabs-nav {
+                flex-direction: column;
+            }
+
+            .tab-btn {
+                flex: none;
+                width: 100%;
+                padding: 12px 10px;
+                border-bottom: 1px solid #e9ecef;
+            }
+
+            .tab-btn.active {
+                border-bottom: 1px solid #e9ecef;
+                border-left: 3px solid #667eea;
+            }
+
+            .tab-content {
+                padding: 12px;
             }
 
             .monitor-card {
@@ -717,93 +1095,22 @@
             }
 
             .monitor-card .value {
-                font-size: 1.8em;
+                font-size: 1.4em;
             }
 
-            /* 标签页 */
-            .tabs-container {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
+            .action-cell .btn {
+                font-size: 0.7em;
+                padding: 5px 6px;
+                min-width: 45px;
             }
 
-            .tabs {
-                flex-wrap: nowrap;
-                gap: 8px;
+            .services-table th,
+            .services-table td {
+                padding: 8px 6px;
             }
 
-            .tab-btn {
-                padding: 10px 16px;
-                font-size: 0.9em;
-                white-space: nowrap;
-            }
-
-            /* 表格手机端 */
-            .data-table {
-                display: block;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .data-table table {
-                min-width: 600px;
-            }
-
-            .data-table th,
-            .data-table td {
-                padding: 10px 8px;
-                font-size: 0.85em;
-            }
-
-            /* 按钮手机端 */
             .btn {
-                padding: 8px 16px;
-                font-size: 0.85em;
-            }
-
-            .btn-group {
-                flex-direction: column;
-                gap: 6px;
-            }
-
-            .btn-group .btn {
-                width: 100%;
-            }
-
-            /* 表单 */
-            .form-group {
-                margin-bottom: 12px;
-            }
-
-            .form-group input,
-            .form-group select,
-            .form-group textarea {
-                padding: 10px 12px;
-                font-size: 14px;
-            }
-
-            /* 搜索框 */
-            .search-box {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .search-box input {
-                width: 100%;
-            }
-
-            .search-box .btn {
-                width: 100%;
-            }
-
-            /* 分页 */
-            .pagination {
-                flex-wrap: wrap;
-                gap: 5px;
-            }
-
-            .pagination .btn {
-                padding: 6px 10px;
-                font-size: 0.8em;
+                padding: 8px 12px;
             }
         }
 
@@ -992,6 +1299,27 @@
         </div>
     </div>
 
+    <!-- 移动端菜单按钮 -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
+        📱
+    </button>
+
+    <!-- 移动端下拉菜单 -->
+    <div class="mobile-dropdown" id="mobileDropdown">
+        <div class="mobile-dropdown-item active" onclick="switchTabFromMobile('services')">
+            🔧 服务管理
+        </div>
+        <div class="mobile-dropdown-item" onclick="switchTabFromMobile('monitor')">
+            📊 系统监控
+        </div>
+        <div class="mobile-dropdown-item" onclick="switchTabFromMobile('database')">
+            💾 数据库管理
+        </div>
+        <div class="mobile-dropdown-item" onclick="switchTabFromMobile('logs')">
+            📋 系统日志
+        </div>
+    </div>
+
     <!-- 确认对话框 -->
     <div class="confirm-dialog" id="confirmDialog">
         <div class="confirm-box">
@@ -1062,11 +1390,75 @@
             // 激活对应的标签按钮
             event.target.classList.add('active');
 
+            // 更新移动端下拉菜单的激活状态
+            updateMobileDropdown(tabName);
+
             // 如果切换到系统监控,立即加载系统状态
             if (tabName === 'monitor') {
                 refreshSystemMonitor();
             }
         }
+
+        // ========== 移动端菜单 ==========
+
+        function toggleMobileMenu() {
+            const dropdown = document.getElementById('mobileDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function switchTabFromMobile(tabName) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // 移除所有标签按钮的激活状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 显示选中的标签内容
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            // 更新标签按钮的激活状态
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => {
+                if (btn.getAttribute('onclick').includes(tabName)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 更新移动端下拉菜单的激活状态
+            updateMobileDropdown(tabName);
+
+            // 关闭下拉菜单
+            document.getElementById('mobileDropdown').classList.remove('show');
+
+            // 如果切换到系统监控,立即加载系统状态
+            if (tabName === 'monitor') {
+                refreshSystemMonitor();
+            }
+        }
+
+        function updateMobileDropdown(tabName) {
+            const items = document.querySelectorAll('.mobile-dropdown-item');
+            items.forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('onclick').includes(tabName)) {
+                    item.classList.add('active');
+                }
+            });
+        }
+
+        // 点击页面其他区域关闭下拉菜单
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('mobileDropdown');
+            const menuBtn = document.getElementById('mobileMenuBtn');
+
+            if (!dropdown.contains(event.target) && !menuBtn.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
 
         // ========== 状态管理 ==========
 

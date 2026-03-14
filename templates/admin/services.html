@@ -212,160 +212,177 @@
         /* 手机端响应式样式 */
         @media (max-width: 768px) {
             body {
-                padding: 12px;
+                padding: 8px;
             }
 
             .container {
-                padding: 0 10px;
+                padding: 0;
             }
 
             .header {
                 text-align: center;
-                margin-bottom: 20px;
-                padding: 15px;
+                margin-bottom: 15px;
+                padding: 20px 15px;
             }
 
             .header h1 {
-                font-size: 1.5em;
+                font-size: 1.4em;
                 margin-bottom: 8px;
             }
 
             .header p {
+                font-size: 0.8em;
+            }
+
+            /* 刷新按钮 */
+            .refresh-controls {
+                margin-bottom: 12px;
+            }
+
+            .refresh-btn {
+                padding: 10px 15px;
                 font-size: 0.85em;
-            }
-
-            .controls {
-                flex-direction: column;
-                gap: 10px;
-                margin-bottom: 15px;
-            }
-
-            .controls select {
                 width: 100%;
-                padding: 10px;
-                font-size: 14px;
             }
 
-            .controls .btn {
-                width: 100%;
-                padding: 10px;
-                font-size: 14px;
-            }
-
-            /* 表格手机端 */
+            /* 表格容器 */
             .services-table {
                 border-radius: 10px;
-                overflow: hidden;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .services-table table {
+                min-width: 600px;
             }
 
             .services-table thead {
-                display: none;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             }
 
-            .services-table tbody tr {
-                display: block;
-                padding: 12px;
-                border-bottom: 1px solid #eee;
-            }
-
-            .services-table tbody tr:last-child {
-                border-bottom: none;
-            }
-
-            .services-table tbody td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px 0;
-                border: none;
-            }
-
-            .services-table tbody td::before {
-                content: attr(data-label);
+            .services-table th {
+                padding: 10px 8px;
+                font-size: 0.8em;
                 font-weight: 600;
-                color: #666;
-                font-size: 0.85em;
             }
 
-            .services-table td:first-child {
-                display: block;
-                padding-bottom: 10px;
+            .services-table td {
+                padding: 12px 8px;
+                font-size: 0.8em;
             }
 
-            .services-table td:first-child::before {
-                display: none;
+            .service-name {
+                font-size: 0.95em;
+            }
+
+            .service-desc {
+                font-size: 0.75em;
+                margin-top: 3px;
+            }
+
+            .service-info {
+                font-size: 0.8em;
+            }
+
+            .info-row {
+                margin: 4px 0;
+            }
+
+            .info-label {
+                font-size: 0.75em;
             }
 
             /* 状态徽章 */
             .status-badge {
-                font-size: 0.75em;
-                padding: 4px 10px;
+                font-size: 0.7em;
+                padding: 4px 8px;
             }
 
             /* 操作按钮 */
             .action-cell {
                 display: flex;
-                gap: 8px;
-                padding-top: 10px;
+                gap: 6px;
+                flex-wrap: wrap;
             }
 
             .action-btn {
-                flex: 1;
-                padding: 8px 10px;
-                font-size: 0.8em;
-                min-width: 50px;
+                padding: 6px 10px;
+                font-size: 0.75em;
+                min-width: 45px;
             }
 
-            /* PID, CPU, 内存列 */
+            /* PID, CPU, 内存显示 */
             .pid-display,
             .cpu-display,
             .memory-display {
+                font-size: 0.85em;
+            }
+
+            /* 消息提示 */
+            .success,
+            .error {
+                padding: 10px 12px;
+                font-size: 0.85em;
+                margin-bottom: 12px;
+            }
+
+            .loading {
+                padding: 30px;
                 font-size: 0.9em;
-            }
-
-            /* 刷新按钮 */
-            .refresh-btn {
-                padding: 8px 16px;
-                font-size: 0.85em;
-            }
-
-            /* 分页 */
-            .pagination {
-                flex-wrap: wrap;
-                gap: 8px;
-                justify-content: center;
-            }
-
-            .pagination .btn {
-                padding: 8px 12px;
-                font-size: 0.85em;
             }
         }
 
         /* 更小屏幕 */
         @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .header {
+                padding: 15px 10px;
+            }
+
             .header h1 {
-                font-size: 1.3em;
+                font-size: 1.2em;
+                margin-bottom: 6px;
             }
 
             .header p {
-                font-size: 0.8em;
+                font-size: 0.75em;
+            }
+
+            .services-table th,
+            .services-table td {
+                padding: 8px 6px;
+                font-size: 0.75em;
+            }
+
+            .service-name {
+                font-size: 0.9em;
+            }
+
+            .service-desc {
+                font-size: 0.7em;
+            }
+
+            .action-btn {
+                padding: 5px 8px;
+                font-size: 0.7em;
+                min-width: 40px;
             }
 
             .action-cell {
                 flex-direction: column;
+                gap: 5px;
             }
 
             .action-btn {
                 width: 100%;
             }
 
-            .services-table tbody tr {
-                padding: 10px;
-            }
-
-            .service-name {
-                font-size: 1em;
+            .status-badge {
+                font-size: 0.65em;
+                padding: 3px 6px;
             }
         }
     </style>
