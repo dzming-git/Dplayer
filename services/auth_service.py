@@ -60,14 +60,14 @@ class AuthService:
             return False, f'注册失败: {str(e)}', None
 
     @staticmethod
-    def login(username, password, remember=False):
+    def login(username, password, remember=True):
         """用户登录
-        
+
         Args:
             username: 用户名
             password: 密码
-            remember: 是否记住登录（延长会话时间）
-        
+            remember: 是否记住登录（延长会话时间，默认为True，保存长久token）
+
         Returns:
             tuple: (success: bool, message: str, user: User|None)
         """
@@ -85,7 +85,7 @@ class AuthService:
             if not user.check_password(password):
                 return False, '用户名或密码错误', None
 
-            # 创建会话
+            # 创建会话 - 默认使用长久的token（28天）
             session_lifetime = SESSION_LIFETIME * 4 if remember else SESSION_LIFETIME
             session_token = UserSession.generate_token()
             expires_at = datetime.utcnow() + session_lifetime
@@ -107,7 +107,7 @@ class AuthService:
 
             # 存储token到flask session
             session[SESSION_TOKEN_KEY] = session_token
-            session.permanent = remember
+            session.permanent = True  # 默认启用长久session
 
             logger.info(f"用户登录成功: {username}, IP: {user_session.ip_address}")
             return True, '登录成功', user

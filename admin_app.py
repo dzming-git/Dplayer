@@ -772,8 +772,13 @@ if ($task -and $task.State -eq 4) {{
         return None
 
 
-def start_service(svc_key):
-    """启动指定服务（优先使用计划任务，任务不存在时直接启动以保留代码热重载特性）"""
+def start_service(svc_key, force=False):
+    """启动指定服务（优先使用计划任务，任务不存在时直接启动以保留代码热重载特性）
+
+    Args:
+        svc_key: 服务键名
+        force: 是否强制启动（不检查端口冲突）
+    """
     svc = SERVICES[svc_key]
     port = svc['port']
     pid_file = svc['pid_file']
@@ -802,9 +807,9 @@ def start_service(svc_key):
             if service_pid and pid_for_port == service_pid:
                 return {'success': False, 'message': f'{svc["name"]} 已在运行（端口 {port}）', 'port_conflict': False}
 
-        # 端口被其他进程占用，返回占用进程信息
+        # 端口被其他进程占用
         port_conflict_processes = _get_processes_using_port(port)
-        if not request.get_json(silent=True) or not request.get_json(silent=True).get('force', False):
+        if not force:
             return {
                 'success': False,
                 'message': f'端口 {port} 已被占用',
@@ -866,6 +871,8 @@ def start_service(svc_key):
         stdout_file = open(os.path.join(LOG_DIR, f'{svc_key}_stdout.log'), 'w', encoding='utf-8')
         stderr_file = open(os.path.join(LOG_DIR, f'{svc_key}_stderr.log'), 'w', encoding='utf-8')
 
+        admin_logger.info(f"准备启动进程: 命令={[sys.executable, script]}, 工作目录={BASEDIR}")
+
         proc = subprocess.Popen(
             [sys.executable, script],
             cwd=BASEDIR,
@@ -875,8 +882,10 @@ def start_service(svc_key):
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
         )
 
-        # 注意：不要立即关闭文件句柄，否则子进程输出无法写入日志
-        # 文件句柄会在进程结束时自动关闭
+        # 立即关闭文件句柄，让子进程自己管理
+        # Windows子进程会继承文件句柄，关闭父进程的句柄不会影响子进程
+        stdout_file.close()
+        stderr_file.close()
 
         # 写入 PID 文件
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
@@ -884,6 +893,18 @@ def start_service(svc_key):
             f.write(str(proc.pid))
 
         admin_logger.info(f"启动服务 {svc['name']} (PID: {proc.pid}, 脚本: {script})")
+
+        # 等待一小段时间，检查进程是否立即退出
+        time.sleep(0.5)
+        if not psutil.pid_exists(proc.pid):
+            admin_logger.error(f"进程 {proc.pid} 在0.5秒内退出，读取错误日志...")
+            # 读取错误日志
+            stderr_log = os.path.join(LOG_DIR, f'{svc_key}_stderr.log')
+            if os.path.exists(stderr_log):
+                with open(stderr_log, 'r', encoding='utf-8') as f:
+                    error_content = f.read()
+                    admin_logger.error(f"错误日志内容:\n{error_content}")
+            return {'success': False, 'message': f'{svc["name"]} 进程启动后立即退出(查看日志: logs/{svc_key}_stderr.log)'}
 
         # 等待端口就绪（最多10秒）
         for i in range(20):
@@ -967,13 +988,18 @@ def stop_service(svc_key):
         return {'success': False, 'message': str(e)}
 
 
-def restart_service(svc_key):
-    """重启指定服务"""
+def restart_service(svc_key, force=False):
+    """重启指定服务
+
+    Args:
+        svc_key: 服务键名
+        force: 是否强制启动（不检查端口冲突）
+    """
     if svc_key == 'admin':
         return {'success': False, 'message': '管理后台不支持通过界面重启，请手动操作'}
     stop_result = stop_service(svc_key)
     time.sleep(2)
-    start_result = start_service(svc_key)
+    start_result = start_service(svc_key, force=force)
     if start_result['success']:
         return {'success': True, 'message': f'{SERVICES[svc_key]["name"]} 重启成功'}
     return {'success': False, 'message': f'重启失败: {start_result["message"]}'}
@@ -1063,7 +1089,10 @@ def api_service_start(svc_key):
     """启动指定服务"""
     if svc_key not in SERVICES:
         return jsonify({'success': False, 'message': '未知服务'}), 404
-    result = start_service(svc_key)
+    # 从请求体获取force参数
+    data = request.get_json(silent=True) or {}
+    force = data.get('force', False)
+    result = start_service(svc_key, force=force)
     return jsonify(result)
 
 

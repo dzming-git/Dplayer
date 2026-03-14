@@ -128,13 +128,14 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """用户登录
-    
+
     请求体:
         {
             "username": "用户名",
             "password": "密码",
-            "remember": false  // 是否记住登录（可选）
+            "remember": true  // 是否记住登录（可选，默认true）
         }
+    说明：默认保存长久token（28天），无需手动勾选记住登录
     """
     try:
         data = request.get_json()
@@ -143,7 +144,7 @@ def login():
 
         username = data.get('username', '').strip()
         password = data.get('password', '')
-        remember = data.get('remember', False)
+        remember = data.get('remember', True)  # 默认为True，保存长久token
 
         if not username or not password:
             return jsonify({'success': False, 'message': '用户名和密码不能为空'}), 400
