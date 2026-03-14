@@ -18,6 +18,16 @@ import socket
 from utils.network_optimize import optimize_flask_app
 from utils.system_optimizer import optimize_system
 
+# 导入通用服务管理器
+from services.service_manager import (
+    SERVICES as SERVICES_CONFIG,
+    start_service as sm_start_service,
+    stop_service as sm_stop_service,
+    restart_service as sm_restart_service,
+    get_service_status as sm_get_service_status,
+    get_all_services_status as sm_get_all_services_status,
+)
+
 # ========== 全局服务状态缓存 ==========
 
 services_status_cache = {
@@ -501,31 +511,23 @@ def get_system_stats():
 # ========== 三服务统一管理 ==========
 
 # 服务定义：名称、端口、启动脚本、PID文件、Windows任务名称
+# 从service_manager导入服务配置并添加额外字段
 SERVICES = {
     'main': {
-        'name': '主应用',
+        **SERVICES_CONFIG['main'],
         'description': 'app.py - 用户界面',
-        'port': MAIN_APP_PORT,
-        'script': os.path.join(BASEDIR, 'app.py'),
-        'pid_file': os.path.join(BASEDIR, 'instance', 'main_app.pid'),
         'url': f'http://127.0.0.1:{MAIN_APP_PORT}/',
         'task_name': 'dplayer-main',  # Windows 计划任务名称
     },
     'admin': {
-        'name': '管理后台',
+        **SERVICES_CONFIG['admin'],
         'description': 'admin_app.py - 管理界面',
-        'port': ADMIN_PORT,
-        'script': os.path.join(BASEDIR, 'admin_app.py'),
-        'pid_file': os.path.join(BASEDIR, 'instance', 'admin_app.pid'),
         'url': f'http://127.0.0.1:{ADMIN_PORT}/',
         'task_name': 'dplayer-admin',  # Windows 计划任务名称
     },
     'thumbnail': {
-        'name': '缩略图服务',
+        **SERVICES_CONFIG['thumbnail'],
         'description': 'thumbnail_service.py - 缩略图生成',
-        'port': THUMBNAIL_PORT,
-        'script': os.path.join(BASEDIR, 'services', 'thumbnail_service.py'),
-        'pid_file': os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid'),
         'url': f'http://127.0.0.1:{THUMBNAIL_PORT}/health',
         'task_name': 'dplayer-thumbnail',  # Windows 计划任务名称
     },
@@ -773,223 +775,39 @@ if ($task -and $task.State -eq 4) {{
 
 
 def start_service(svc_key, force=False):
-    """启动指定服务（优先使用计划任务，任务不存在时直接启动以保留代码热重载特性）
+    """启动指定服务（使用通用服务管理器）
 
     Args:
         svc_key: 服务键名
         force: 是否强制启动（不检查端口冲突）
     """
-    svc = SERVICES[svc_key]
-    port = svc['port']
-    pid_file = svc['pid_file']
-    script = svc['script']
-    task_name = svc.get('task_name')
+    # 调用通用服务管理器
+    result = sm_start_service(svc_key, force=force, silent=False)
 
-    # 检查是否需要强制终止占用进程
-    force_kill = False
-    port_conflict_processes = []
-
-    # 检查端口是否被其他进程占用
-    if _port_listening(port):
-        # 检查是否是本服务
-        pid_for_port = _pid_for_port(port)
-        if pid_for_port:
-            # 读取PID文件
-            service_pid = None
-            if os.path.exists(pid_file):
-                try:
-                    with open(pid_file, 'r') as f:
-                        service_pid = int(f.read().strip())
-                except:
-                    pass
-
-            # 如果是自己的进程，说明已在运行
-            if service_pid and pid_for_port == service_pid:
-                return {'success': False, 'message': f'{svc["name"]} 已在运行（端口 {port}）', 'port_conflict': False}
-
-        # 端口被其他进程占用
-        port_conflict_processes = _get_processes_using_port(port)
-        if not force:
-            return {
-                'success': False,
-                'message': f'端口 {port} 已被占用',
-                'port_conflict': True,
-                'port': port,
-                'processes': port_conflict_processes
-            }
-        else:
-            # 强制终止占用进程
-            force_kill = True
-            if port_conflict_processes:
-                for proc in port_conflict_processes:
-                    try:
-                        p = psutil.Process(proc['pid'])
-                        p.terminate()
-                        try:
-                            p.wait(timeout=3)
-                        except psutil.TimeoutExpired:
-                            p.kill()
-                        admin_logger.info(f"强制终止占用进程 {proc['name']} (PID: {proc['pid']})")
-                    except Exception as e:
-                        admin_logger.warning(f"终止进程 {proc['pid']} 失败: {e}")
-                time.sleep(1)  # 等待端口释放
-
-    # Windows 下优先尝试使用计划任务
-    if IS_WINDOWS and task_name:
-        task_result, _ = _get_scheduled_task_status(task_name)
-        if task_result:
-            # 任务存在，使用 Start-ScheduledTask 启动
-            script_ps = f'Start-ScheduledTask -TaskName "{task_name}"'
-            code, stdout, stderr = _run_powershell(script_ps)
-            if code == 0:
-                # 等待端口就绪
-                for _ in range(20):
-                    time.sleep(0.5)
-                    if _port_listening(port):
-                        admin_logger.info(f"服务 {svc['name']} 通过计划任务启动成功")
-                        return {'success': True, 'message': f'{svc["name"]} 启动成功（计划任务）'}
-                return {'success': True, 'message': f'{svc["name"]} 计划任务已启动，等待端口就绪'}
-            else:
-                admin_logger.warning(f"计划任务启动失败: {stderr}，尝试直接启动")
-
-    # 计划任务不存在或失败时，直接启动（保留代码热重载特性）
-    try:
-        env = os.environ.copy()
-        if svc_key == 'thumbnail':
-            env['THUMBNAIL_SERVICE_PORT'] = str(port)
-
-        # 创建日志文件
-        service_log_file = os.path.join(LOG_DIR, f'{svc_key}_startup.log')
-        with open(service_log_file, 'w', encoding='utf-8') as log_file:
-            log_file.write(f"=== 启动服务: {svc['name']} ===\n")
-            log_file.write(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            log_file.write(f"脚本: {script}\n")
-            log_file.write(f"端口: {port}\n")
-            log_file.write(f"工作目录: {BASEDIR}\n\n")
-
-        # 打开日志文件用于写入子进程输出
-        stdout_file = open(os.path.join(LOG_DIR, f'{svc_key}_stdout.log'), 'w', encoding='utf-8')
-        stderr_file = open(os.path.join(LOG_DIR, f'{svc_key}_stderr.log'), 'w', encoding='utf-8')
-
-        admin_logger.info(f"准备启动进程: 命令={[sys.executable, script]}, 工作目录={BASEDIR}")
-
-        proc = subprocess.Popen(
-            [sys.executable, script],
-            cwd=BASEDIR,
-            env=env,
-            stdout=stdout_file,
-            stderr=stderr_file,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
-        )
-
-        # 立即关闭文件句柄，让子进程自己管理
-        # Windows子进程会继承文件句柄，关闭父进程的句柄不会影响子进程
-        stdout_file.close()
-        stderr_file.close()
-
-        # 写入 PID 文件
-        os.makedirs(os.path.dirname(pid_file), exist_ok=True)
-        with open(pid_file, 'w') as f:
-            f.write(str(proc.pid))
-
-        admin_logger.info(f"启动服务 {svc['name']} (PID: {proc.pid}, 脚本: {script})")
-
-        # 等待一小段时间，检查进程是否立即退出
-        time.sleep(0.5)
-        if not psutil.pid_exists(proc.pid):
-            admin_logger.error(f"进程 {proc.pid} 在0.5秒内退出，读取错误日志...")
-            # 读取错误日志
-            stderr_log = os.path.join(LOG_DIR, f'{svc_key}_stderr.log')
-            if os.path.exists(stderr_log):
-                with open(stderr_log, 'r', encoding='utf-8') as f:
-                    error_content = f.read()
-                    admin_logger.error(f"错误日志内容:\n{error_content}")
-            return {'success': False, 'message': f'{svc["name"]} 进程启动后立即退出(查看日志: logs/{svc_key}_stderr.log)'}
-
-        # 等待端口就绪（最多10秒）
-        for i in range(20):
-            time.sleep(0.5)
-            if _port_listening(port):
-                admin_logger.info(f"服务 {svc['name']} 启动成功 (PID: {proc.pid}, 端口: {port})")
-                return {'success': True, 'message': f'{svc["name"]} 启动成功', 'pid': proc.pid}
-
-        # 端口未就绪，检查进程状态
-        if not psutil.pid_exists(proc.pid):
-            admin_logger.error(f"服务 {svc['name']} 进程已退出 (PID: {proc.pid})")
-            # 读取错误日志
-            stderr_log = os.path.join(LOG_DIR, f'{svc_key}_stderr.log')
-            if os.path.exists(stderr_log):
-                with open(stderr_log, 'r', encoding='utf-8') as f:
-                    error_content = f.read()
-                    admin_logger.error(f"启动错误日志:\n{error_content}")
-            return {'success': False, 'message': f'{svc["name"]} 启动失败，进程已退出(查看日志: logs/{svc_key}_stderr.log)'}
-        else:
-            admin_logger.info(f"服务 {svc['name']} 进程存在但端口未就绪 (PID: {proc.pid})")
-            return {'success': True, 'message': f'{svc["name"]} 进程已启动，等待端口就绪', 'pid': proc.pid}
-
-    except Exception as e:
-        admin_logger.error(f"启动服务 {svc['name']} 失败: {e}", exc_info=True)
-        return {'success': False, 'message': str(e)}
+    # 转换为admin_app的格式
+    return {
+        'success': result['success'],
+        'message': result['message'],
+        'pid': result.get('pid'),
+        'port_conflict': result.get('port_conflict', False),
+        'port': result.get('port'),
+        'processes': result.get('processes')
+    }
 
 
 def stop_service(svc_key):
-    """停止指定服务（优先通过计划任务，其次通过端口/PID文件）"""
-    svc = SERVICES[svc_key]
-    port = svc['port']
-    pid_file = svc['pid_file']
-    task_name = svc.get('task_name')
-
+    """停止指定服务（使用通用服务管理器）"""
     # 自己不能停止自己
     if svc_key == 'admin':
         return {'success': False, 'message': '管理后台不能停止自身'}
 
-    # Windows 下优先尝试使用计划任务停止
-    if IS_WINDOWS and task_name:
-        task_result, _ = _get_scheduled_task_status(task_name)
-        if task_result and task_result.get('state') == 'Running':
-            # 任务正在运行，使用 Stop-ScheduledTask 停止
-            script_ps = f'Stop-ScheduledTask -TaskName "{task_name}"'
-            code, stdout, stderr = _run_powershell(script_ps)
-            if code == 0:
-                # 等待端口释放
-                for _ in range(10):
-                    time.sleep(0.5)
-                    if not _port_listening(port):
-                        admin_logger.info(f"服务 {svc['name']} 通过计划任务已停止")
-                        return {'success': True, 'message': f'{svc["name"]} 已停止（计划任务）'}
-
-    # 计划任务不存在或失败时，直接终止进程
-    pid = _pid_for_port(port) or _get_pid_from_file(pid_file)
-    if not pid:
-        return {'success': False, 'message': f'{svc["name"]} 未在运行'}
-
-    try:
-        proc = psutil.Process(pid)
-        proc.terminate()
-        try:
-            proc.wait(timeout=8)
-        except psutil.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=3)
-
-        # 清理 PID 文件
-        if os.path.exists(pid_file):
-            os.remove(pid_file)
-
-        admin_logger.info(f"服务 {svc['name']} 已停止 (PID: {pid})")
-        return {'success': True, 'message': f'{svc["name"]} 已停止'}
-
-    except psutil.NoSuchProcess:
-        if os.path.exists(pid_file):
-            os.remove(pid_file)
-        return {'success': True, 'message': f'{svc["name"]} 进程已不存在'}
-    except Exception as e:
-        admin_logger.error(f"停止服务 {svc['name']} 失败: {e}")
-        return {'success': False, 'message': str(e)}
+    # 调用通用服务管理器
+    result = sm_stop_service(svc_key, silent=False)
+    return result
 
 
 def restart_service(svc_key, force=False):
-    """重启指定服务
+    """重启指定服务（使用通用服务管理器）
 
     Args:
         svc_key: 服务键名
@@ -997,12 +815,14 @@ def restart_service(svc_key, force=False):
     """
     if svc_key == 'admin':
         return {'success': False, 'message': '管理后台不支持通过界面重启，请手动操作'}
-    stop_result = stop_service(svc_key)
-    time.sleep(2)
-    start_result = start_service(svc_key, force=force)
-    if start_result['success']:
-        return {'success': True, 'message': f'{SERVICES[svc_key]["name"]} 重启成功'}
-    return {'success': False, 'message': f'重启失败: {start_result["message"]}'}
+
+    # 调用通用服务管理器
+    result = sm_restart_service(svc_key, force=force, silent=False)
+    return {
+        'success': result['success'],
+        'message': result['message'],
+        'pid': result.get('pid')
+    }
 
 
 # ===== 服务管理页面 & API 路由 =====
