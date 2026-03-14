@@ -9,6 +9,7 @@ import win32event
 import sys
 import os
 from pathlib import Path
+import json
 
 # 添加项目根目录到 Python 路径
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
@@ -19,9 +20,18 @@ from waitress import serve
 # 导入 Flask 应用
 from services.thumbnail_service import app as thumbnail_app
 
-# 配置
+# 从配置文件读取端口
+def load_config():
+    config_path = PROJECT_DIR / 'config' / 'config.json'
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {}
+
+config = load_config()
 HOST = '0.0.0.0'
-PORT = 5001
+PORT = config.get('ports', {}).get('thumbnail', 5001)
 
 
 class ThumbnailService(win32serviceutil.ServiceFramework):
@@ -29,7 +39,7 @@ class ThumbnailService(win32serviceutil.ServiceFramework):
 
     _svc_name_ = "DPlayer-Thumbnail"
     _svc_display_name_ = "DPlayer Thumbnail Service"
-    _svc_description_ = "DPlayer Thumbnail Microservice, Port 5001"
+    _svc_description_ = f"DPlayer Thumbnail Microservice, Port {PORT}"
 
     def __init__(self, args):
         win32serviceutil.ServiceFramework.__init__(self, args)

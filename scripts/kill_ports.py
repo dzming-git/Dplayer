@@ -39,7 +39,7 @@ def load_ports() -> list[dict]:
     """返回 [{"name": ..., "port": ...}, ...] 列表"""
     ports = []
 
-    # 1. 读取 config/config.json
+    # 1. 读取 config/config.json（唯一数据源）
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -53,11 +53,6 @@ def load_ports() -> list[dict]:
             print(f"[WARN] 读取 config.json 失败: {e}")
     else:
         print(f"[WARN] 配置文件不存在: {CONFIG_FILE}")
-
-    # 2. 硬编码补充：缩略图服务（未在 config.json 中声明）
-    thumbnail_port = 5001
-    if not any(p["port"] == thumbnail_port for p in ports):
-        ports.append({"name": "thumbnail_service", "port": thumbnail_port, "source": "hardcoded"})
 
     # 对 port 去重（保留先出现的）
     seen = set()

@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 import subprocess
 import socket
+import json
 
 
 # ============================================================
@@ -19,27 +20,41 @@ import socket
 
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 
+# 从配置文件读取端口
+def load_config():
+    config_path = PROJECT_DIR / 'config' / 'config.json'
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {}
+
+config = load_config()
+ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
+MAIN_APP_PORT = config.get('ports', {}).get('main_app', 8081)
+THUMBNAIL_PORT = config.get('ports', {}).get('thumbnail', 5001)
+
 SERVICES = {
     'admin': {
         'name': 'DPlayer-Admin',
         'display_name': '管理服务',
         'script': PROJECT_DIR / 'services' / 'admin_service.py',
-        'port': 8080,
-        'description': 'DPlayer Admin Panel, Port 8080'
+        'port': ADMIN_PORT,
+        'description': f'DPlayer Admin Panel, Port {ADMIN_PORT}'
     },
     'main': {
         'name': 'DPlayer-Main',
         'display_name': '主应用服务',
         'script': PROJECT_DIR / 'services' / 'main_service.py',
-        'port': 80,
-        'description': 'DPlayer Main Application, Port 80'
+        'port': MAIN_APP_PORT,
+        'description': f'DPlayer Main Application, Port {MAIN_APP_PORT}'
     },
     'thumbnail': {
         'name': 'DPlayer-Thumbnail',
         'display_name': '缩略图服务',
         'script': PROJECT_DIR / 'services' / 'thumbnail_service_win.py',
-        'port': 5001,
-        'description': 'DPlayer Thumbnail Service, Port 5001'
+        'port': THUMBNAIL_PORT,
+        'description': f'DPlayer Thumbnail Service, Port {THUMBNAIL_PORT}'
     }
 }
 

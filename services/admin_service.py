@@ -9,6 +9,7 @@ import win32event
 import sys
 import os
 from pathlib import Path
+import json
 
 # 添加项目根目录到 Python 路径
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
@@ -19,9 +20,18 @@ from waitress import serve
 # 导入 Flask 应用
 from admin_app import app
 
-# 配置
+# 从配置文件读取端口
+def load_config():
+    config_path = PROJECT_DIR / 'config' / 'config.json'
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {}
+
+config = load_config()
 HOST = '0.0.0.0'
-ADMIN_PORT = 8080
+ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
 
 
 class AdminService(win32serviceutil.ServiceFramework):
@@ -29,7 +39,7 @@ class AdminService(win32serviceutil.ServiceFramework):
 
     _svc_name_ = "DPlayer-Admin"
     _svc_display_name_ = "DPlayer Admin Panel Service"
-    _svc_description_ = "DPlayer Admin Panel, Port 8080"
+    _svc_description_ = f"DPlayer Admin Panel, Port {ADMIN_PORT}"
 
     def __init__(self, args):
         win32serviceutil.ServiceFramework.__init__(self, args)
