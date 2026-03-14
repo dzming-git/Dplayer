@@ -1866,11 +1866,17 @@ def api_add_tag():
     """添加标签"""
     try:
         data = request.get_json()
+        name = data.get('name', '').strip()
+        color = data.get('color', '#3498db')
+        category = data.get('category', '')
+
+        if not name:
+            return jsonify({'success': False, 'message': '标签名称不能为空'})
 
         # 检查是否已存在
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute('SELECT id FROM tags WHERE name = ?', (data['name'],))
+        cursor.execute('SELECT id FROM tags WHERE name = ?', (name,))
         existing = cursor.fetchone()
         conn.close()
 
@@ -1881,16 +1887,13 @@ def api_add_tag():
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO tags (name, category, created_at)
-            VALUES (?, ?, datetime('now'))
-        ''', (
-            data['name'],
-            data.get('category')
-        ))
+            INSERT INTO tags (name, category, color, created_at)
+            VALUES (?, ?, ?, datetime('now'))
+        ''', (name, category, color))
         conn.commit()
         conn.close()
 
-        admin_logger.info(f"添加标签: {data['name']}")
+        admin_logger.info(f"添加标签: {name}")
         return jsonify({'success': True, 'message': '标签添加成功'})
     except Exception as e:
         admin_logger.error(f"添加标签失败: {e}")
@@ -1926,6 +1929,46 @@ def api_delete_tag(tag_id):
         return jsonify({'success': True, 'message': '标签删除成功'})
     except Exception as e:
         admin_logger.error(f"删除标签失败: {e}")
+        import traceback
+        admin_logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/tags/<int:tag_id>', methods=['PUT'])
+def api_update_tag(tag_id):
+    """更新标签"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        color = data.get('color', '#3498db')
+
+        if not name:
+            return jsonify({'success': False, 'message': '标签名称不能为空'})
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # 检查标签是否存在
+        cursor.execute('SELECT id FROM tags WHERE id = ?', (tag_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'message': '标签不存在'})
+
+        # 检查名称是否已存在（排除自己）
+        cursor.execute('SELECT id FROM tags WHERE name = ? AND id != ?', (name, tag_id))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'message': '标签名称已存在'})
+
+        # 更新标签
+        cursor.execute('UPDATE tags SET name = ?, color = ? WHERE id = ?', (name, color, tag_id))
+        conn.commit()
+        conn.close()
+
+        admin_logger.info(f"更新标签: {name} (ID: {tag_id})")
+        return jsonify({'success': True, 'message': '标签更新成功'})
+    except Exception as e:
+        admin_logger.error(f"更新标签失败: {e}")
         import traceback
         admin_logger.error(traceback.format_exc())
         return jsonify({'success': False, 'message': str(e)})
