@@ -2064,8 +2064,28 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
             event.target.classList.add('active');
 
+            // 保存当前标签页到 localStorage
+            localStorage.setItem('admin_active_tab', tabName);
+
             if (tabName === 'monitor') {
                 refreshSystemMonitor();
+            }
+        }
+
+        // ========== 恢复上次选中的标签页 ==========
+        function restoreActiveTab() {
+            const savedTab = localStorage.getItem('admin_active_tab');
+            if (savedTab && document.getElementById(`tab-${savedTab}`)) {
+                // 找到对应的按钮并触发点击
+                const buttons = document.querySelectorAll('.tab-btn');
+                buttons.forEach(btn => {
+                    if (btn.textContent.includes(savedTab === 'services' ? '服务管理' :
+                        savedTab === 'monitor' ? '系统监控' :
+                        savedTab === 'database' ? '数据管理' :
+                        savedTab === 'logs' ? '系统日志' : '')) {
+                        btn.click();
+                    }
+                });
             }
         }
 
@@ -2786,6 +2806,9 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // 恢复上次选中的标签页
+            restoreActiveTab();
+
             updateRefreshTime();
             setInterval(updateRefreshTime, 1000);
 
