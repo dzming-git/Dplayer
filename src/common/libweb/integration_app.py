@@ -7,8 +7,8 @@ NodeManager与Flask应用集成
 
 import asyncio
 from flask import request, g
-from node_manager.core import Node, TaskContext, NodeManager, ContextPool
-from node_manager.adapters import FlaskAdapter
+from src.common.libweb.core import Node, TaskContext, NodeManager, ContextPool
+from src.common.libweb.adapters import FlaskAdapter
 
 
 # ========== 包装现有Flask函数为Node ==========

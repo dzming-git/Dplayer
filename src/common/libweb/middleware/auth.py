@@ -10,7 +10,7 @@ import hmac
 import base64
 from typing import Dict, Optional
 
-from node_manager.core import TaskContext
+from src.common.libweb.core import TaskContext
 
 
 class AuthMiddleware:

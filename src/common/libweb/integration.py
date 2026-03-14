@@ -6,7 +6,7 @@ NodeManager Flask集成示例
 """
 
 from flask import Flask, jsonify
-from node_manager import NodeManager, FlaskAdapter, register_all_routes
+from src.common.libweb import NodeManager, FlaskAdapter, register_all_routes
 
 
 def create_app():

@@ -5,7 +5,7 @@ LogNode - 日志相关API节点
 提供日志查看、下载、清理等API。
 """
 
-from node_manager.core import Node, TaskContext
+from src.common.libweb.core import Node, TaskContext
 
 
 class LogsNode(Node):

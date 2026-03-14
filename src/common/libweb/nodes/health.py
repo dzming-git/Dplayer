@@ -5,7 +5,7 @@ HealthNode - 健康检查节点
 提供简单的健康检查功能，返回服务状态。
 """
 
-from node_manager.core import Node, TaskContext
+from src.common.libweb.core import Node, TaskContext
 
 
 class HealthNode(Node):

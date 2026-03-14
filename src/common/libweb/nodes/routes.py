@@ -5,24 +5,24 @@ Routes - 路由注册中心
 集中管理所有Node的注册。
 """
 
-from node_manager.core import NodeManager
+from src.common.libweb.core import NodeManager
 
 # 导入所有Node
-from node_manager.nodes.health import HealthNode
-from node_manager.nodes.video import (
+from src.common.libweb.nodes.health import HealthNode
+from src.common.libweb.nodes.video import (
     VideoListNode, VideoDetailNode, VideoLikeNode, VideoFavoriteNode,
     VideoUploadNode, VideoDeleteNode, VideoScanNode, VideoAddNode,
     VideoRecommendNode, FavoritesNode
 )
-from node_manager.nodes.tag import (
+from src.common.libweb.nodes.tag import (
     TagListNode, TagAddNode, TagDetailNode, TagVideosNode, VideoTagsNode
 )
-from node_manager.nodes.system import (
+from src.common.libweb.nodes.system import (
     ConfigNode, HealthNode as SystemHealthNode, StatusNode,
     DependenciesCheckNode, VideosClearNode, CheckFileNode,
     ThumbnailsRegenerateNode, ThumbnailStatusNode, ThumbnailProgressNode
 )
-from node_manager.nodes.log import (
+from src.common.libweb.nodes.log import (
     LogsNode, LogDetailNode, LogDownloadNode,
     LogsClearNode, LogTypeClearNode, LogsSizeNode
 )

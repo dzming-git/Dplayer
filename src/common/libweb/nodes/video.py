@@ -5,7 +5,7 @@ VideoNode - 视频相关API节点
 提供视频列表、详情、点赞、收藏等API。
 """
 
-from node_manager.core import Node, TaskContext
+from src.common.libweb.core import Node, TaskContext
 
 
 class VideoListNode(Node):

@@ -5,7 +5,7 @@ SystemNode - 系统相关API节点
 提供配置、健康检查、状态等API。
 """
 
-from node_manager.core import Node, TaskContext
+from src.common.libweb.core import Node, TaskContext
 
 
 class ConfigNode(Node):

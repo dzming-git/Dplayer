@@ -9,7 +9,7 @@ DualRouter - 双轨路由系统
 import threading
 from typing import Dict, Any, List, Optional
 
-from node_manager.core import NodeManager, ContextPool, Node
+from src.common.libweb.core import NodeManager, ContextPool, Node
 
 
 class FlaskAdapter:

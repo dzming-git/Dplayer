@@ -8,7 +8,7 @@ LoggingMiddleware - 日志中间件
 import logging
 from typing import Dict
 
-from node_manager.core import TaskContext
+from src.common.libweb.core import TaskContext
 
 
 class LoggingMiddleware:

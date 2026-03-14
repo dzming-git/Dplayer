@@ -5,7 +5,7 @@ TagNode - 标签相关API节点
 提供标签列表、详情、添加、删除等API。
 """
 
-from node_manager.core import Node, TaskContext
+from src.common.libweb.core import Node, TaskContext
 
 
 class TagListNode(Node):

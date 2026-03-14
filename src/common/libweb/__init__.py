@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-NodeManager - 异步请求处理框架
+LibWeb - 异步请求处理框架 (原NodeManager)
 
 提供基于Node的异步请求处理架构，支持：
 - TaskContext: 异步任务上下文管理
@@ -15,8 +15,8 @@ NodeManager - 异步请求处理框架
 - handlers: 处理器（异步、优先级）
 
 使用示例：
-    from node_manager import NodeManager, FlaskAdapter
-    from node_manager.nodes import register_all_routes
+    from src.common.libweb import NodeManager, FlaskAdapter
+    from src.common.libweb.nodes import register_all_routes
 
     nm = NodeManager()
     register_all_routes(nm)  # 注册所有API路由
@@ -26,7 +26,7 @@ NodeManager - 异步请求处理框架
 """
 
 # 核心模块
-from node_manager.core import (
+from src.common.libweb.core import (
     TaskContext,
     ContextPool,
     Node,
@@ -34,14 +34,14 @@ from node_manager.core import (
 )
 
 # 节点模块
-from node_manager.nodes import (
+from src.common.libweb.nodes import (
     HealthNode,
     register_all_routes,
     get_registered_routes_count,
 )
 
 # 中间件模块
-from node_manager.middleware import (
+from src.common.libweb.middleware import (
     AuthMiddleware,
     SessionManager,
     LoggingMiddleware,
@@ -49,13 +49,13 @@ from node_manager.middleware import (
 )
 
 # 适配器模块
-from node_manager.adapters import (
+from src.common.libweb.adapters import (
     FlaskAdapter,
     DualRouter,
 )
 
 # 处理器模块
-from node_manager.handlers import (
+from src.common.libweb.handlers import (
     AsyncRequestHandler,
     PriorityContextPool,
 )

@@ -5,9 +5,9 @@ from services.thumbnail_service_client import get_thumbnail_client, reset_thumbn
 from services.auth_service import AuthService, init_root_user
 from api.auth_api import auth_bp
 
-# NodeManager集成
-from node_manager import NodeManager, FlaskAdapter
-from node_manager.nodes import register_all_routes
+# LibWeb集成 (原NodeManager)
+from src.common.libweb import NodeManager, FlaskAdapter
+from src.common.libweb.nodes import register_all_routes
 from datetime import datetime, timedelta
 import random
 import asyncio

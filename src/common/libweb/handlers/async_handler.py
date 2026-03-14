@@ -10,7 +10,7 @@ import asyncio
 from typing import Dict, Any, List
 from queue import Queue, Empty
 
-from node_manager.core import NodeManager, ContextPool, TaskContext
+from src.common.libweb.core import NodeManager, ContextPool, TaskContext
 
 
 class AsyncRequestHandler:
