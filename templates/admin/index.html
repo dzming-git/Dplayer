@@ -1764,7 +1764,7 @@
                 📊 系统监控
             </button>
             <button class="tab-btn" onclick="switchTab('database')">
-                💾 数据库管理
+                💾 数据管理
             </button>
             <button class="tab-btn" onclick="switchTab('logs')">
                 📋 系统日志
@@ -2657,23 +2657,22 @@
             return names[serviceKey] || serviceKey;
         }
 
-        // ========== 数据库管理 ==========
+        // ========== 数据管理 ==========
         async function refreshDbStats() {
             const result = await apiCall('/api/db/stats');
 
             if (result.success) {
-                const stats = result.stats;
+                // 后端返回扁平化数据结构，直接使用result
+                document.getElementById('videoCount').textContent = result.videos;
+                document.getElementById('tagCount').textContent = result.tags;
+                document.getElementById('favoriteCount').textContent = result.favorite_count;
+                document.getElementById('viewCount').textContent = result.total_views;
+                document.getElementById('dbSize').textContent = result.db_size_mb + ' MB';
 
-                document.getElementById('videoCount').textContent = stats.video_count;
-                document.getElementById('tagCount').textContent = stats.tag_count;
-                document.getElementById('favoriteCount').textContent = stats.favorite_count;
-                document.getElementById('viewCount').textContent = stats.view_count;
-                document.getElementById('dbSize').textContent = stats.db_size_mb + ' MB';
-
-                document.getElementById('interactionsCount').textContent = stats.interaction_count + ' 条';
-                document.getElementById('favoritesCount').textContent = stats.favorite_count + ' 条';
-                document.getElementById('viewsCount').textContent = stats.view_count + ' 条';
-                document.getElementById('tagsCount').textContent = stats.tag_count + ' 个';
+                document.getElementById('interactionsCount').textContent = result.interaction_count + ' 条';
+                document.getElementById('favoritesCount').textContent = result.favorite_count + ' 条';
+                document.getElementById('viewsCount').textContent = result.total_views + ' 条';
+                document.getElementById('tagsCount').textContent = result.tags + ' 个';
 
                 showMessage('数据已刷新', 'success');
             } else {
