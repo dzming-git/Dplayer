@@ -18,6 +18,16 @@ import socket
 from utils.network_optimize import optimize_flask_app
 from utils.system_optimizer import optimize_system
 
+# ========== 全局服务状态缓存 ==========
+
+services_status_cache = {
+    'services': [],
+    'system': {},
+    'last_update': 0
+}
+cache_lock = threading.Lock()
+CACHE_INTERVAL = 2  # 缓存刷新间隔（秒）
+
 # ========== 日志配置 ==========
 
 LOG_DIR = 'logs'
@@ -183,12 +193,13 @@ HOST = config.get('host', '0.0.0.0')
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'admin-secret-key-change-in-production'
 
+
 # 优化网络连接配置，解决局域网访问偶现失败问题
-try:
-    optimize_flask_app(app)
-    admin_logger.info('网络连接优化已启用')
-except Exception as e:
-    admin_logger.warning(f'网络优化失败: {e}')
+# try:
+#     optimize_flask_app(app)
+#     admin_logger.info('网络连接优化已启用')
+# except Exception as e:
+#     admin_logger.warning(f'网络优化失败: {e}')
 
 # 配置数据库
 # 注意：admin_app使用原生SQL查询，不使用SQLAlchemy ORM
@@ -601,6 +612,30 @@ def _pid_for_port(port):
     return None
 
 
+def _get_processes_using_port(port):
+    """返回占用指定端口的所有进程信息列表"""
+    processes = []
+    try:
+        for conn in psutil.net_connections():
+            if conn.laddr.port == port and conn.status == 'LISTEN':
+                try:
+                    proc = psutil.Process(conn.pid)
+                    processes.append({
+                        'pid': conn.pid,
+                        'name': proc.name(),
+                        'exe': proc.exe() if hasattr(proc, 'exe') else None
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    processes.append({
+                        'pid': conn.pid,
+                        'name': 'Unknown',
+                        'exe': None
+                    })
+    except Exception as e:
+        admin_logger.error(f"获取端口 {port} 进程信息失败: {e}")
+    return processes
+
+
 def get_service_status(svc_key):
     """获取单个服务的完整状态（优先使用 Get-ScheduledTask，结合端口检测）"""
     svc = SERVICES[svc_key]
@@ -677,6 +712,32 @@ def get_all_services_status():
     return [get_service_status(k) for k in SERVICES]
 
 
+def update_services_cache():
+    """更新服务状态缓存（后台线程调用）"""
+    try:
+        services = get_all_services_status()
+        sys_stats = get_system_stats()
+
+        with cache_lock:
+            services_status_cache['services'] = services
+            services_status_cache['system'] = sys_stats
+            services_status_cache['last_update'] = time.time()
+
+        admin_logger.debug(f"服务状态缓存已更新: {len(services)} 个服务")
+    except Exception as e:
+        admin_logger.error(f"更新服务状态缓存失败: {e}")
+
+
+def get_cached_services_status():
+    """从缓存获取服务状态（前台API调用）"""
+    with cache_lock:
+        return {
+            'services': services_status_cache['services'],
+            'system': services_status_cache['system'],
+            'last_update': services_status_cache['last_update']
+        }
+
+
 def _get_task_run_info(task_name):
     """获取任务运行信息（当前运行的进程信息）"""
     if not IS_WINDOWS:
@@ -718,9 +779,54 @@ def start_service(svc_key):
     script = svc['script']
     task_name = svc.get('task_name')
 
-    # 已在运行
+    # 检查是否需要强制终止占用进程
+    force_kill = False
+    port_conflict_processes = []
+
+    # 检查端口是否被其他进程占用
     if _port_listening(port):
-        return {'success': False, 'message': f'{svc["name"]} 已在运行（端口 {port}）'}
+        # 检查是否是本服务
+        pid_for_port = _pid_for_port(port)
+        if pid_for_port:
+            # 读取PID文件
+            service_pid = None
+            if os.path.exists(pid_file):
+                try:
+                    with open(pid_file, 'r') as f:
+                        service_pid = int(f.read().strip())
+                except:
+                    pass
+
+            # 如果是自己的进程，说明已在运行
+            if service_pid and pid_for_port == service_pid:
+                return {'success': False, 'message': f'{svc["name"]} 已在运行（端口 {port}）', 'port_conflict': False}
+
+        # 端口被其他进程占用，返回占用进程信息
+        port_conflict_processes = _get_processes_using_port(port)
+        if not request.get_json(silent=True) or not request.get_json(silent=True).get('force', False):
+            return {
+                'success': False,
+                'message': f'端口 {port} 已被占用',
+                'port_conflict': True,
+                'port': port,
+                'processes': port_conflict_processes
+            }
+        else:
+            # 强制终止占用进程
+            force_kill = True
+            if port_conflict_processes:
+                for proc in port_conflict_processes:
+                    try:
+                        p = psutil.Process(proc['pid'])
+                        p.terminate()
+                        try:
+                            p.wait(timeout=3)
+                        except psutil.TimeoutExpired:
+                            p.kill()
+                        admin_logger.info(f"强制终止占用进程 {proc['name']} (PID: {proc['pid']})")
+                    except Exception as e:
+                        admin_logger.warning(f"终止进程 {proc['pid']} 失败: {e}")
+                time.sleep(1)  # 等待端口释放
 
     # Windows 下优先尝试使用计划任务
     if IS_WINDOWS and task_name:
@@ -889,14 +995,14 @@ def page_services():
 
 @app.route('/api/services/status')
 def api_services_status():
-    """获取所有服务状态"""
+    """获取所有服务状态（从缓存读取）"""
     try:
-        services = get_all_services_status()
-        sys_stats = get_system_stats()
+        cached = get_cached_services_status()
         return jsonify({
             'success': True,
-            'services': services,
-            'system': sys_stats,
+            'services': cached['services'],
+            'system': cached['system'],
+            'last_update': cached['last_update'],
         })
     except Exception as e:
         admin_logger.error(f"获取服务状态失败: {e}")
@@ -917,6 +1023,51 @@ def api_service_status(svc_key):
     except Exception as e:
         admin_logger.error(f"获取服务 {svc_key} 状态失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/services/<svc_key>/check-port', methods=['GET'])
+def api_service_check_port(svc_key):
+    """检查服务端口是否可用"""
+    if svc_key not in SERVICES:
+        return jsonify({'success': False, 'message': '未知服务'}), 404
+
+    svc = SERVICES[svc_key]
+    port = svc['port']
+    pid_file = svc['pid_file']
+
+    # 检查端口是否被占用
+    if not _port_listening(port):
+        return jsonify({'success': True, 'port': port, 'in_use': False})
+
+    # 端口被占用，检查是否是本服务
+    pid_for_port = _pid_for_port(port)
+    service_pid = None
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file, 'r') as f:
+                service_pid = int(f.read().strip())
+        except:
+            pass
+
+    # 如果是自己的进程，说明已在运行
+    if service_pid and pid_for_port == service_pid:
+        return jsonify({
+            'success': True,
+            'port': port,
+            'in_use': True,
+            'is_self': True,
+            'message': f'{svc["name"]} 已在运行'
+        })
+
+    # 端口被其他进程占用
+    processes = _get_processes_using_port(port)
+    return jsonify({
+        'success': False,
+        'port': port,
+        'in_use': True,
+        'is_self': False,
+        'processes': processes
+    })
 
 
 @app.route('/api/services/<svc_key>/start', methods=['POST'])
@@ -944,6 +1095,68 @@ def api_service_restart(svc_key):
         return jsonify({'success': False, 'message': '未知服务'}), 404
     result = restart_service(svc_key)
     return jsonify(result)
+
+
+# ========== 布局调试日志功能 ==========
+
+DEBUG_LOG_FILE = os.path.join(LOG_DIR, 'layout_debug.log')
+
+
+@app.route('/api/debug/log', methods=['POST'])
+def api_debug_log():
+    """接收前端布局调试日志并保存到文件"""
+    try:
+        layout_info = request.json
+        if not layout_info:
+            return jsonify({'success': False, 'message': '无效数据'}), 400
+
+        # 格式化日志信息
+        log_lines = [
+            "=" * 60,
+            f"时间: {layout_info.get('timestamp', 'N/A')}",
+            f"窗口宽度: {layout_info.get('windowWidth', 'N/A')}px",
+            f"表格宽度: {layout_info.get('tableWidth', 'N/A')}px",
+            f"表格列数: {layout_info.get('columnCount', 'N/A')}",
+            f"表格布局模式: {layout_info.get('tableLayout', 'N/A')}",
+            f"表格 min-width: {layout_info.get('tableMinWidth', 'N/A')}",
+            f"表格 max-width: {layout_info.get('tableMaxWidth', 'N/A')}",
+            "",
+            "媒体查询状态:",
+            f"  - max-width: 768px: {layout_info.get('mediaQueries', {}).get('max768px', 'N/A')}",
+            f"  - max-width: 480px: {layout_info.get('mediaQueries', {}).get('max480px', 'N/A')}",
+            "",
+            "列宽详情:"
+        ]
+
+        columns = layout_info.get('columns', [])
+        for col in columns:
+            log_lines.extend([
+                f"  第{col.get('index', 'N/A')}列:",
+                f"    - th宽度: {col.get('headerWidth', 'N/A')}px",
+                f"    - th显示: {col.get('headerDisplay', 'N/A')}",
+                f"    - th width: {col.get('headerCssWidth', 'N/A')}",
+                f"    - th max-width: {col.get('headerMaxWidth', 'N/A')}",
+                f"    - th min-width: {col.get('headerMinWidth', 'N/A')}",
+                f"    - td宽度: {col.get('bodyWidth', 'N/A')}px",
+                f"    - td显示: {col.get('bodyDisplay', 'N/A')}",
+                f"    - td width: {col.get('bodyCssWidth', 'N/A')}",
+                f"    - td max-width: {col.get('bodyMaxWidth', 'N/A')}",
+                f"    - td min-width: {col.get('bodyMinWidth', 'N/A')}",
+                ""
+            ])
+
+        log_lines.append("=" * 60)
+        log_lines.append("")
+
+        # 写入日志文件
+        with open(DEBUG_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write('\n'.join(log_lines))
+
+        admin_logger.info(f"收到布局调试日志, 窗口宽度: {layout_info.get('windowWidth', 'N/A')}px")
+        return jsonify({'success': True, 'message': '日志已保存'})
+    except Exception as e:
+        admin_logger.error(f"保存调试日志失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 # ========== 数据库清理功能 ==========
@@ -1126,9 +1339,9 @@ def index():
     """管理后台首页"""
     # 定义服务列表
     services_list = [
-        {'key': 'main', 'name': '主应用', 'description': 'app.py - 用户界面', 'port': 80},
-        {'key': 'admin', 'name': '管理后台', 'description': 'admin_app.py - 管理界面', 'port': 8080},
-        {'key': 'thumbnail', 'name': '缩略图服务', 'description': 'thumbnail_service.py - 缩略图生成', 'port': 5001}
+        {'key': 'main', 'name': '主应用', 'description': '用户界面', 'entry_point': 'app.py', 'port': 80},
+        {'key': 'admin', 'name': '管理后台', 'description': '管理界面', 'entry_point': 'admin_app.py', 'port': 8080},
+        {'key': 'thumbnail', 'name': '缩略图服务', 'description': '缩略图生成', 'entry_point': 'thumbnail_service.py', 'port': 5001}
     ]
     return render_template('admin/index.html', services=services_list)
 
@@ -2115,6 +2328,23 @@ def api_ranking():
         return jsonify({'success': False, 'message': str(e)})
 
 
+def start_cache_updater():
+    """启动后台缓存更新线程"""
+    def cache_updater_loop():
+        admin_logger.info("服务状态缓存更新线程已启动")
+        while True:
+            try:
+                update_services_cache()
+                time.sleep(CACHE_INTERVAL)
+            except Exception as e:
+                admin_logger.error(f"缓存更新线程异常: {e}")
+                time.sleep(5)  # 出错后等待5秒再重试
+
+    thread = threading.Thread(target=cache_updater_loop, daemon=True)
+    thread.start()
+    admin_logger.info(f"服务状态缓存更新器已启动，刷新间隔: {CACHE_INTERVAL}秒")
+
+
 if __name__ == '__main__':
     # ========== Windows 服务模式支持 ==========
     # 确保在作为 Windows 服务运行时工作目录正确
@@ -2145,6 +2375,12 @@ if __name__ == '__main__':
     SERVICES['admin']['pid_file'] = os.path.join(BASEDIR, 'instance', 'admin_app.pid')
     SERVICES['thumbnail']['script'] = os.path.join(BASEDIR, 'services', 'thumbnail_service.py')
     SERVICES['thumbnail']['pid_file'] = os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid')
+
+    # ========== 启动后台缓存更新器 ==========
+    # 初始化一次缓存
+    update_services_cache()
+    # 启动后台定时更新线程
+    start_cache_updater()
     
     # ========== 启动应用 ==========
     # 重新加载配置（确保获取最新的端口配置）
@@ -2156,14 +2392,14 @@ if __name__ == '__main__':
     admin_logger.info(f"工作目录: {os.getcwd()}")
 
     # 执行系统网络优化（防火墙、TCP、DNS等）
-    admin_logger.info("执行系统网络优化...")
-    try:
-        optimize_system(
-            ports=[ADMIN_PORT],
-            service_names=['管理后台']
-        )
-    except Exception as e:
-        admin_logger.warning(f"系统优化失败: {e}")
+    # admin_logger.info("执行系统网络优化...")
+    # try:
+    #     optimize_system(
+    #         ports=[ADMIN_PORT],
+    #         service_names=['管理后台']
+    #     )
+    # except Exception as e:
+    #     admin_logger.warning(f"系统优化失败: {e}")
 
     # 作为 Windows 服务运行时，跳过端口检查（避免杀死自己的进程）
     is_service = 'windows_service' in os.environ.get('RUN_MODE', '').lower()

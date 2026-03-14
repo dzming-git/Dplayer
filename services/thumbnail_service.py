@@ -50,11 +50,11 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB
 
 # 优化网络连接配置，解决局域网访问偶现失败问题
-try:
-    optimize_flask_app(app)
-    logger.info('网络连接优化已启用')
-except Exception as e:
-    logger.warning(f'网络优化失败: {e}')
+# try:
+#     optimize_flask_app(app)
+#     logger.info('网络连接优化已启用')
+# except Exception as e:
+#     logger.warning(f'网络优化失败: {e}')
 
 
 
@@ -642,14 +642,14 @@ if __name__ == '__main__':
     logger.info(f"缩略图目录: {os.path.abspath(THUMBNAIL_DIR)}")
 
     # 执行系统网络优化（防火墙、TCP、DNS等）
-    logger.info("执行系统网络优化...")
-    try:
-        optimize_system(
-            ports=[THUMBNAIL_SERVICE_PORT],
-            service_names=['缩略图服务']
-        )
-    except Exception as e:
-        logger.warning(f"系统优化失败: {e}")
+    # logger.info("执行系统网络优化...")
+    # try:
+    #     optimize_system(
+    #         ports=[THUMBNAIL_SERVICE_PORT],
+    #         service_names=['缩略图服务']
+    #     )
+    # except Exception as e:
+    #     logger.warning(f"系统优化失败: {e}")
 
 
     # 检测是否作为 Windows 服务运行

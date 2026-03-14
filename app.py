@@ -36,11 +36,11 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # 会话有效期7
 app.register_blueprint(auth_bp)
 
 # 优化网络连接配置，解决局域网访问偶现失败问题
-try:
-    optimize_flask_app(app)
-    print('[*] 网络连接优化已启用')
-except Exception as e:
-    print(f'[警告] 网络优化失败: {e}')
+# try:
+#     optimize_flask_app(app)
+#     print('[*] 网络连接优化已启用')
+# except Exception as e:
+#     print(f'[警告] 网络优化失败: {e}')
 
 
 
@@ -3267,14 +3267,14 @@ if __name__ == '__main__':
     initialize_thumbnail_service()
 
     # 执行系统网络优化（防火墙、TCP、DNS等）
-    print(f'[*] 执行系统网络优化...')
-    try:
-        optimize_system(
-            ports=[PORT],
-            service_names=['主应用']
-        )
-    except Exception as e:
-        print(f'[警告] 系统优化失败: {e}')
+    # print(f'[*] 执行系统网络优化...')
+    # try:
+    #     optimize_system(
+    #         ports=[PORT],
+    #         service_names=['主应用']
+    #     )
+    # except Exception as e:
+    #     print(f'[警告] 系统优化失败: {e}')
 
     
     # 启动缩略图预生成任务

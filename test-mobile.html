@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>移动端测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f1f5f9;
+            padding: 15px;
+        }
+
+        .service-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .service-title h3 {
+            font-size: 1.25rem;
+            color: #0f172a;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .info-item {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .info-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        /* 移动端样式 */
+        @media (max-width: 768px) {
+            .info-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 10px;
+            }
+
+            .info-item {
+                padding: 10px;
+            }
+
+            .info-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 0.85rem;
+            }
+
+            .info-label {
+                font-size: 0.7rem;
+            }
+
+            .info-value {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* 超小屏幕 */
+        @media (max-width: 480px) {
+            .info-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px;
+            }
+
+            .info-item {
+                padding: 8px;
+            }
+
+            .info-icon {
+                width: 24px;
+                height: 24px;
+                font-size: 0.8rem;
+            }
+
+            .info-label {
+                font-size: 0.65rem;
+            }
+
+            .info-value {
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="service-card">
+        <div class="service-header">
+            <div class="service-title">
+                <h3>主应用服务</h3>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-icon">🌐</div>
+                <div class="info-content">
+                    <div class="info-label">端口</div>
+                    <div class="info-value">5000</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">🔢</div>
+                <div class="info-content">
+                    <div class="info-label">PID</div>
+                    <div class="info-value">12345</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">💻</div>
+                <div class="info-content">
+                    <div class="info-label">CPU</div>
+                    <div class="info-value">2.5%</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">📊</div>
+                <div class="info-content">
+                    <div class="info-label">内存</div>
+                    <div class="info-value">128MB</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 添加调试信息
+        console.log('Viewport width:', window.innerWidth);
+        console.log('Viewport height:', window.innerHeight);
+
+        const infoGrid = document.querySelector('.info-grid');
+        const computedStyle = window.getComputedStyle(infoGrid);
+        console.log('Grid template columns:', computedStyle.gridTemplateColumns);
+        console.log('Display:', computedStyle.display);
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', () => {
+            console.log('Resize - Viewport width:', window.innerWidth);
+            const infoGrid = document.querySelector('.info-grid');
+            const computedStyle = window.getComputedStyle(infoGrid);
+            console.log('Grid template columns:', computedStyle.gridTemplateColumns);
+        });
+    </script>
+</body>
+</html>

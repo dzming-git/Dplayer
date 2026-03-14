@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>移动端布局调试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f1f5f9;
+            padding: 20px;
+        }
+
+        .debug-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #3b82f6;
+        }
+
+        .debug-info h2 {
+            color: #0f172a;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .debug-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+
+        .debug-item:last-child {
+            border-bottom: none;
+        }
+
+        .debug-label {
+            color: #64748b;
+            display: inline-block;
+            width: 120px;
+        }
+
+        .debug-value {
+            color: #0f172a;
+            font-weight: 600;
+        }
+
+        .service-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            border: 2px solid #10b981;
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .service-title h3 {
+            font-size: 1.25rem;
+            color: #0f172a;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            border: 2px dashed #f59e0b;
+            padding: 10px;
+        }
+
+        .info-item {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .info-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .info-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        /* 移动端样式 */
+        @media (max-width: 768px) {
+            .info-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 10px;
+                border-color: #ef4444 !important;
+            }
+
+            .info-item {
+                padding: 10px;
+            }
+        }
+
+        /* 超小屏幕 */
+        @media (max-width: 480px) {
+            .info-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px;
+                border-color: #8b5cf6 !important;
+            }
+
+            .info-item {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-info">
+        <h2>📱 移动端布局调试信息</h2>
+        <div class="debug-item">
+            <span class="debug-label">窗口宽度:</span>
+            <span class="debug-value" id="viewport-width">-</span>
+        </div>
+        <div class="debug-item">
+            <span class="debug-label">窗口高度:</span>
+            <span class="debug-value" id="viewport-height">-</span>
+        </div>
+        <div class="debug-item">
+            <span class="debug-label">CSS Display:</span>
+            <span class="debug-value" id="css-display">-</span>
+        </div>
+        <div class="debug-item">
+            <span class="debug-label">Grid Columns:</span>
+            <span class="debug-value" id="grid-columns">-</span>
+        </div>
+        <div class="debug-item">
+            <span class="debug-label">Grid Gap:</span>
+            <span class="debug-value" id="grid-gap">-</span>
+        </div>
+        <div class="debug-item">
+            <span class="debug-label">当前媒体查询:</span>
+            <span class="debug-value" id="media-query">-</span>
+        </div>
+    </div>
+
+    <div class="service-card">
+        <div class="service-header">
+            <div class="service-title">
+                <h3>主应用服务</h3>
+            </div>
+        </div>
+
+        <div class="info-grid" id="info-grid">
+            <div class="info-item">
+                <div class="info-icon">🌐</div>
+                <div class="info-content">
+                    <div class="info-label">端口</div>
+                    <div class="info-value">5000</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">🔢</div>
+                <div class="info-content">
+                    <div class="info-label">PID</div>
+                    <div class="info-value">12345</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">💻</div>
+                <div class="info-content">
+                    <div class="info-label">CPU</div>
+                    <div class="info-value">2.5%</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">📊</div>
+                <div class="info-content">
+                    <div class="info-label">内存</div>
+                    <div class="info-value">128MB</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: #fef3c7; padding: 15px; border-radius: 10px; border: 2px solid #f59e0b;">
+        <h3 style="color: #0f172a; margin-bottom: 10px;">💡 边框颜色说明：</h3>
+        <ul style="color: #0f172a; margin-left: 20px; line-height: 1.8;">
+            <li><strong>黄色虚线边框</strong>：桌面端样式</li>
+            <li><strong>红色虚线边框</strong>：移动端样式</li>
+            <li><strong>紫色虚线边框</strong>：超小屏幕样式</li>
+        </ul>
+    </div>
+
+    <script>
+        function updateDebugInfo() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const infoGrid = document.getElementById('info-grid');
+            const computedStyle = window.getComputedStyle(infoGrid);
+
+            document.getElementById('viewport-width').textContent = width + 'px';
+            document.getElementById('viewport-height').textContent = height + 'px';
+            document.getElementById('css-display').textContent = computedStyle.display;
+            document.getElementById('grid-columns').textContent = computedStyle.gridTemplateColumns;
+            document.getElementById('grid-gap').textContent = computedStyle.gap;
+
+            let mediaQuery = '桌面端 (>768px)';
+            if (width <= 480) {
+                mediaQuery = '超小屏幕 (≤480px)';
+            } else if (width <= 768) {
+                mediaQuery = '移动端 (≤768px)';
+            }
+            document.getElementById('media-query').textContent = mediaQuery;
+        }
+
+        // 初始化
+        updateDebugInfo();
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', updateDebugInfo);
+
+        console.log('移动端布局调试页面已加载');
+        console.log('Viewport width:', window.innerWidth);
+        console.log('Viewport height:', window.innerHeight);
+    </script>
+</body>
+</html>
