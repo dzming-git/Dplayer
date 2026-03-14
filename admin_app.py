@@ -28,6 +28,9 @@ from services.service_manager import (
     get_all_services_status as sm_get_all_services_status,
 )
 
+# 创建SERVICES别名，保持向后兼容
+SERVICES = SERVICES_CONFIG
+
 # ========== 全局服务状态缓存 ==========
 
 services_status_cache = {
@@ -640,25 +643,12 @@ def _get_processes_using_port(port):
 
 
 def get_service_status(svc_key):
-    """获取单个服务的完整状态（优先使用 Get-ScheduledTask，结合端口检测）"""
+    """获取单个服务的完整状态（优先使用端口检测，速度快）"""
     svc = SERVICES[svc_key]
     port = svc['port']
     pid_file = svc['pid_file']
-    task_name = svc.get('task_name')
 
-    # Windows 下优先使用 Get-ScheduledTask 获取任务状态
-    task_state = None
-    task_info = None
-    if IS_WINDOWS and task_name:
-        task_result, _ = _get_scheduled_task_status(task_name)
-        if task_result:
-            task_state = task_result.get('state')
-            task_info = _get_task_run_info(task_name)
-
-    # 任务状态：Running=运行中, Ready=就绪(未启动), Disabled=禁用
-    task_running = task_state == 'Running'
-
-    # 同时用端口检测作为辅助判据（更可靠）
+    # 快速检测：先检查端口（最快的方式）
     live_pid = _pid_for_port(port)
     port_running = live_pid is not None
 
@@ -668,38 +658,26 @@ def get_service_status(svc_key):
         if live_pid:
             port_running = psutil.pid_exists(live_pid)
 
-    # 综合判断：优先信任任务状态（如果已注册），其次看端口
-    if task_state:
-        # 任务已注册，以任务状态为准
-        running = task_running or port_running
-        if task_running and not port_running:
-            # 任务显示运行但端口未监听，可能还在启动
-            live_pid = _get_pid_from_file(pid_file)
-    else:
-        # 任务未注册，以端口检测为准
-        running = port_running
-
+    # 默认状态信息
     status_info = {
         'key': svc_key,
         'name': svc['name'],
         'description': svc['description'],
         'port': port,
-        'running': running,
+        'running': port_running,
         'pid': live_pid,
-        'status': '运行中' if running else '已停止',
-        'task_state': task_state,  # 计划任务状态
-        'task_info': task_info,    # 任务运行信息
+        'status': '运行中' if port_running else '已停止',
+        'task_state': None,
+        'task_info': None,
         'cpu_percent': 0.0,
         'memory_mb': 0.0,
         'memory_percent': 0.0,
     }
 
-    if running and live_pid:
+    if port_running and live_pid:
         try:
             proc = psutil.Process(live_pid)
-            # cpu_percent 首次调用返回0，需连续两次或用interval
-            proc.cpu_percent()  # 初始化
-            time.sleep(0.1)
+            # 直接获取CPU使用率，不使用interval参数
             status_info['cpu_percent'] = round(proc.cpu_percent(), 1)
             mem = proc.memory_info()
             status_info['memory_mb'] = round(mem.rss / 1024 / 1024, 1)
@@ -734,6 +712,16 @@ def update_services_cache():
 def get_cached_services_status():
     """从缓存获取服务状态（前台API调用）"""
     with cache_lock:
+        # 如果缓存为空或未初始化，自动更新缓存
+        if not services_status_cache['services'] or services_status_cache['last_update'] == 0:
+            try:
+                services = get_all_services_status()
+                sys_stats = get_system_stats()
+                services_status_cache['services'] = services
+                services_status_cache['system'] = sys_stats
+                services_status_cache['last_update'] = time.time()
+            except Exception as e:
+                admin_logger.error(f"自动更新缓存失败: {e}")
         return {
             'services': services_status_cache['services'],
             'system': services_status_cache['system'],
@@ -813,9 +801,6 @@ def restart_service(svc_key, force=False):
         svc_key: 服务键名
         force: 是否强制启动（不检查端口冲突）
     """
-    if svc_key == 'admin':
-        return {'success': False, 'message': '管理后台不支持通过界面重启，请手动操作'}
-
     # 调用通用服务管理器
     result = sm_restart_service(svc_key, force=force, silent=False)
     return {
@@ -930,6 +915,46 @@ def api_service_restart(svc_key):
     """重启指定服务"""
     if svc_key not in SERVICES:
         return jsonify({'success': False, 'message': '未知服务'}), 404
+
+    # admin服务需要通过service_controller外部调用来重启（否则会因PID检查被拒绝）
+    if svc_key == 'admin':
+        try:
+            # 调用service_controller来重启admin服务
+            # 需要找到正确的Python解释器
+            import subprocess
+            controller_script = os.path.join(BASEDIR, 'scripts', 'service_controller.py')
+
+            # 尝试使用Python路径
+            python_exe = sys.executable
+            if 'pythonservice' in python_exe.lower():
+                # 查找系统中的python.exe
+                python_exe = r'C:\Users\71555\AppData\Local\Programs\Python\Python311\python.exe'
+                if not os.path.exists(python_exe):
+                    python_exe = 'python'
+
+            result = subprocess.run(
+                [python_exe, controller_script, 'restart', 'admin'],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                encoding='utf-8',
+                errors='replace'
+            )
+            # 检查stdout中是否包含成功标志
+            output = result.stdout + result.stderr
+            if result.returncode == 0 and 'successfully' in output.lower():
+                admin_logger.info("通过service_controller成功重启admin服务")
+                return jsonify({'success': True, 'message': '管理后台正在重启，请重新打开页面'})
+            else:
+                admin_logger.error(f"通过service_controller重启失败: returncode={result.returncode}, output={output[:500]}")
+                return jsonify({'success': False, 'message': f'重启失败: {output[:200]}'})
+        except subprocess.TimeoutExpired:
+            return jsonify({'success': False, 'message': '重启超时'})
+        except Exception as e:
+            admin_logger.error(f"重启admin服务失败: {e}")
+            return jsonify({'success': False, 'message': f'重启失败: {str(e)}'})
+
+    # 其他服务使用内部重启
     result = restart_service(svc_key)
     return jsonify(result)
 

@@ -224,6 +224,16 @@
             background: var(--color-danger);
         }
 
+        .service-card.restarting::before {
+            background: var(--color-warning);
+            animation: restart-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes restart-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
         .service-card:hover {
             box-shadow: var(--shadow-lg);
             transform: translateY(-4px);
@@ -281,9 +291,14 @@
             color: var(--color-danger);
         }
 
-        .status-badge.self {
+        .status-badge.status-self {
             background: var(--gradient-primary);
             color: white;
+        }
+
+        .status-badge.restarting {
+            background: var(--color-warning-light);
+            color: var(--color-warning);
         }
 
         .status-indicator {
@@ -294,9 +309,14 @@
             animation: pulse 2s ease-in-out infinite;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .status-badge.restarting .status-indicator {
+            animation: fast-pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes fast-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
         }
 
         .service-body {
@@ -1172,11 +1192,7 @@
                         </div>
                     </div>
                     <div class="service-actions" id="actions-{{ svc.key }}">
-                        {% if svc.key == 'admin' %}
-                        <span style="color: var(--color-text-tertiary); font-style: italic; padding: 10px 0;">当前服务，无需操作</span>
-                        {% else %}
                         <span style="color: var(--color-text-tertiary); font-style: italic; padding: 10px 0;">检测中...</span>
-                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -1422,13 +1438,25 @@
             const refreshBtn = document.getElementById('refreshBtn');
             refreshBtn.classList.add('loading');
 
-            const serviceKeys = [];
-            document.querySelectorAll('.service-card[data-service-key]').forEach(card => {
-                serviceKeys.push(card.getAttribute('data-service-key'));
-            });
+            try {
+                // 使用批量API获取所有服务状态（从缓存读取，速度更快）
+                const response = await fetch('/api/services/status');
+                const data = await response.json();
 
-            for (const serviceKey of serviceKeys) {
-                await loadServiceStatus(serviceKey);
+                if (data.success) {
+                    // 批量更新所有服务状态
+                    data.services.forEach(service => {
+                        updateServiceCard(service.key, service);
+                    });
+                } else {
+                    showMessage('获取服务状态失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                // 如果有服务正在重启，不显示网络错误（服务重启期间请求失败是正常的）
+                if (restartingServices.size === 0) {
+                    console.error('获取服务状态失败:', error);
+                    showMessage('网络错误: ' + error.message, 'error');
+                }
             }
 
             setTimeout(() => {
@@ -1438,11 +1466,15 @@
 
         async function loadServiceStatus(serviceKey) {
             try {
-                const response = await fetch(`/api/services/${serviceKey}/status`);
+                // 使用批量API并筛选单个服务（从缓存读取）
+                const response = await fetch('/api/services/status');
                 const data = await response.json();
 
                 if (data.success) {
-                    updateServiceCard(serviceKey, data.service);
+                    const service = data.services.find(s => s.key === serviceKey);
+                    if (service) {
+                        updateServiceCard(serviceKey, service);
+                    }
                 }
             } catch (error) {
                 console.error(`获取服务 ${serviceKey} 状态失败:`, error);
@@ -1451,6 +1483,7 @@
 
         function updateServiceCard(serviceKey, service) {
             const isSelf = serviceKey === 'admin';
+            const isRestarting = restartingServices.has(serviceKey);
 
             const card = document.getElementById(`service-card-${serviceKey}`);
             const statusBadge = document.getElementById(`status-badge-${serviceKey}`);
@@ -1463,12 +1496,40 @@
                 statusBadge.className = 'status-badge status-self';
                 statusBadge.innerHTML = '<span class="status-indicator"></span>当前服务';
                 card.classList.add('running');
+
+                // 管理应用只显示重启按钮，不显示停止按钮
+                if (isRestarting) {
+                    actionsDiv.innerHTML = `
+                        <button class="action-btn" disabled>⏳ 重启中...</button>
+                    `;
+                } else {
+                    actionsDiv.innerHTML = `
+                        <button class="action-btn btn-restart" onclick="restartService('${serviceKey}')">🔄 重启</button>
+                    `;
+                }
             } else {
+                // 如果服务正在重启,显示重启状态并禁用按钮
+                if (isRestarting) {
+                    statusBadge.className = 'status-badge restarting';
+                    statusBadge.innerHTML = '<span class="status-indicator"></span>重启中';
+                    card.classList.add('restarting');
+                    card.classList.remove('running', 'stopped');
+
+                    actionsDiv.innerHTML = `
+                        <button class="action-btn" disabled>⏳ 重启中...</button>
+                    `;
+
+                    pidDisplay.textContent = 'N/A';
+                    cpuDisplay.textContent = '--';
+                    memoryDisplay.textContent = '--';
+                    return;
+                }
+
                 if (service.running) {
                     statusBadge.className = 'status-badge running';
                     statusBadge.innerHTML = '<span class="status-indicator"></span>运行中';
                     card.classList.add('running');
-                    card.classList.remove('stopped');
+                    card.classList.remove('stopped', 'restarting');
 
                     actionsDiv.innerHTML = `
                         <button class="action-btn btn-stop" onclick="stopService('${serviceKey}')">⏹️ 停止</button>
@@ -1478,7 +1539,7 @@
                     statusBadge.className = 'status-badge stopped';
                     statusBadge.innerHTML = '<span class="status-indicator"></span>已停止';
                     card.classList.add('stopped');
-                    card.classList.remove('running');
+                    card.classList.remove('running', 'restarting');
 
                     actionsDiv.innerHTML = `
                         <button class="action-btn btn-start" onclick="startService('${serviceKey}')">▶️ 启动</button>
@@ -1701,9 +1762,42 @@
             }
         }
 
+        // 追踪正在重启的服务
+        const restartingServices = new Set();
+
         async function restartService(serviceKey) {
-            if (!confirm(`确定要重启 ${getServiceName(serviceKey)} 吗?`)) {
+            // 防止重复点击
+            if (restartingServices.has(serviceKey)) {
+                showMessage('服务正在重启中,请稍候...', 'warning');
                 return;
+            }
+
+            const isSelf = serviceKey === 'admin';
+
+            if (!confirm(`确定要重启 ${getServiceName(serviceKey)} 吗?${isSelf ? '\n\n注意：管理应用重启后需要重新打开页面。' : ''}`)) {
+                return;
+            }
+
+            // 标记为正在重启
+            restartingServices.add(serviceKey);
+
+            // 立即禁用按钮并更新UI，在消息显示前
+            const actionsDiv = document.getElementById(`actions-${serviceKey}`);
+            const statusBadge = document.getElementById(`status-badge-${serviceKey}`);
+            const card = document.getElementById(`service-card-${serviceKey}`);
+
+            if (actionsDiv) {
+                actionsDiv.querySelectorAll('button').forEach(btn => {
+                    btn.disabled = true;
+                    btn.innerHTML = '⏳ 重启中...';
+                });
+            }
+            if (statusBadge && !isSelf) {
+                statusBadge.className = 'status-badge restarting';
+                statusBadge.innerHTML = '<span class="status-indicator"></span>重启中';
+            }
+            if (card && !isSelf) {
+                card.classList.add('restarting');
             }
 
             showMessage(`正在重启 ${getServiceName(serviceKey)}...`, 'info');
@@ -1714,13 +1808,53 @@
 
                 if (data.success) {
                     showMessage(data.message, 'success');
+
+                    // 短暂延迟后更新状态，让服务有时间完成启动
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                     await loadServiceStatus(serviceKey);
                 } else {
                     showMessage('重启失败: ' + data.message, 'error');
+                    // 失败时恢复按钮状态
+                    restartFailedUpdate(serviceKey);
                 }
             } catch (error) {
-                showMessage('网络错误: ' + error.message, 'error');
+                // 重启自己的过程中服务会暂时不可用，不显示错误
+                if (!isSelf) {
+                    showMessage('网络错误: ' + error.message, 'error');
+                    restartFailedUpdate(serviceKey);
+                }
+            } finally {
+                // 移除重启标记
+                restartingServices.delete(serviceKey);
             }
+        }
+
+        // 重启失败时恢复UI状态
+        function restartFailedUpdate(serviceKey) {
+            const isSelf = serviceKey === 'admin';
+            const statusBadge = document.getElementById(`status-badge-${serviceKey}`);
+            const card = document.getElementById(`service-card-${serviceKey}`);
+
+            if (isSelf) {
+                // 管理应用重启失败，恢复为"当前服务"状态
+                if (statusBadge) {
+                    statusBadge.className = 'status-badge status-self';
+                    statusBadge.innerHTML = '<span class="status-indicator"></span>当前服务';
+                }
+            } else {
+                // 其他服务重启失败，显示为已停止
+                if (statusBadge) {
+                    statusBadge.className = 'status-badge stopped';
+                    statusBadge.innerHTML = '<span class="status-indicator"></span>已停止';
+                }
+                if (card) {
+                    card.classList.remove('restarting');
+                    card.classList.add('stopped');
+                }
+            }
+
+            // 重新加载服务状态以恢复正确的按钮
+            loadServiceStatus(serviceKey);
         }
 
         function getServiceName(serviceKey) {

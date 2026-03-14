@@ -1027,7 +1027,7 @@ def main():
     dry_run = '--dry-run' in sys.argv
 
     # Check admin/root privileges for privileged operations
-    if action in ['start', 'stop', 'restart', 'clear-ports', 'clear-port']:
+    if action in ['start', 'stop', 'restart', 'clear-port']:
         if not check_admin_rights():
             if IS_WINDOWS:
                 print_error("This operation requires administrator privileges!")
@@ -1122,16 +1122,6 @@ def main():
         print(f"Running: {Colors.OKGREEN}{running_count}{Colors.ENDC}")
         print(f"Stopped: {stopped_count}")
         print(f"Not Registered: {not_registered_count}")
-
-    elif action == 'clear-ports':
-        # Parse additional arguments
-        force = '--force' in sys.argv or '-f' in sys.argv
-        dry_run = '--dry-run' in sys.argv
-
-        mode_label = "dry-run" if dry_run else ("force" if force else "interactive")
-        print_header(f"Clear DPlayer Ports [{mode_label}]")
-
-        clear_ports_all(force=force, dry_run=dry_run)
 
     elif action == 'clear-port':
         # Parse additional arguments
@@ -1235,8 +1225,7 @@ def print_help():
     print(f"    stop              - Stop services")
     print(f"    restart           - Restart services")
     print(f"    status            - Query service status")
-    print(f"    clear-ports       - Clear all DPlayer service ports")
-    print(f"    clear-port        - Clear a specific service port or port number")
+    print(f"    clear-port        - Clear DPlayer service ports (specify 'all' or port number)")
     if not IS_WINDOWS:
         print(f"    autostart-enable  - Enable auto-start (Linux only)")
         print(f"    autostart-disable - Disable auto-start (Linux only)")
@@ -1261,10 +1250,10 @@ def print_help():
     print(f"    {sys.argv[0]} restart admin")
     print(f"    {sys.argv[0]} restart --force      # Auto-kill port conflicts")
     print(f"    {sys.argv[0]} status")
-    print(f"    {sys.argv[0]} clear-ports")
+    print(f"    {sys.argv[0]} clear-port all")
     print(f"    {sys.argv[0]} clear-port admin")
     print(f"    {sys.argv[0]} clear-port 8080 --force")
-    print(f"    {sys.argv[0]} clear-ports --dry-run")
+    print(f"    {sys.argv[0]} clear-port all --dry-run")
     if not IS_WINDOWS:
         print(f"    {sys.argv[0]} autostart-enable")
         print(f"    {sys.argv[0]} autostart-disable main")
