@@ -69,7 +69,7 @@ SERVICES = {
         'port': config.get('ports', {}).get('admin_app', 8080),
         'script': os.path.join(BASEDIR, 'admin_app.py'),
         'pid_file': os.path.join(BASEDIR, 'instance', 'admin_app.pid'),
-        'task_name': 'dplayer-admin',
+        'service_name': 'DPlayer-Admin',  # Windows服务名
     },
     'main': {
         'name': 'DPlayer-Main',
@@ -77,7 +77,7 @@ SERVICES = {
         'port': config.get('ports', {}).get('main_app', 8081),
         'script': os.path.join(BASEDIR, 'app.py'),
         'pid_file': os.path.join(BASEDIR, 'instance', 'main_app.pid'),
-        'task_name': 'dplayer-main',
+        'service_name': 'DPlayer-Main',  # Windows服务名
     },
     'thumbnail': {
         'name': 'DPlayer-Thumbnail',
@@ -85,7 +85,7 @@ SERVICES = {
         'port': config.get('ports', {}).get('thumbnail', 5001),
         'script': os.path.join(BASEDIR, 'thumbnail_service.py'),
         'pid_file': os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid'),
-        'task_name': 'dplayer-thumbnail',
+        'service_name': 'DPlayer-Thumbnail',  # Windows服务名
     }
 }
 
@@ -161,6 +161,134 @@ def _stop_scheduled_task(task_name):
         return True, 'Task stopped'
     else:
         return False, stderr or 'Task stop failed'
+
+
+def _start_windows_service(service_name):
+    """启动Windows服务（与service_controller.py一致的方式）"""
+    if not HAS_WIN32:
+        return False, 'pywin32 not installed'
+
+    try:
+        import win32service
+        import win32serviceutil
+        import win32con
+
+        # 检查服务是否存在
+        scm_handle = win32service.OpenSCManager(None, None, win32con.GENERIC_READ)
+        if scm_handle == 0:
+            return False, 'Cannot open service control manager'
+
+        service_handle = win32service.OpenService(scm_handle, service_name, win32con.GENERIC_READ)
+        if service_handle == 0:
+            win32service.CloseServiceHandle(scm_handle)
+            return False, f'Service {service_name} not found'
+
+        # 检查服务状态
+        status = win32service.QueryServiceStatus(service_handle)
+        win32service.CloseServiceHandle(service_handle)
+        win32service.CloseServiceHandle(scm_handle)
+
+        state_map = {
+            win32service.SERVICE_RUNNING: 'RUNNING',
+            win32service.SERVICE_STOPPED: 'STOPPED'
+        }
+
+        if status[1] == win32service.SERVICE_RUNNING:
+            return True, 'Service already running'
+
+        # 启动服务
+        scm_handle = win32service.OpenSCManager(None, None, win32con.GENERIC_EXECUTE)
+        service_handle = win32service.OpenService(scm_handle, service_name, win32service.SERVICE_START)
+        win32service.StartService(service_handle, None)
+        win32service.CloseServiceHandle(service_handle)
+        win32service.CloseServiceHandle(scm_handle)
+
+        return True, 'Service starting'
+
+    except Exception as e:
+        return False, str(e)
+
+
+def _stop_windows_service(service_name):
+    """停止Windows服务（与service_controller.py一致的方式）"""
+    if not HAS_WIN32:
+        return False, 'pywin32 not installed'
+
+    try:
+        import win32service
+        import win32serviceutil
+        import win32con
+
+        # 检查服务是否存在
+        scm_handle = win32service.OpenSCManager(None, None, win32con.GENERIC_READ)
+        if scm_handle == 0:
+            return False, 'Cannot open service control manager'
+
+        service_handle = win32service.OpenService(scm_handle, service_name, win32con.GENERIC_READ)
+        if service_handle == 0:
+            win32service.CloseServiceHandle(scm_handle)
+            return True, f'Service {service_name} not found (already stopped)'
+
+        # 检查服务状态
+        status = win32service.QueryServiceStatus(service_handle)
+        if status[1] == win32service.SERVICE_STOPPED:
+            win32service.CloseServiceHandle(service_handle)
+            win32service.CloseServiceHandle(scm_handle)
+            return True, 'Service already stopped'
+
+        win32service.CloseServiceHandle(service_handle)
+        win32service.CloseServiceHandle(scm_handle)
+
+        # 停止服务
+        scm_handle = win32service.OpenSCManager(None, None, win32con.GENERIC_EXECUTE)
+        service_handle = win32service.OpenService(scm_handle, service_name, win32service.SERVICE_ALL_ACCESS)
+        win32service.ControlService(service_handle, win32service.SERVICE_CONTROL_STOP)
+        win32service.CloseServiceHandle(service_handle)
+        win32service.CloseServiceHandle(scm_handle)
+
+        return True, 'Service stopping'
+
+    except Exception as e:
+        return False, str(e)
+
+
+def _get_windows_service_status(service_name):
+    """获取Windows服务状态"""
+    if not HAS_WIN32:
+        return None
+
+    try:
+        import win32service
+        import win32serviceutil
+        import win32con
+
+        scm_handle = win32service.OpenSCManager(None, None, win32con.GENERIC_READ)
+        if scm_handle == 0:
+            return None
+
+        service_handle = win32service.OpenService(scm_handle, service_name, win32con.GENERIC_READ)
+        if service_handle == 0:
+            win32service.CloseServiceHandle(scm_handle)
+            return None
+
+        status = win32service.QueryServiceStatus(service_handle)
+        win32service.CloseServiceHandle(service_handle)
+        win32service.CloseServiceHandle(scm_handle)
+
+        state_map = {
+            win32service.SERVICE_STOPPED: 'STOPPED',
+            win32service.SERVICE_START_PENDING: 'START_PENDING',
+            win32service.SERVICE_STOP_PENDING: 'STOP_PENDING',
+            win32service.SERVICE_RUNNING: 'RUNNING',
+            win32service.SERVICE_CONTINUE_PENDING: 'CONTINUE_PENDING',
+            win32service.SERVICE_PAUSE_PENDING: 'PAUSE_PENDING',
+            win32service.SERVICE_PAUSED: 'PAUSED'
+        }
+
+        return state_map.get(status[1], 'UNKNOWN')
+
+    except Exception as e:
+        return None
 
 def _port_listening(port):
     """检查端口是否在监听"""
@@ -288,7 +416,7 @@ def start_service(svc_key, force=False, silent=False):
     port = svc['port']
     pid_file = svc['pid_file']
     script = svc['script']
-    task_name = svc.get('task_name')
+    service_name = svc.get('service_name')
 
     if not silent:
         service_logger.info(f"准备启动服务: {svc['display_name']} (端口: {port})")
@@ -329,14 +457,31 @@ def start_service(svc_key, force=False, silent=False):
 
         time.sleep(1)  # 等待端口完全释放
 
-    # Windows 下优先尝试使用计划任务
-    if IS_WINDOWS and task_name:
-        task_result, _ = _get_scheduled_task_status(task_name)
-        if task_result:
+    # Windows 下优先尝试使用Windows服务（与service_controller.py一致的方式）
+    if not silent:
+        service_logger.info(f"检查Windows服务启动条件: IS_WINDOWS={IS_WINDOWS}, service_name={service_name}")
+
+    if IS_WINDOWS and service_name:
+        service_status = _get_windows_service_status(service_name)
+        if not silent:
+            service_logger.info(f"Windows服务状态: {service_name} = {service_status}")
+
+        if service_status == 'NOT_FOUND':
             if not silent:
-                service_logger.info(f"通过计划任务启动: {task_name}")
-            # 任务存在，使用 Start-ScheduledTask 启动
-            success, msg = _start_scheduled_task(task_name)
+                service_logger.info(f"Windows服务 {service_name} 未注册，尝试直接启动")
+        else:
+            if not silent:
+                service_logger.info(f"通过Windows服务启动: {service_name} (当前状态: {service_status})")
+
+            if service_status == 'RUNNING':
+                # 服务已在运行，获取PID
+                pid = _pid_for_port(port)
+                if not silent:
+                    service_logger.info(f"服务 {svc['display_name']} 已在运行 (PID: {pid})")
+                return {'success': True, 'message': f'{svc["display_name"]} 已在运行', 'pid': pid}
+
+            # 启动Windows服务
+            success, msg = _start_windows_service(service_name)
             if success:
                 # 等待端口就绪（最多10秒）
                 if not silent:
@@ -346,12 +491,15 @@ def start_service(svc_key, force=False, silent=False):
                     if _port_listening(port):
                         pid = _pid_for_port(port)
                         if not silent:
-                            service_logger.info(f"服务 {svc['display_name']} 通过计划任务启动成功 (PID: {pid})")
-                        return {'success': True, 'message': f'{svc["display_name"]} 启动成功（计划任务）', 'pid': pid}
-                return {'success': True, 'message': f'{svc["display_name"]} 计划任务已启动，等待端口就绪'}
+                            service_logger.info(f"服务 {svc['display_name']} 通过Windows服务启动成功 (PID: {pid})")
+                        return {'success': True, 'message': f'{svc["display_name"]} 启动成功（Windows服务）', 'pid': pid}
+                return {'success': True, 'message': f'{svc["display_name"]} Windows服务已启动，等待端口就绪'}
             else:
                 if not silent:
-                    service_logger.warning(f"计划任务启动失败: {msg}，尝试直接启动")
+                    service_logger.warning(f"Windows服务启动失败: {msg}，尝试直接启动")
+    else:
+        if not silent:
+            service_logger.info(f"跳过Windows服务启动: IS_WINDOWS={IS_WINDOWS}, service_name={service_name}")
 
     # 计划任务不存在或失败时，直接启动（保留代码热重载特性）
     if not silent:
@@ -468,7 +616,7 @@ def stop_service(svc_key, silent=False):
     svc = SERVICES[svc_key]
     port = svc['port']
     pid_file = svc['pid_file']
-    task_name = svc.get('task_name')
+    service_name = svc.get('service_name')
 
     if not silent:
         service_logger.info(f"准备停止服务: {svc['display_name']}")
@@ -477,25 +625,30 @@ def stop_service(svc_key, silent=False):
     if svc_key == 'admin' and os.getpid() == _get_pid_from_file(pid_file):
         return {'success': False, 'message': '管理后台不能停止自身'}
 
-    # Windows 下优先尝试使用计划任务停止
-    if IS_WINDOWS and task_name:
-        task_result, _ = _get_scheduled_task_status(task_name)
-        if task_result and task_result.get('state') == 'Running':
+    # Windows 下优先尝试使用Windows服务停止（与service_controller.py一致的方式）
+    if IS_WINDOWS and service_name:
+        service_status = _get_windows_service_status(service_name)
+
+        if service_status == 'NOT_FOUND':
             if not silent:
-                service_logger.info(f"通过计划任务停止: {task_name}")
-            # 任务正在运行，使用 Stop-ScheduledTask 停止
-            success, msg = _stop_scheduled_task(task_name)
+                service_logger.info(f"Windows服务 {service_name} 未注册，尝试直接终止进程")
+        elif service_status == 'RUNNING' or service_status == 'START_PENDING':
+            if not silent:
+                service_logger.info(f"通过Windows服务停止: {service_name} (当前状态: {service_status})")
+
+            # 停止Windows服务
+            success, msg = _stop_windows_service(service_name)
             if success:
                 # 等待端口释放
                 for _ in range(10):
                     time.sleep(0.5)
                     if not _port_listening(port):
                         if not silent:
-                            service_logger.info(f"服务 {svc['display_name']} 通过计划任务已停止")
-                        return {'success': True, 'message': f'{svc["display_name"]} 已停止（计划任务）'}
+                            service_logger.info(f"服务 {svc['display_name']} 通过Windows服务已停止")
+                        return {'success': True, 'message': f'{svc["display_name"]} 已停止（Windows服务）'}
             else:
                 if not silent:
-                    service_logger.warning(f"计划任务停止失败: {msg}，尝试直接终止进程")
+                    service_logger.warning(f"Windows服务停止失败: {msg}，尝试直接终止进程")
 
     # 计划任务不存在或失败时，直接终止进程
     pid = _pid_for_port(port) or _get_pid_from_file(pid_file)
