@@ -1750,6 +1750,324 @@
             color: #6bcb77;
         }
 
+        /* ========== 系统日志模块 ========== */
+        .log-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 16px 20px;
+            background: var(--color-bg-secondary);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .log-toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .log-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-filter-select {
+            padding: 8px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .log-filter-select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .log-custom-time {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-date-input {
+            padding: 6px 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.8rem;
+        }
+
+        .log-date-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .log-level-btns {
+            display: flex;
+            gap: 4px;
+        }
+
+        .log-level-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-bg);
+            color: var(--color-text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .log-level-btn:hover {
+            background: var(--color-bg-tertiary);
+            color: var(--color-text);
+        }
+
+        .log-level-btn.active {
+            background: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+        }
+
+        .log-level-btn.error.active {
+            background: #e74c3c;
+            border-color: #e74c3c;
+        }
+
+        .log-search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .log-search-box input {
+            padding: 8px 12px;
+            padding-right: 36px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.85rem;
+            width: 200px;
+        }
+
+        .log-search-box input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .log-search-icon {
+            position: absolute;
+            right: 10px;
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+
+        .log-table-container {
+            background: var(--color-bg);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            max-height: calc(100vh - 380px);
+            overflow-y: auto;
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .log-table th {
+            background: var(--color-bg-secondary);
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            border-bottom: 2px solid var(--color-border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .log-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 0.85rem;
+            color: var(--color-text);
+        }
+
+        .log-table tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .log-table tbody tr:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .log-table tbody tr.selected {
+            background: rgba(52, 152, 219, 0.1);
+            border-left: 3px solid var(--color-primary);
+        }
+
+        .log-level-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .log-level-badge.INFO {
+            background: rgba(46, 204, 113, 0.15);
+            color: #27ae60;
+        }
+
+        .log-level-badge.WARN {
+            background: rgba(243, 156, 18, 0.15);
+            color: #f39c12;
+        }
+
+        .log-level-badge.ERROR {
+            background: rgba(231, 76, 60, 0.15);
+            color: #e74c3c;
+        }
+
+        .log-summary {
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .log-realtime-hint {
+            text-align: center;
+            padding: 8px;
+            color: var(--color-primary);
+            font-size: 0.8rem;
+            background: rgba(52, 152, 219, 0.1);
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+        /* 日志详情抽屉 */
+        .log-detail-drawer-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .log-detail-drawer-overlay.active {
+            display: block;
+        }
+
+        .log-detail-drawer {
+            position: fixed;
+            top: 0;
+            right: -500px;
+            width: 500px;
+            max-width: 90vw;
+            height: 100vh;
+            background: var(--color-bg);
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-detail-drawer-overlay.active + .log-detail-drawer,
+        .log-detail-drawer.active {
+            right: 0;
+        }
+
+        .log-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-secondary);
+        }
+
+        .log-detail-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--color-text);
+        }
+
+        .log-detail-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: var(--color-text-secondary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .log-detail-close:hover {
+            background: var(--color-bg-tertiary);
+            color: var(--color-text);
+        }
+
+        .log-detail-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .log-detail-item {
+            margin-bottom: 16px;
+        }
+
+        .log-detail-label {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .log-detail-value {
+            font-size: 0.9rem;
+            color: var(--color-text);
+            word-break: break-all;
+        }
+
+        .log-detail-content {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
         /* ========== 消息提示 ========== */
         #messageArea {
             position: fixed;
@@ -2495,13 +2813,78 @@
 
         <!-- 系统日志标签页 -->
         <div class="tab-content" id="tab-logs">
-            <div class="button-group" style="margin-bottom: 20px;">
-                <button class="btn btn-primary" onclick="loadLogs('admin', 100)">📋 管理日志</button>
-                <button class="btn btn-primary" onclick="loadLogs('app', 100)">📱 应用日志</button>
-                <button class="btn btn-primary" onclick="loadLogs('thumbnail', 50)">🖼️ 缩略图日志</button>
+            <!-- 子页签导航 -->
+            <div class="sub-tabs-nav">
+                <button class="sub-tab-btn active" onclick="switchLogSubTab('admin')" id="subTab-btn-logs-admin">
+                    📋 管理日志
+                </button>
+                <button class="sub-tab-btn" onclick="switchLogSubTab('app')" id="subTab-btn-logs-app">
+                    📱 应用日志
+                </button>
+                <button class="sub-tab-btn" onclick="switchLogSubTab('thumbnail')" id="subTab-btn-logs-thumbnail">
+                    🖼️ 缩略图日志
+                </button>
             </div>
-            <div class="logs-container" id="logsContainer">
-                <div class="log-line">点击上方按钮加载日志...</div>
+
+            <!-- 操作栏 -->
+            <div class="log-toolbar">
+                <div class="log-toolbar-left">
+                    <!-- 时间筛选器 -->
+                    <select id="logTimeFilter" class="log-filter-select" onchange="filterLogs()">
+                        <option value="realtime">实时</option>
+                        <option value="today">今天</option>
+                        <option value="7days" selected>最近7天</option>
+                        <option value="custom">自定义范围</option>
+                    </select>
+                    <!-- 自定义时间范围 -->
+                    <div id="logCustomTimeRange" class="log-custom-time" style="display: none;">
+                        <input type="date" id="logStartDate" class="log-date-input" onchange="filterLogs()">
+                        <span>至</span>
+                        <input type="date" id="logEndDate" class="log-date-input" onchange="filterLogs()">
+                    </div>
+
+                    <!-- 级别筛选按钮组 -->
+                    <div class="log-level-btns">
+                        <button class="log-level-btn active" data-level="all" onclick="setLogLevel('all')">全部</button>
+                        <button class="log-level-btn" data-level="INFO" onclick="setLogLevel('INFO')">INFO</button>
+                        <button class="log-level-btn" data-level="WARN" onclick="setLogLevel('WARN')">WARN</button>
+                        <button class="log-level-btn error" data-level="ERROR" onclick="setLogLevel('ERROR')">ERROR</button>
+                    </div>
+                </div>
+
+                <div class="log-toolbar-right">
+                    <!-- 搜索框 -->
+                    <div class="log-search-box">
+                        <input type="text" id="logSearchInput" placeholder="搜索日志内容..." oninput="filterLogs()">
+                        <span class="log-search-icon">🔍</span>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <button class="btn btn-primary" onclick="exportLogs()">📥 导出日志</button>
+                    <button class="btn btn-danger" onclick="confirmClearLogs()">🗑️ 清空日志</button>
+                </div>
+            </div>
+
+            <!-- 日志列表表格 -->
+            <div class="log-table-container">
+                <table class="log-table" id="logTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 180px;">时间</th>
+                            <th style="width: 80px;">级别</th>
+                            <th style="width: 100px;">服务</th>
+                            <th>摘要</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody">
+                        <tr><td colspan="4" style="text-align: center; padding: 40px;">请选择日志类型加载日志...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 实时日志滚动提示 -->
+            <div class="log-realtime-hint" id="logRealtimeHint" style="display: none;">
+                <span>📡 实时模式下，自动滚动到最新</span>
             </div>
         </div>
     </div>
@@ -2591,6 +2974,18 @@
             </div>
         </div>
 
+        <!-- 日志详情抽屉 -->
+        <div class="log-detail-drawer-overlay" id="logDetailOverlay" onclick="closeLogDetail()"></div>
+        <div class="log-detail-drawer" id="logDetailDrawer">
+            <div class="log-detail-header">
+                <h3>日志详情</h3>
+                <button class="log-detail-close" onclick="closeLogDetail()">✕</button>
+            </div>
+            <div class="log-detail-body" id="logDetailBody">
+                <!-- 日志详情内容将通过JS动态加载 -->
+            </div>
+        </div>
+
     <script>
         // ========== 标签页切换 ==========
         function switchTab(tabName) {
@@ -2610,6 +3005,11 @@
 
             if (tabName === 'monitor') {
                 refreshSystemMonitor();
+            }
+
+            // 系统日志标签页：加载日志
+            if (tabName === 'logs') {
+                loadLogs(500);
             }
 
             // 数据管理标签页：恢复子标签页状态
@@ -4021,31 +4421,265 @@
             }
         }
 
-        // ========== 日志查看 ==========
-        async function loadLogs(type, lines) {
-            const result = await apiCall(`/api/logs?type=${type}&lines=${lines}`);
+        // ========== 系统日志模块 ==========
+        let currentLogType = 'admin';
+        let allLogs = [];
+        let filteredLogs = [];
+        let logRealtimeTimer = null;
+        let currentLogLevel = 'all';
+        let currentLogSearch = '';
+        let currentLogTimeFilter = '7days';
+
+        // 切换日志子标签
+        function switchLogSubTab(type) {
+            // 更新按钮状态
+            document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+                if (btn.id === `subTab-btn-logs-${type}`) {
+                    btn.classList.add('active');
+                } else if (btn.id && btn.id.includes('subTab-btn-logs-')) {
+                    btn.classList.remove('active');
+                }
+            });
+
+            currentLogType = type;
+            loadLogs(500);
+        }
+
+        // 加载日志
+        async function loadLogs(lines = 500) {
+            const result = await apiCall(`/api/logs?type=${currentLogType}&lines=${lines}`);
 
             if (result.success) {
-                const container = document.getElementById('logsContainer');
-                container.innerHTML = result.logs.map(line => {
-                    let className = 'log-line';
-
-                    if (line.includes('[ERROR]') || line.includes('[CRITICAL]')) {
-                        className += ' error';
-                    } else if (line.includes('[WARNING]')) {
-                        className += ' warning';
-                    } else if (line.includes('[INFO]')) {
-                        className += ' info';
-                    }
-
-                    return `<div class="${className}">${line.trim()}</div>`;
-                }).join('');
-
-                container.scrollTop = container.scrollHeight;
+                // 解析日志行为结构化数据
+                allLogs = parseLogs(result.logs);
+                filterLogs();
             } else {
-                document.getElementById('logsContainer').innerHTML = `<div class="log-line error">加载日志失败: ${result.message}</div>`;
+                document.getElementById('logTableBody').innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px; color: #e74c3c;">加载日志失败: ${result.message}</td></tr>`;
             }
         }
+
+        // 解析日志行为结构化数据
+        function parseLogs(logLines) {
+            return logLines.map((line, index) => {
+                // 解析格式: 2026-03-14 10:30:45 [INFO] [admin] 消息内容
+                const match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s*\[(\w+)\]\s*(.*)$/);
+                if (match) {
+                    return {
+                        id: index,
+                        time: match[1],
+                        level: match[2],
+                        service: match[3],
+                        summary: match[4],
+                        fullContent: line
+                    };
+                }
+                // 备用解析
+                return {
+                    id: index,
+                    time: '',
+                    level: 'INFO',
+                    service: currentLogType,
+                    summary: line,
+                    fullContent: line
+                };
+            });
+        }
+
+        // 筛选日志
+        function filterLogs() {
+            filteredLogs = allLogs.filter(log => {
+                // 级别筛选
+                if (currentLogLevel !== 'all' && log.level !== currentLogLevel) {
+                    return false;
+                }
+                // 搜索筛选
+                if (currentLogSearch && !log.fullContent.toLowerCase().includes(currentLogSearch.toLowerCase())) {
+                    return false;
+                }
+                return true;
+            });
+
+            renderLogTable();
+            updateRealtimeHint();
+        }
+
+        // 设置日志级别
+        function setLogLevel(level) {
+            currentLogLevel = level;
+            document.querySelectorAll('.log-level-btn').forEach(btn => {
+                if (btn.dataset.level === level) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            filterLogs();
+        }
+
+        // 搜索日志
+        function searchLogs() {
+            currentLogSearch = document.getElementById('logSearchInput').value;
+            filterLogs();
+        }
+
+        // 渲染日志表格
+        function renderLogTable() {
+            const tbody = document.getElementById('logTableBody');
+
+            if (filteredLogs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px;">暂无日志数据</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredLogs.map(log => `
+                <tr onclick="showLogDetail(${log.id})" data-log-id="${log.id}">
+                    <td style="width: 180px;">${log.time}</td>
+                    <td style="width: 80px;"><span class="log-level-badge ${log.level}">${log.level}</span></td>
+                    <td style="width: 100px;">${log.service}</td>
+                    <td class="log-summary">${log.summary}</td>
+                </tr>
+            `).join('');
+
+            // 如果是实时模式，自动滚动到底部
+            if (currentLogTimeFilter === 'realtime') {
+                const container = document.querySelector('.log-table-container');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // 显示日志详情
+        function showLogDetail(logId) {
+            const log = filteredLogs.find(l => l.id === logId);
+            if (!log) return;
+
+            // 高亮选中行
+            document.querySelectorAll('.log-table tbody tr').forEach(row => {
+                row.classList.remove('selected');
+                if (parseInt(row.dataset.logId) === logId) {
+                    row.classList.add('selected');
+                }
+            });
+
+            const detailBody = document.getElementById('logDetailBody');
+            detailBody.innerHTML = `
+                <div class="log-detail-item">
+                    <div class="log-detail-label">时间</div>
+                    <div class="log-detail-value">${log.time || '-'}</div>
+                </div>
+                <div class="log-detail-item">
+                    <div class="log-detail-label">级别</div>
+                    <div class="log-detail-value"><span class="log-level-badge ${log.level}">${log.level}</span></div>
+                </div>
+                <div class="log-detail-item">
+                    <div class="log-detail-label">服务</div>
+                    <div class="log-detail-value">${log.service}</div>
+                </div>
+                <div class="log-detail-item">
+                    <div class="log-detail-label">摘要</div>
+                    <div class="log-detail-value">${log.summary}</div>
+                </div>
+                <div class="log-detail-item">
+                    <div class="log-detail-label">完整内容</div>
+                    <div class="log-detail-content">${log.fullContent}</div>
+                </div>
+            `;
+
+            document.getElementById('logDetailOverlay').classList.add('active');
+            document.getElementById('logDetailDrawer').classList.add('active');
+        }
+
+        // 关闭日志详情
+        function closeLogDetail() {
+            document.getElementById('logDetailOverlay').classList.remove('active');
+            document.getElementById('logDetailDrawer').classList.remove('active');
+            document.querySelectorAll('.log-table tbody tr').forEach(row => {
+                row.classList.remove('selected');
+            });
+        }
+
+        // 更新实时提示
+        function updateRealtimeHint() {
+            const hint = document.getElementById('logRealtimeHint');
+            if (currentLogTimeFilter === 'realtime') {
+                hint.style.display = 'block';
+                startRealtimeMode();
+            } else {
+                hint.style.display = 'none';
+                stopRealtimeMode();
+            }
+        }
+
+        // 开始实时模式
+        function startRealtimeMode() {
+            if (logRealtimeTimer) return;
+            logRealtimeTimer = setInterval(() => {
+                loadLogs(500);
+            }, 3000);
+        }
+
+        // 停止实时模式
+        function stopRealtimeMode() {
+            if (logRealtimeTimer) {
+                clearInterval(logRealtimeTimer);
+                logRealtimeTimer = null;
+            }
+        }
+
+        // 时间筛选变化
+        function onTimeFilterChange() {
+            const filter = document.getElementById('logTimeFilter').value;
+            const customTime = document.getElementById('logCustomTimeRange');
+
+            if (filter === 'custom') {
+                customTime.style.display = 'flex';
+            } else {
+                customTime.style.display = 'none';
+            }
+
+            currentLogTimeFilter = filter;
+            updateRealtimeHint();
+        }
+
+        // 导出日志
+        function exportLogs() {
+            const content = filteredLogs.map(log => log.fullContent).join('\n');
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentLogType}_logs_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showMessage('日志导出成功', 'success');
+        }
+
+        // 确认清空日志
+        function confirmClearLogs() {
+            document.getElementById('confirmMessage').textContent = `确定要清空${currentLogType === 'admin' ? '管理' : currentLogType === 'app' ? '应用' : '缩略图'}日志吗？此操作不可逆！`;
+            document.getElementById('clearOptions').innerHTML = `
+                <p style="margin-bottom: 16px;">此操作将清空日志文件，是否继续？</p>
+            `;
+            document.querySelector('#confirmDialog .confirm-footer').innerHTML = `
+                <button class="btn btn-danger" onclick="clearLogs()">🗑️ 确认清空</button>
+                <button class="btn btn-secondary" onclick="closeConfirm()">❌ 取消</button>
+            `;
+            document.getElementById('confirmDialog').classList.add('show');
+        }
+
+        // 清空日志
+        async function clearLogs() {
+            const result = await apiCall(`/api/logs/clear`, 'POST', { type: currentLogType });
+            closeConfirm();
+            if (result.success) {
+                showMessage('日志清空成功', 'success');
+                loadLogs(500);
+            } else {
+                showMessage('清空失败: ' + result.message, 'error');
+            }
+        }
+
+        // 初始化日志时间筛选
+        document.getElementById('logTimeFilter').addEventListener('change', onTimeFilterChange);
 
         // ========== 初始化 ==========
         function updateRefreshTime() {
