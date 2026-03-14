@@ -981,18 +981,6 @@ def restart_service(svc_key):
 
 # ===== 服务管理页面 & API 路由 =====
 
-@app.route('/services')
-def page_services():
-    """服务管理页面"""
-    # 定义服务列表（使用配置的端口）
-    services_list = [
-        {'key': 'main', 'name': '主应用', 'description': 'app.py - 用户界面', 'port': MAIN_APP_PORT},
-        {'key': 'admin', 'name': '管理后台', 'description': 'admin_app.py - 管理界面', 'port': ADMIN_PORT},
-        {'key': 'thumbnail', 'name': '缩略图服务', 'description': 'thumbnail_service.py - 缩略图生成', 'port': THUMBNAIL_PORT}
-    ]
-    return render_template('admin/services.html', services=services_list)
-
-
 @app.route('/api/services/status')
 def api_services_status():
     """获取所有服务状态（从缓存读取）"""

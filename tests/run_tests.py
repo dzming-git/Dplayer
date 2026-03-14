@@ -38,11 +38,16 @@ try:
     TestFramework = test_framework_module.TestFramework
 except Exception as e:
     # 回退到通过tests.test_framework导入
-    from tests.test_framework import (
-        get_test_framework,
-        reset_test_framework,
-        TestFramework
-    )
+    try:
+        from tests.test_framework import (
+            get_test_framework,
+            reset_test_framework,
+            TestFramework
+        )
+    except Exception as e2:
+        print(f"无法导入test_framework: {e}")
+        print(f"回退导入也失败: {e2}")
+        sys.exit(1)
 
 
 def discover_test_files(test_dir: str = "tests") -> list:
@@ -81,14 +86,44 @@ def import_test_modules(test_files: list):
                 spec.loader.exec_module(module)
             finally:
                 # 确保标准输出和错误被恢复
-                sys.stdout = original_stdout
-                sys.stderr = original_stderr
+                # 使用备份的原始输出流,以防被关闭
+                if sys.__stdout__ and sys.__stdout__ != sys.stdout:
+                    sys.stdout = sys.__stdout__
+                elif original_stdout and original_stdout.closed:
+                    # 如果原始输出已关闭,重新打开
+                    sys.stdout = sys.__stdout__ or sys.stdout
+                else:
+                    sys.stdout = original_stdout
 
-            print(f"[导入] {module_name}")
+                if sys.__stderr__ and sys.__stderr__ != sys.stderr:
+                    sys.stderr = sys.__stderr__
+                elif original_stderr and original_stderr.closed:
+                    # 如果原始错误输出已关闭,重新打开
+                    sys.stderr = sys.__stderr__ or sys.stderr
+                else:
+                    sys.stderr = original_stderr
+
+            # 恢复后才能安全地打印
+            # 确保标准输出没有关闭
+            if sys.stdout and not sys.stdout.closed:
+                print(f"[导入] {module_name}")
+            else:
+                # 如果标准输出已关闭,使用原始输出
+                if sys.__stdout__ and not sys.__stdout__.closed:
+                    print(f"[导入] {module_name}", file=sys.__stdout__)
+
         except Exception as e:
-            print(f"[错误] 导入 {module_name} 失败: {e}")
-            import traceback
-            traceback.print_exc()
+            # 如果标准输出被关闭,使用sys.__stdout__和sys.__stderr__
+            try:
+                print(f"[错误] 导入 {module_name} 失败: {e}")
+                import traceback
+                traceback.print_exc()
+            except ValueError:
+                # 标准输出关闭,使用原始输出
+                if sys.__stdout__ and not sys.__stdout__.closed:
+                    print(f"[错误] 导入 {module_name} 失败: {e}", file=sys.__stdout__)
+                    import traceback
+                    traceback.print_exc(file=sys.__stderr__)
 
 
 def main():
