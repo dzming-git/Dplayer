@@ -2832,14 +2832,17 @@
         <div class="tab-content" id="tab-logs">
             <!-- 子页签导航 -->
             <div class="sub-tabs-nav">
-                <button class="sub-tab-btn active" onclick="switchLogSubTab('admin')" id="subTab-btn-logs-admin">
-                    📋 管理日志
+                <button class="sub-tab-btn active" onclick="switchLogSubTab('maintenance')" id="subTab-btn-logs-maintenance">
+                    🔧 维护日志
                 </button>
-                <button class="sub-tab-btn" onclick="switchLogSubTab('app')" id="subTab-btn-logs-app">
-                    📱 应用日志
+                <button class="sub-tab-btn" onclick="switchLogSubTab('runtime')" id="subTab-btn-logs-runtime">
+                    ⚙️ 运行日志
                 </button>
-                <button class="sub-tab-btn" onclick="switchLogSubTab('thumbnail')" id="subTab-btn-logs-thumbnail">
-                    🖼️ 缩略图日志
+                <button class="sub-tab-btn" onclick="switchLogSubTab('debug')" id="subTab-btn-logs-debug">
+                    🔍 调试日志
+                </button>
+                <button class="sub-tab-btn" onclick="switchLogSubTab('operation')" id="subTab-btn-logs-operation">
+                    📝 操作日志
                 </button>
             </div>
 
@@ -2886,7 +2889,7 @@
             <div class="log-table-container">
                 <table class="log-table" id="logTable">
                     <thead>
-                        <tr>
+                        <tr id="logTableHead">
                             <th style="width: 180px;">时间</th>
                             <th style="width: 80px;">级别</th>
                             <th style="width: 100px;">服务</th>
@@ -4439,7 +4442,7 @@
         }
 
         // ========== 系统日志模块 ==========
-        let currentLogType = 'admin';
+        let currentLogType = 'maintenance';
         let allLogs = [];
         let filteredLogs = [];
         let logRealtimeTimer = null;
@@ -4457,6 +4460,16 @@
                     btn.classList.remove('active');
                 }
             });
+
+            // 更新表头：操作日志显示"来源"，其他显示"级别"和"服务"
+            const isOpLog = type === 'operation';
+            const headRow = document.getElementById('logTableHead');
+            headRow.innerHTML = `
+                <th style="width: 180px;">时间</th>
+                <th style="width: 80px;">${isOpLog ? '' : '级别'}</th>
+                <th style="width: 100px;">${isOpLog ? '来源' : '服务'}</th>
+                <th>摘要</th>
+            `;
 
             currentLogType = type;
             loadLogs(500);
@@ -4483,62 +4496,90 @@
             }
         }
 
-        // 解析日志行为结构化数据
+        // 解析日志行为结构化数据 - 适配新日志格式
+        // 格式1: [时间戳] | [等级/IP] | [模块] | [内容] (维护/操作日志)
+        // 格式2: [时间戳] 级别 [文件:行号] 消息 (运行/调试日志 - Python logging格式)
         function parseLogs(logLines) {
             const result = [];
             let lastTime = '';
             let lastLevel = 'INFO';
-            let lastService = currentLogType;
+            let lastModule = currentLogType;
+
+            // 判断是否为操作日志
+            const isOperationLog = currentLogType === 'operation';
 
             for (let i = 0; i < logLines.length; i++) {
                 const line = logLines[i].trim();
                 if (!line) continue;
 
-                // 解析格式: 2026-03-14 10:30:45 [INFO] [admin] 消息内容
-                // 或: 2026-03-14 10:30:45 [ERROR] 消息内容（无服务标签）
-                let match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s*\[(\w+)\]\s*(.*)$/);
+                // 操作日志过滤：跳过登录相关记录（只记录数据修改操作：PUT/POST/DELETE）
+                if (isOperationLog) {
+                    const lowerLine = line.toLowerCase();
+                    if (lowerLine.includes('login') || lowerLine.includes('登录') ||
+                        lowerLine.includes('logout') || lowerLine.includes('登出') ||
+                        lowerLine.includes('signin') || lowerLine.includes('signout')) {
+                        continue;
+                    }
+                }
+
+                // 优先尝试解析格式1: [时间戳] | [等级/IP] | [模块] | [内容]
+                // 使用 [^\]]+ 匹配任意非 ] 字符（支持IP地址如 192.168.1.100）
+                // 匹配: [2026-03-14 10:30:45] | [192.168.1.100] | [admin] | [User login]
+                // 或: [2026-03-14 10:30:45] | [ERROR] | [app] | [Service stopped]
+                let match = line.match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]\s*\|\s*\[([^\]]+)\]\s*\|\s*\[([^\]]+)\]\s*\|\s*(.*)$/);
                 if (match) {
                     lastTime = match[1];
-                    lastLevel = match[2];
-                    lastService = match[3];
+                    // 操作日志：第二列是IP地址（来源），级别列留空
+                    // 维护日志：第二列是级别
+                    if (isOperationLog) {
+                        lastLevel = ''; // 操作日志不显示级别
+                        lastModule = match[2]; // IP地址作为来源
+                    } else {
+                        lastLevel = match[2]; // 级别
+                        lastModule = match[3]; // 模块
+                    }
                     result.push({
                         id: i,
                         time: lastTime,
                         level: lastLevel,
-                        service: lastService,
+                        module: lastModule,
                         summary: match[4],
                         fullContent: line
                     });
                     continue;
                 }
 
-                // 尝试匹配无服务标签的格式: 时间 [级别] 消息
-                match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)$/);
+                // 尝试解析格式2: Python logging格式 [时间戳] 级别 [文件:行号] 消息
+                // 匹配: [2026-03-14 10:30:45] INFO [app.py:80] message
+                match = line.match(/^\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]\s+(\w+)\s+\[(\S+)\]\s*(.*)$/);
                 if (match) {
                     lastTime = match[1];
-                    lastLevel = match[2];
+                    lastLevel = match[2]; // INFO, DEBUG, ERROR等
+                    // 从文件路径提取模块名
+                    const filePath = match[3];
+                    const fileName = filePath.includes(':') ? filePath.split(':')[0] : filePath;
+                    lastModule = fileName.replace('.py', '');
                     result.push({
                         id: i,
                         time: lastTime,
                         level: lastLevel,
-                        service: lastService,
-                        summary: match[3],
+                        module: lastModule,
+                        summary: match[4],
                         fullContent: line
                     });
                     continue;
                 }
 
                 // 多行日志（无时间戳），继承上一行的时间戳和级别
-                // 常见于Traceback堆栈信息
                 if (line && !line.match(/^\d{4}-\d{2}-\d{2}/)) {
                     result.push({
                         id: i,
                         time: lastTime,
                         level: lastLevel,
-                        service: lastService,
+                        module: lastModule,
                         summary: line,
                         fullContent: line,
-                        isContinuation: true  // 标记为后续行
+                        isContinuation: true
                     });
                     continue;
                 }
@@ -4547,8 +4588,8 @@
                 result.push({
                     id: i,
                     time: '',
-                    level: 'INFO',
-                    service: currentLogType,
+                    level: isOperationLog ? '' : 'INFO',
+                    module: currentLogType,
                     summary: line,
                     fullContent: line
                 });
@@ -4603,13 +4644,19 @@
                 return;
             }
 
+            // 操作日志使用"来源"列，其他日志使用"服务/模块"列
+            const isOperationLog = currentLogType === 'operation';
+            const moduleLabel = isOperationLog ? '来源' : '模块';
+
             tbody.innerHTML = filteredLogs.map(log => {
                 const isCont = log.isContinuation ? 'log-continue' : '';
+                // 操作日志不显示级别列（显示为空）
+                const levelDisplay = isOperationLog ? '' : (log.isContinuation ? '' : `<span class="log-level-badge ${log.level}">${log.level}</span>`);
                 return `
                 <tr onclick="showLogDetail(${log.id})" data-log-id="${log.id}" class="${isCont}">
                     <td style="width: 180px;">${log.time}</td>
-                    <td style="width: 80px;">${log.isContinuation ? '' : `<span class="log-level-badge ${log.level}">${log.level}</span>`}</td>
-                    <td style="width: 100px;">${log.service}</td>
+                    <td style="width: 80px;">${levelDisplay}</td>
+                    <td style="width: 100px;">${log.module || log.service || '-'}</td>
                     <td class="log-summary">${escapeHtml(log.summary)}</td>
                 </tr>
             `}).join('');
@@ -4634,6 +4681,9 @@
                 }
             });
 
+            const isOperationLog = currentLogType === 'operation';
+            const moduleLabel = isOperationLog ? '来源' : '模块';
+
             const detailBody = document.getElementById('logDetailBody');
             detailBody.innerHTML = `
                 <div class="log-detail-item">
@@ -4641,12 +4691,12 @@
                     <div class="log-detail-value">${escapeHtml(log.time) || '-'}</div>
                 </div>
                 <div class="log-detail-item">
-                    <div class="log-detail-label">级别</div>
-                    <div class="log-detail-value"><span class="log-level-badge ${log.level}">${log.level}</span></div>
+                    <div class="log-detail-label">${isOperationLog ? '来源IP' : '级别'}</div>
+                    <div class="log-detail-value">${isOperationLog ? escapeHtml(log.level) : `<span class="log-level-badge ${log.level}">${log.level}</span>`}</div>
                 </div>
                 <div class="log-detail-item">
-                    <div class="log-detail-label">服务</div>
-                    <div class="log-detail-value">${escapeHtml(log.service)}</div>
+                    <div class="log-detail-label">${moduleLabel}</div>
+                    <div class="log-detail-value">${escapeHtml(log.module || log.service || '-')}</div>
                 </div>
                 <div class="log-detail-item">
                     <div class="log-detail-label">摘要</div>
@@ -4729,7 +4779,14 @@
 
         // 确认清空日志
         function confirmClearLogs() {
-            document.getElementById('confirmMessage').textContent = `确定要清空${currentLogType === 'admin' ? '管理' : currentLogType === 'app' ? '应用' : '缩略图'}日志吗？此操作不可逆！`;
+            const typeNames = {
+                'maintenance': '维护',
+                'runtime': '运行',
+                'debug': '调试',
+                'operation': '操作'
+            };
+            const typeName = typeNames[currentLogType] || currentLogType;
+            document.getElementById('confirmMessage').textContent = `确定要清空${typeName}日志吗？此操作不可逆！`;
             document.getElementById('clearOptions').innerHTML = `
                 <p style="margin-bottom: 16px;">此操作将清空日志文件，是否继续？</p>
             `;
@@ -4764,6 +4821,13 @@
         document.addEventListener('DOMContentLoaded', function() {
             // 恢复上次选中的标签页
             restoreActiveTab();
+
+            // 初始化日志表头（根据当前选中的日志类型）
+            const activeLogBtn = document.querySelector('.sub-tab-btn.active');
+            if (activeLogBtn && activeLogBtn.id.includes('subTab-btn-logs-')) {
+                const logType = activeLogBtn.id.replace('subTab-btn-logs-', '');
+                switchLogSubTab(logType);
+            }
 
             updateRefreshTime();
             setInterval(updateRefreshTime, 1000);

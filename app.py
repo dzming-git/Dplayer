@@ -408,8 +408,11 @@ def get_log_lines(log_file, line_count=100, search=None, level=None):
 
 def parse_log_line(line):
     """解析单行日志，提取结构化信息"""
+    import re
     try:
-        # 日志格式: [2025-03-12 14:30:45] CRITICAL [app.py:123] message
+        # 日志格式1 (Python logging): [2025-03-12 14:30:45] CRITICAL [app.py:123] message
+        # 日志格式2 (自定义): [2025-03-12 14:30:45] | [LEVEL] | [module] | [content]
+        # 操作日志格式: [2025-03-12 14:30:45] | [IP] | [module] | [content]
         if not line.startswith('['):
             return {'raw': line}
 
@@ -419,52 +422,99 @@ def parse_log_line(line):
             return {'raw': line}
         timestamp = line[1:end_time]
 
-        # 提取级别
-        start_level = end_time + 2
-        end_level = line.find(' ', start_level)
-        if end_level == -1:
-            return {'raw': line}
-        level = line[start_level:end_level]
+        # 判断格式：查找下一个 [ 来区分格式1和格式2
+        # 格式1: [时间戳] 级别 [文件:行号] 消息 -> 级别后面是 [
+        # 格式2: [时间戳] | [级别] | [模块] | [内容] -> 时间戳后是 |
+        remaining = line[end_time+1:].strip()
+        if remaining.startswith('|'):
+            # 格式2: 自定义格式 [时间戳] | [LEVEL] | [module] | [content]
+            # 提取级别
+            level_match = re.match(r'^\|\s*\[(\w+)\]', remaining)
+            if not level_match:
+                return {'raw': line}
+            level = level_match.group(1)
 
-        # 提取文件位置
-        start_file = line.find('[', end_level)
-        end_file = line.find(']', start_file)
-        if start_file == -1 or end_file == -1:
-            return {'raw': line}
-        location = line[start_file+1:end_file]  # app.py:123
+            # 提取模块
+            module_match = re.match(r'^\|\s*\[\w+\]\s*\|\s*\[(\w+)\]', remaining)
+            if not module_match:
+                return {'raw': line}
+            module = module_match.group(1)
 
-        # 分离文件名和行号
-        if ':' in location:
-            filename, lineno = location.rsplit(':', 1)
+            # 提取消息（剩余内容）
+            msg_start = remaining.find('|', remaining.find('|') + 1)
+            message = remaining[msg_start+1:].strip() if msg_start != -1 else ''
+
+            # 标准化级别名称
+            level_map = {
+                'CRITICAL': '致命',
+                'ERROR': '错误',
+                'NOTICE': '通知',
+                'DEBUG': '调试',
+                'INFO': '通知',
+                'WARNING': '警告'
+            }
+            normalized_level = level_map.get(level, level)
+
+            return {
+                'timestamp': timestamp,
+                'level': normalized_level,
+                'level_code': level,
+                'filename': module,
+                'lineno': '0',
+                'message': message,
+                'raw': line
+            }
         else:
-            filename = location
-            lineno = '0'
+            # 格式1: Python logging格式 [时间戳] LEVEL [file:line] message
+            # 提取级别
+            space_idx = remaining.find(' ')
+            if space_idx == -1:
+                return {'raw': line}
+            level = remaining[:space_idx]
 
-        # 提取消息
-        message = line[end_file+1:].strip()
+            # 提取文件位置
+            start_file = remaining.find('[', space_idx)
+            end_file = remaining.find(']', start_file)
+            if start_file == -1 or end_file == -1:
+                return {'raw': line}
+            location = remaining[start_file+1:end_file]  # app.py:123
 
-        # 标准化级别名称
-        level_map = {
-            'CRITICAL': '致命',
-            'ERROR': '错误',
-            'NOTICE': '通知',
-            'DEBUG': '调试',
-            'INFO': '通知',  # 向后兼容
-            'WARNING': '错误',  # 向后兼容
-            'DEBUG': '调试'
-        }
+            # 分离文件名和行号
+            if ':' in location:
+                filename, lineno = location.rsplit(':', 1)
+            else:
+                filename = location
+                lineno = '0'
 
-        normalized_level = level_map.get(level, level)
+            # 提取消息
+            message = remaining[end_file+1:].strip()
 
-        return {
-            'timestamp': timestamp,
-            'level': normalized_level,
-            'level_code': level,
-            'filename': filename,
-            'lineno': lineno,
-            'message': message,
-            'raw': line
-        }
+            # 标准化级别名称
+            level_map = {
+                'CRITICAL': '致命',
+                'ERROR': '错误',
+                'NOTICE': '通知',
+                'DEBUG': '调试',
+                'INFO': '通知',
+                'WARNING': '警告'
+            }
+
+            normalized_level = level_map.get(level, level)
+
+            return {
+                'timestamp': timestamp,
+                'level': normalized_level,
+                'level_code': level,
+                'filename': filename,
+                'lineno': lineno,
+                'message': message,
+                'raw': line
+            }
+    except Exception as e:
+        return {'raw': line}
+                'message': message,
+                'raw': line
+            }
     except Exception as e:
         return {'raw': line}
 

@@ -2320,10 +2320,22 @@ def api_update_tag(tag_id):
 def api_logs():
     """获取日志"""
     try:
-        log_type = request.args.get('type', 'admin')
+        log_type = request.args.get('type', 'maintenance')
         lines = int(request.args.get('lines', 100))
 
-        log_file = os.path.join(LOG_DIR, f'{log_type}.log')
+        # 新日志文件映射
+        log_file_map = {
+            'maintenance': 'maintenance.log',
+            'runtime': 'runtime.log',
+            'debug': 'debug.log',
+            'operation': 'operation.log',
+            # 兼容旧类型
+            'admin': 'maintenance.log',
+            'app': 'runtime.log',
+            'thumbnail': 'debug.log'
+        }
+        log_file_name = log_file_map.get(log_type, f'{log_type}.log')
+        log_file = os.path.join(LOG_DIR, log_file_name)
 
         # 如果日志文件不存在，返回空结果而不是错误
         if not os.path.exists(log_file):
@@ -2399,6 +2411,18 @@ def api_logs_clear():
         data = request.get_json()
         log_type = data.get('type', 'all')
 
+        # 新日志文件映射
+        log_file_map = {
+            'maintenance': 'maintenance.log',
+            'runtime': 'runtime.log',
+            'debug': 'debug.log',
+            'operation': 'operation.log',
+            # 兼容旧类型
+            'admin': 'maintenance.log',
+            'app': 'runtime.log',
+            'thumbnail': 'debug.log'
+        }
+
         if log_type == 'all':
             # 清空所有日志文件
             count = 0
@@ -2412,12 +2436,13 @@ def api_logs_clear():
             return jsonify({'success': True, 'message': f'已清空 {count} 个日志文件'})
         else:
             # 清空指定类型的日志
-            log_file = os.path.join(LOG_DIR, f'{log_type}.log')
+            log_file_name = log_file_map.get(log_type, f'{log_type}.log')
+            log_file = os.path.join(LOG_DIR, log_file_name)
             if os.path.exists(log_file):
                 with open(log_file, 'w', encoding='utf-8') as f:
                     f.write('')
-                admin_logger.info(f"清空日志文件: {log_type}.log")
-                return jsonify({'success': True, 'message': f'已清空 {log_type}.log'})
+                admin_logger.info(f"清空日志文件: {log_file_name}")
+                return jsonify({'success': True, 'message': f'已清空 {log_file_name}'})
             else:
                 return jsonify({'success': False, 'message': '日志文件不存在'})
     except Exception as e:
