@@ -12,15 +12,24 @@
         }
 
         :root {
+            /* ========== 设计规范 ========== */
+            /* 主色调：科技蓝 */
+            --color-primary: #0ea5e9;
+            --color-primary-dark: #0284c7;
+            --color-primary-light: #e0f2fe;
+
             /* 状态色板 */
-            --color-success: #10b981;
-            --color-success-light: #d1fae5;
+            --color-success: #22c55e;
+            --color-success-light: #dcfce7;
+            --color-success-dark: #16a34a;
             --color-danger: #ef4444;
             --color-danger-light: #fee2e2;
+            --color-danger-dark: #dc2626;
             --color-info: #3b82f6;
             --color-info-light: #dbeafe;
             --color-warning: #f59e0b;
             --color-warning-light: #fef3c7;
+            --color-warning-dark: #d97706;
             --color-neutral: #6b7280;
             --color-neutral-light: #f3f4f6;
 
@@ -39,8 +48,8 @@
             --color-border-light: #f1f5f9;
 
             /* 渐变色 */
-            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            --gradient-primary: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            --gradient-success: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
             --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
             --gradient-info: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
@@ -51,6 +60,28 @@
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
             --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+            /* 间距系统：8px为基数 */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+
+            /* 圆角 */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+
+            /* 字体 */
+            --font-mono: 'Roboto Mono', 'Consolas', 'Monaco', monospace;
+        }
+
+        /* 数字使用等宽字体 */
+        .mono-number {
+            font-family: var(--font-mono);
+            font-weight: 500;
         }
 
         body {
@@ -194,10 +225,10 @@
             margin-bottom: 30px;
         }
 
+        /* ========== 服务卡片 ========== */
         .service-card {
             background: var(--color-bg);
-            border-radius: 16px;
-            padding: 24px;
+            border-radius: var(--radius-lg);
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--color-border);
             transition: all 0.3s ease;
@@ -205,13 +236,14 @@
             overflow: hidden;
         }
 
+        /* 状态条 */
         .service-card::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            height: 4px;
+            height: 6px;
             background: var(--color-neutral);
             transition: background 0.3s ease;
         }
@@ -221,7 +253,7 @@
         }
 
         .service-card.stopped::before {
-            background: var(--color-danger);
+            background: var(--color-neutral);
         }
 
         .service-card.restarting::before {
@@ -239,16 +271,19 @@
             transform: translateY(-4px);
         }
 
-        .service-header {
+        .service-card-content {
+            padding: var(--space-lg);
+        }
+
+        /* 标题区 */
+        .service-title-row {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 20px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--color-border-light);
+            margin-bottom: var(--space-md);
         }
 
-        .service-title {
+        .service-title-left {
             flex: 1;
         }
 
@@ -256,19 +291,154 @@
             font-size: 1.25rem;
             font-weight: 600;
             color: var(--color-text);
-            margin-bottom: 8px;
+            margin-bottom: var(--space-xs);
         }
 
         .service-entry {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: var(--color-text-tertiary);
-            font-family: 'Courier New', monospace;
+            font-family: var(--font-mono);
         }
 
         .service-desc {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--color-text-secondary);
-            margin-top: 10px;
+            margin-top: var(--space-sm);
+        }
+
+        /* 状态徽章 */
+        .status-badge {
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-neutral);
+        }
+
+        .status-badge.running .status-dot {
+            background: var(--color-success);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        .status-badge.stopped .status-dot {
+            background: var(--color-neutral);
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        /* 服务信息网格：2x2方框排列 */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .info-item {
+            background: var(--color-bg-secondary);
+            padding: 12px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            background: var(--color-bg-tertiary);
+            border-radius: 8px;
+        }
+
+        .info-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--color-text-tertiary);
+            margin-bottom: 2px;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--color-text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* 操作区：按钮并列 */
+        .service-actions {
+            display: flex;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+
+        .service-actions .action-btn {
+            flex: 1;
+            padding: var(--space-sm) var(--space-md);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+        }
+
+        .btn-stop {
+            background: var(--color-danger-light);
+            color: var(--color-danger-dark);
+        }
+
+        .btn-stop:hover {
+            background: var(--color-danger);
+            color: white;
+        }
+
+        .btn-restart {
+            background: var(--color-info-light);
+            color: var(--color-info);
+        }
+
+        .btn-restart:hover {
+            background: var(--color-info);
+            color: white;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .action-btn.loading {
+            animation: btn-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes btn-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .status-badge {
@@ -494,15 +664,27 @@
         /* ========== 系统监控卡片 ========== */
         .monitor-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+
+        @media (max-width: 1200px) {
+            .monitor-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .monitor-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .monitor-card {
             background: var(--color-bg);
-            border-radius: 16px;
-            padding: 24px;
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--color-border);
             transition: all 0.3s ease;
@@ -516,74 +698,259 @@
         .monitor-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 20px;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
         }
 
         .monitor-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.25rem;
         }
 
-        .monitor-card:nth-child(1) .monitor-icon {
+        .monitor-card.cpu-card .monitor-icon {
             background: var(--color-info-light);
         }
 
-        .monitor-card:nth-child(2) .monitor-icon {
+        .monitor-card.memory-card .monitor-icon {
             background: var(--color-success-light);
         }
 
-        .monitor-card:nth-child(3) .monitor-icon {
+        .monitor-card.disk-card .monitor-icon {
             background: var(--color-warning-light);
         }
 
         .monitor-title {
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: var(--color-text-secondary);
             font-weight: 500;
         }
 
-        .monitor-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--color-text);
-            margin-bottom: 8px;
+        /* CPU环形进度条 */
+        .cpu-ring-container {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: var(--space-md) auto;
         }
 
-        .monitor-unit {
-            font-size: 0.9rem;
+        .cpu-ring {
+            transform: rotate(-90deg);
+        }
+
+        .cpu-ring-bg {
+            fill: none;
+            stroke: var(--color-bg-tertiary);
+            stroke-width: 12;
+        }
+
+        .cpu-ring-progress {
+            fill: none;
+            stroke-width: 12;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+        }
+
+        .cpu-ring-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .cpu-ring-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+            line-height: 1;
+        }
+
+        .cpu-ring-label {
+            font-size: 0.75rem;
+            color: var(--color-text-tertiary);
+            margin-top: 4px;
+        }
+
+        /* 内存/磁盘环形进度条（复用CPU环形样式） */
+        .ring-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: var(--space-md) auto;
+        }
+
+        .ring {
+            transform: rotate(-90deg);
+        }
+
+        .ring-bg {
+            fill: none;
+            stroke: var(--color-bg-tertiary);
+            stroke-width: 10;
+        }
+
+        .ring-progress {
+            fill: none;
+            stroke-width: 10;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+        }
+
+        .ring-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .ring-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+            line-height: 1;
+        }
+
+        .ring-label {
+            font-size: 0.7rem;
+            color: var(--color-text-tertiary);
+            margin-top: 2px;
+        }
+
+        /* 内存显示优化 */
+        .memory-display {
+            text-align: center;
+            margin: var(--space-sm) 0;
+        }
+
+        .memory-used-total {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+        }
+
+        .memory-used-total span {
+            font-size: 1rem;
+            font-weight: 400;
             color: var(--color-text-tertiary);
         }
 
+        .memory-percent {
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            margin-top: var(--space-xs);
+        }
+
         .monitor-progress {
-            height: 8px;
-            background: var(--color-bg-secondary);
-            border-radius: 4px;
+            height: 10px;
+            background: var(--color-bg-tertiary);
+            border-radius: var(--radius-sm);
             overflow: hidden;
-            margin-top: 15px;
+            margin-top: var(--space-md);
         }
 
         .monitor-progress-bar {
             height: 100%;
-            border-radius: 4px;
+            border-radius: var(--radius-sm);
             transition: width 0.5s ease;
         }
 
-        .monitor-card:nth-child(1) .monitor-progress-bar {
+        .cpu-card .monitor-progress-bar {
             background: var(--gradient-info);
         }
 
-        .monitor-card:nth-child(2) .monitor-progress-bar {
+        .memory-card .monitor-progress-bar {
             background: var(--gradient-success);
         }
 
-        .monitor-card:nth-child(3) .monitor-progress-bar {
+        .disk-card .monitor-progress-bar {
             background: var(--gradient-warning);
+        }
+
+        /* 磁盘多卡片 */
+        .disks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
+        }
+
+        .disk-item {
+            background: var(--color-bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .disk-item:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .disk-item-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+            margin-bottom: var(--space-xs);
+        }
+
+        .disk-item-icon {
+            font-size: 1.25rem;
+        }
+
+        .disk-item-name {
+            font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+        }
+
+        .disk-item-value {
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--color-text);
+            margin-top: var(--space-xs);
+        }
+
+        .disk-item-value span {
+            font-size: 0.7rem;
+            font-weight: 400;
+            color: var(--color-text-tertiary);
+        }
+
+        .disk-item-progress {
+            height: 6px;
+            background: var(--color-bg);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: var(--space-sm);
+        }
+
+        .disk-item-progress-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .disk-item-progress-bar.warning {
+            background: var(--color-warning);
+        }
+
+        .disk-item-progress-bar.danger {
+            background: var(--color-danger);
+        }
+
+        .disk-item-progress-bar.normal {
+            background: var(--color-success);
         }
 
         /* ========== 数据库统计 ========== */
@@ -1148,18 +1515,21 @@
             <div class="services-grid" id="servicesGrid">
                 {% for svc in services %}
                 <div class="service-card" id="service-card-{{ svc.key }}" data-service-key="{{ svc.key }}">
-                    <div class="service-header">
-                        <div class="service-title">
-                            <div class="service-name">{{ svc.name }}</div>
-                            <div class="service-entry">{{ svc.entry_point }}</div>
-                            <div class="service-desc">{{ svc.description }}</div>
+                    <div class="service-card-content">
+                        <!-- 标题区 -->
+                        <div class="service-title-row">
+                            <div class="service-title-left">
+                                <div class="service-name">{{ svc.name }}</div>
+                                <div class="service-entry">{{ svc.entry_point }}</div>
+                                <div class="service-desc">{{ svc.description }}</div>
+                            </div>
+                            <span class="status-badge" id="status-badge-{{ svc.key }}">
+                                <span class="status-dot"></span>
+                                <span id="status-text-{{ svc.key }}">{% if svc.key == 'admin' %}当前服务{% else %}检测中...{% endif %}</span>
+                            </span>
                         </div>
-                        <span class="status-badge status-self" id="status-badge-{{ svc.key }}">
-                            <span class="status-indicator"></span>
-                            {% if svc.key == 'admin' %}当前服务{% else %}检测中...{% endif %}
-                        </span>
-                    </div>
-                    <div class="service-body">
+
+                        <!-- 信息区 -->
                         <div class="info-grid">
                             <div class="info-item">
                                 <div class="info-icon">🌐</div>
@@ -1186,13 +1556,15 @@
                                 <div class="info-icon">📊</div>
                                 <div class="info-content">
                                     <div class="info-label">内存</div>
-                                    <div class="info-value memory-display" id="memory-{{ svc.key }}">--</div>
+                                    <div class="info-value" id="memory-{{ svc.key }}">--</div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="service-actions" id="actions-{{ svc.key }}">
-                        <span style="color: var(--color-text-tertiary); font-style: italic; padding: 10px 0;">检测中...</span>
+
+                        <!-- 操作区 -->
+                        <div class="service-actions" id="actions-{{ svc.key }}">
+                            <span style="color: var(--color-text-tertiary); font-style: italic; padding: 10px 0;">检测中...</span>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -1202,38 +1574,65 @@
         <!-- 系统监控标签页 -->
         <div class="tab-content" id="tab-monitor">
             <div class="monitor-grid">
-                <div class="monitor-card">
+                <!-- CPU卡片 -->
+                <div class="monitor-card cpu-card">
                     <div class="monitor-header">
                         <div class="monitor-icon">💻</div>
-                        <div class="monitor-title">系统负载</div>
+                        <div class="monitor-title">系统负载 (CPU)</div>
                     </div>
-                    <div class="monitor-value" id="cpuValue">--</div>
-                    <div class="monitor-unit">% CPU 使用</div>
+                    <!-- 环形进度条 -->
+                    <div class="cpu-ring-container">
+                        <svg class="cpu-ring" width="140" height="140" viewBox="0 0 140 140">
+                            <circle class="cpu-ring-bg" cx="70" cy="70" r="58"></circle>
+                            <circle class="cpu-ring-progress" id="cpuRingProgress" cx="70" cy="70" r="58"
+                                stroke-dasharray="364.4" stroke-dashoffset="364.4"></circle>
+                        </svg>
+                        <div class="cpu-ring-center">
+                            <div class="cpu-ring-value" id="cpuValue">--</div>
+                            <div class="cpu-ring-label">%</div>
+                        </div>
+                    </div>
                     <div class="monitor-progress">
                         <div class="monitor-progress-bar" id="cpuProgress" style="width: 0%"></div>
                     </div>
                 </div>
-                <div class="monitor-card">
+
+                <!-- 内存卡片 -->
+                <div class="monitor-card memory-card">
                     <div class="monitor-header">
                         <div class="monitor-icon">📊</div>
                         <div class="monitor-title">内存使用</div>
                     </div>
-                    <div class="monitor-value" id="memoryValue">--</div>
-                    <div class="monitor-unit">GB / 百分比</div>
+                    <!-- 环形进度条 -->
+                    <div class="ring-container">
+                        <svg class="ring" width="120" height="120" viewBox="0 0 120 120">
+                            <circle class="ring-bg" cx="60" cy="60" r="50"></circle>
+                            <circle class="ring-progress" id="memoryRingProgress" cx="60" cy="60" r="50"
+                                stroke-dasharray="314" stroke-dashoffset="314"></circle>
+                        </svg>
+                        <div class="ring-center">
+                            <div class="ring-value" id="memoryPercent">--</div>
+                            <div class="ring-label">%</div>
+                        </div>
+                    </div>
+                    <div class="memory-display">
+                        <div class="memory-used-total">
+                            <span id="memoryUsed">--</span> <span>/ <span id="memoryTotal">--</span> GB</span>
+                        </div>
+                    </div>
                     <div class="monitor-progress">
                         <div class="monitor-progress-bar" id="memoryProgress" style="width: 0%"></div>
                     </div>
                 </div>
-                <div class="monitor-card">
+
+                <!-- 磁盘卡片 -->
+                <div class="monitor-card disk-card" id="diskCard">
                     <div class="monitor-header">
                         <div class="monitor-icon">💾</div>
                         <div class="monitor-title">磁盘使用</div>
                     </div>
-                    <div class="monitor-value" id="diskValue">--</div>
-                    <div class="monitor-unit">GB / 百分比</div>
-                    <div class="monitor-progress">
-                        <div class="monitor-progress-bar" id="diskProgress" style="width: 0%"></div>
-                    </div>
+                    <!-- 磁盘多卡片容器 -->
+                    <div class="disks-grid" id="disksContainer"></div>
                 </div>
             </div>
         </div>
@@ -1417,16 +1816,96 @@
                 if (data.success && data.system) {
                     const sys = data.system;
 
-                    document.getElementById('cpuValue').textContent = sys.cpu_percent.toFixed(1);
-                    document.getElementById('cpuProgress').style.width = `${sys.cpu_percent}%`;
+                    // CPU环形进度条
+                    const cpuPercent = sys.cpu_percent;
+                    const cpuValueEl = document.getElementById('cpuValue');
+                    const cpuProgressEl = document.getElementById('cpuProgress');
+                    const cpuRingEl = document.getElementById('cpuRingProgress');
 
-                    const memoryGb = sys.memory_total_gb * sys.memory_percent / 100;
-                    document.getElementById('memoryValue').textContent = `${memoryGb.toFixed(1)}GB (${sys.memory_percent.toFixed(1)}%)`;
-                    document.getElementById('memoryProgress').style.width = `${sys.memory_percent}%`;
+                    cpuValueEl.textContent = cpuPercent.toFixed(1);
+                    cpuProgressEl.style.width = `${cpuPercent}%`;
 
-                    const diskGb = sys.disk_total_gb * sys.disk_percent / 100;
-                    document.getElementById('diskValue').textContent = `${diskGb.toFixed(1)}GB (${sys.disk_percent.toFixed(1)}%)`;
-                    document.getElementById('diskProgress').style.width = `${sys.disk_percent}%`;
+                    // 环形进度条计算
+                    const circumference = 2 * Math.PI * 58; // r=58
+                    const offset = circumference - (cpuPercent / 100) * circumference;
+                    cpuRingEl.style.strokeDashoffset = offset;
+
+                    // 根据CPU百分比设置颜色
+                    let cpuColor = '#3b82f6'; // 蓝色-低
+                    if (cpuPercent >= 80) {
+                        cpuColor = '#ef4444'; // 红色-高
+                    } else if (cpuPercent >= 50) {
+                        cpuColor = '#f59e0b'; // 黄色-中
+                    }
+                    cpuRingEl.style.stroke = cpuColor;
+
+                    // 内存显示
+                    const memoryUsed = sys.memory_used_gb;
+                    const memoryTotal = sys.memory_total_gb;
+                    const memoryPercent = sys.memory_percent;
+
+                    document.getElementById('memoryUsed').textContent = memoryUsed.toFixed(1);
+                    document.getElementById('memoryTotal').textContent = memoryTotal.toFixed(1);
+                    document.getElementById('memoryPercent').textContent = memoryPercent.toFixed(1);
+                    document.getElementById('memoryProgress').style.width = `${memoryPercent}%`;
+
+                    // 内存环形图
+                    const memoryRingEl = document.getElementById('memoryRingProgress');
+                    const memoryCircumference = 314; // 2 * PI * 50
+                    const memoryOffset = memoryCircumference - (memoryCircumference * memoryPercent / 100);
+                    memoryRingEl.style.strokeDashoffset = memoryOffset;
+                    // 内存颜色：低<50%绿，中50-80%黄，高>80%红
+                    let memoryColor = 'var(--color-success)';
+                    if (memoryPercent >= 80) {
+                        memoryColor = 'var(--color-danger)';
+                    } else if (memoryPercent >= 50) {
+                        memoryColor = 'var(--color-warning)';
+                    }
+                    memoryRingEl.style.stroke = memoryColor;
+
+                    // 磁盘多卡片显示（带环形图）
+                    if (sys.disks && sys.disks.length > 0) {
+                        const disksContainer = document.getElementById('disksContainer');
+                        const diskCircumference = 220; // 2 * PI * 35
+                        disksContainer.innerHTML = sys.disks.map(disk => {
+                            const usedGb = disk.used;
+                            const totalGb = disk.total;
+                            const percent = disk.percent;
+
+                            // 环形图颜色：根据使用率阈值变化
+                            let ringColor = 'var(--color-success)';
+                            if (percent >= 90) {
+                                ringColor = 'var(--color-danger)';
+                            } else if (percent >= 70) {
+                                ringColor = 'var(--color-warning)';
+                            }
+
+                            const ringOffset = diskCircumference - (diskCircumference * percent / 100);
+
+                            return `<div class="disk-item">
+                                <div class="disk-item-header">
+                                    <span class="disk-item-icon">💾</span>
+                                    <span class="disk-item-name">${disk.mountpoint}</span>
+                                </div>
+                                <!-- 磁盘环形图 -->
+                                <div class="ring-container" style="width: 80px; height: 80px;">
+                                    <svg class="ring" width="80" height="80" viewBox="0 0 80 80">
+                                        <circle class="ring-bg" cx="40" cy="40" r="35"></circle>
+                                        <circle class="ring-progress" style="stroke: ${ringColor}; stroke-dasharray: ${diskCircumference}; stroke-dashoffset: ${ringOffset};" cx="40" cy="40" r="35"></circle>
+                                    </svg>
+                                    <div class="ring-center">
+                                        <div class="ring-value" style="font-size: 1rem;">${percent.toFixed(0)}</div>
+                                        <div class="ring-label">%</div>
+                                    </div>
+                                </div>
+                                <div class="disk-item-value">
+                                    ${usedGb.toFixed(1)} <span>/ ${totalGb.toFixed(1)} GB</span>
+                                </div>
+                            </div>`;
+                        }).join('');
+                    } else {
+                        document.getElementById('disksContainer').innerHTML = '<div style="color: var(--color-text-tertiary);">暂无磁盘数据</div>';
+                    }
                 }
             } catch (error) {
                 console.error('获取系统监控数据失败:', error);
@@ -1487,20 +1966,22 @@
 
             const card = document.getElementById(`service-card-${serviceKey}`);
             const statusBadge = document.getElementById(`status-badge-${serviceKey}`);
+            const statusText = document.getElementById(`status-text-${serviceKey}`);
             const pidDisplay = document.getElementById(`pid-${serviceKey}`);
             const cpuDisplay = document.getElementById(`cpu-${serviceKey}`);
             const memoryDisplay = document.getElementById(`memory-${serviceKey}`);
             const actionsDiv = document.getElementById(`actions-${serviceKey}`);
 
             if (isSelf) {
-                statusBadge.className = 'status-badge status-self';
-                statusBadge.innerHTML = '<span class="status-indicator"></span>当前服务';
+                statusBadge.className = 'status-badge running';
+                statusText.textContent = '当前服务';
                 card.classList.add('running');
+                card.classList.remove('stopped', 'restarting');
 
                 // 管理应用只显示重启按钮，不显示停止按钮
                 if (isRestarting) {
                     actionsDiv.innerHTML = `
-                        <button class="action-btn" disabled>⏳ 重启中...</button>
+                        <button class="action-btn btn-restart loading" disabled>⏳ 重启中...</button>
                     `;
                 } else {
                     actionsDiv.innerHTML = `
@@ -1511,15 +1992,15 @@
                 // 如果服务正在重启,显示重启状态并禁用按钮
                 if (isRestarting) {
                     statusBadge.className = 'status-badge restarting';
-                    statusBadge.innerHTML = '<span class="status-indicator"></span>重启中';
+                    statusText.textContent = '重启中';
                     card.classList.add('restarting');
                     card.classList.remove('running', 'stopped');
 
                     actionsDiv.innerHTML = `
-                        <button class="action-btn" disabled>⏳ 重启中...</button>
+                        <button class="action-btn loading" disabled>⏳ 重启中...</button>
                     `;
 
-                    pidDisplay.textContent = 'N/A';
+                    pidDisplay.textContent = '--';
                     cpuDisplay.textContent = '--';
                     memoryDisplay.textContent = '--';
                     return;
@@ -1527,27 +2008,27 @@
 
                 if (service.running) {
                     statusBadge.className = 'status-badge running';
-                    statusBadge.innerHTML = '<span class="status-indicator"></span>运行中';
+                    statusText.textContent = '运行中';
                     card.classList.add('running');
                     card.classList.remove('stopped', 'restarting');
 
                     actionsDiv.innerHTML = `
-                        <button class="action-btn btn-stop" onclick="stopService('${serviceKey}')">⏹️ 停止</button>
+                        <button class="action-btn btn-stop" onclick="stopService('${serviceKey}')">⏹ 停止</button>
                         <button class="action-btn btn-restart" onclick="restartService('${serviceKey}')">🔄 重启</button>
                     `;
                 } else {
                     statusBadge.className = 'status-badge stopped';
-                    statusBadge.innerHTML = '<span class="status-indicator"></span>已停止';
+                    statusText.textContent = '已停止';
                     card.classList.add('stopped');
                     card.classList.remove('running', 'restarting');
 
                     actionsDiv.innerHTML = `
-                        <button class="action-btn btn-start" onclick="startService('${serviceKey}')">▶️ 启动</button>
+                        <button class="action-btn" style="background: var(--color-success-light); color: var(--color-success-dark);" onclick="startService('${serviceKey}')">▶ 启动</button>
                     `;
                 }
             }
 
-            pidDisplay.textContent = service.pid || 'N/A';
+            pidDisplay.textContent = service.pid || '--';
             cpuDisplay.textContent = `${service.cpu_percent}%`;
             memoryDisplay.textContent = `${service.memory_mb} MB`;
         }
@@ -1833,19 +2314,20 @@
         function restartFailedUpdate(serviceKey) {
             const isSelf = serviceKey === 'admin';
             const statusBadge = document.getElementById(`status-badge-${serviceKey}`);
+            const statusText = document.getElementById(`status-text-${serviceKey}`);
             const card = document.getElementById(`service-card-${serviceKey}`);
 
             if (isSelf) {
                 // 管理应用重启失败，恢复为"当前服务"状态
                 if (statusBadge) {
-                    statusBadge.className = 'status-badge status-self';
-                    statusBadge.innerHTML = '<span class="status-indicator"></span>当前服务';
+                    statusBadge.className = 'status-badge running';
+                    statusText.textContent = '当前服务';
                 }
             } else {
                 // 其他服务重启失败，显示为已停止
                 if (statusBadge) {
                     statusBadge.className = 'status-badge stopped';
-                    statusBadge.innerHTML = '<span class="status-indicator"></span>已停止';
+                    statusText.textContent = '已停止';
                 }
                 if (card) {
                     card.classList.remove('restarting');

@@ -464,37 +464,61 @@ def get_system_stats():
         cpu_percent = psutil.cpu_percent(interval=1.0)  # 增加到1秒
         memory = psutil.virtual_memory()
 
-        # 获取磁盘信息
+        # 获取磁盘信息（只统计本地磁盘，排除移动硬盘）
+        disks = []
         try:
-            if os.name == 'nt':  # Windows
-                cwd = os.getcwd()
-                drive = os.path.splitdrive(cwd)[0]
-                disk = psutil.disk_usage(drive)
-            else:  # Linux/Mac
-                disk = psutil.disk_usage('/')
+            partitions = psutil.disk_partitions()
+            for partition in partitions:
+                # 跳过光驱和可移动设备
+                if 'cdrom' in partition.opts.lower() or 'removable' in partition.opts.lower():
+                    continue
+                try:
+                    usage = psutil.disk_usage(partition.mountpoint)
+                    # Windows下检查是否是本地磁盘
+                    if os.name == 'nt':
+                        # 只统计C:、D:等本地磁盘，不统计移动硬盘
+                        if partition.device[0].isalpha():
+                            drive_type = psutil.disk_usage(partition.mountpoint)
+                            disks.append({
+                                'device': partition.device,
+                                'mountpoint': partition.mountpoint,
+                                'total': usage.total / 1024 / 1024 / 1024,      # GB
+                                'used': usage.used / 1024 / 1024 / 1024,        # GB
+                                'percent': usage.percent
+                            })
+                    else:
+                        # Linux/Mac
+                        usage = psutil.disk_usage(partition.mountpoint)
+                        disks.append({
+                            'device': partition.device,
+                            'mountpoint': partition.mountpoint,
+                            'total': usage.total / 1024 / 1024 / 1024,
+                            'used': usage.used / 1024 / 1024 / 1024,
+                            'percent': usage.percent
+                        })
+                except Exception:
+                    pass
         except Exception as e:
             admin_logger.warning(f"获取磁盘信息失败: {e}")
-            disk = None
 
         stats = {
             'cpu_percent': cpu_percent,
-            'memory_total': memory.total / 1024 / 1024 / 1024,  # GB
-            'memory_used': memory.used / 1024 / 1024 / 1024,    # GB
+            'memory_total_gb': memory.total / 1024 / 1024 / 1024,  # GB
+            'memory_used_gb': memory.used / 1024 / 1024 / 1024,    # GB
             'memory_percent': memory.percent,
+            'disks': disks  # 磁盘数组，每个磁盘独立统计
         }
 
-        if disk:
-            stats.update({
-                'disk_total': disk.total / 1024 / 1024 / 1024,      # GB
-                'disk_used': disk.used / 1024 / 1024 / 1024,        # GB
-                'disk_percent': disk.percent
-            })
+        # 为了兼容性，添加第一个磁盘的信息作为默认磁盘
+        if disks:
+            first_disk = disks[0]
+            stats['disk_total_gb'] = first_disk['total']
+            stats['disk_used_gb'] = first_disk['used']
+            stats['disk_percent'] = first_disk['percent']
         else:
-            stats.update({
-                'disk_total': 0,
-                'disk_used': 0,
-                'disk_percent': 0
-            })
+            stats['disk_total_gb'] = 0
+            stats['disk_used_gb'] = 0
+            stats['disk_percent'] = 0
 
         return stats
     except Exception as e:
