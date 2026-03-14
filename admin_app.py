@@ -188,6 +188,7 @@ def load_config():
 config = load_config()
 ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
 MAIN_APP_PORT = config.get('ports', {}).get('main_app', 8081)  # 改为8081避免需要管理员权限
+THUMBNAIL_PORT = config.get('ports', {}).get('thumbnail', 5001)  # 从配置文件读取
 HOST = config.get('host', '0.0.0.0')
 
 app = Flask(__name__)
@@ -522,10 +523,10 @@ SERVICES = {
     'thumbnail': {
         'name': '缩略图服务',
         'description': 'thumbnail_service.py - 缩略图生成',
-        'port': 5001,
+        'port': THUMBNAIL_PORT,
         'script': os.path.join(BASEDIR, 'services', 'thumbnail_service.py'),
         'pid_file': os.path.join(BASEDIR, 'instance', 'thumbnail_app.pid'),
-        'url': 'http://127.0.0.1:5001/health',
+        'url': f'http://127.0.0.1:{THUMBNAIL_PORT}/health',
         'task_name': 'dplayer-thumbnail',  # Windows 计划任务名称
     },
 }
@@ -983,11 +984,11 @@ def restart_service(svc_key):
 @app.route('/services')
 def page_services():
     """服务管理页面"""
-    # 定义服务列表
+    # 定义服务列表（使用配置的端口）
     services_list = [
-        {'key': 'main', 'name': '主应用', 'description': 'app.py - 用户界面', 'port': 80},
-        {'key': 'admin', 'name': '管理后台', 'description': 'admin_app.py - 管理界面', 'port': 8080},
-        {'key': 'thumbnail', 'name': '缩略图服务', 'description': 'thumbnail_service.py - 缩略图生成', 'port': 5001}
+        {'key': 'main', 'name': '主应用', 'description': 'app.py - 用户界面', 'port': MAIN_APP_PORT},
+        {'key': 'admin', 'name': '管理后台', 'description': 'admin_app.py - 管理界面', 'port': ADMIN_PORT},
+        {'key': 'thumbnail', 'name': '缩略图服务', 'description': 'thumbnail_service.py - 缩略图生成', 'port': THUMBNAIL_PORT}
     ]
     return render_template('admin/services.html', services=services_list)
 
@@ -1336,11 +1337,11 @@ def clear_data(data_type, dry_run=False):
 @app.route('/')
 def index():
     """管理后台首页"""
-    # 定义服务列表
+    # 定义服务列表（使用配置的端口）
     services_list = [
-        {'key': 'main', 'name': '主应用', 'description': '用户界面', 'entry_point': 'app.py', 'port': 80},
-        {'key': 'admin', 'name': '管理后台', 'description': '管理界面', 'entry_point': 'admin_app.py', 'port': 8080},
-        {'key': 'thumbnail', 'name': '缩略图服务', 'description': '缩略图生成', 'entry_point': 'thumbnail_service.py', 'port': 5001}
+        {'key': 'main', 'name': '主应用', 'description': '用户界面', 'entry_point': 'app.py', 'port': MAIN_APP_PORT},
+        {'key': 'admin', 'name': '管理后台', 'description': '管理界面', 'entry_point': 'admin_app.py', 'port': ADMIN_PORT},
+        {'key': 'thumbnail', 'name': '缩略图服务', 'description': '缩略图生成', 'entry_point': 'thumbnail_service.py', 'port': THUMBNAIL_PORT}
     ]
     return render_template('admin/index.html', services=services_list)
 
@@ -2385,7 +2386,8 @@ if __name__ == '__main__':
     # 重新加载配置（确保获取最新的端口配置）
     config = load_config()
     ADMIN_PORT = config.get('ports', {}).get('admin_app', 8080)
-    MAIN_APP_PORT = config.get('ports', {}).get('main_app', 80)
+    MAIN_APP_PORT = config.get('ports', {}).get('main_app', 8081)
+    THUMBNAIL_PORT = config.get('ports', {}).get('thumbnail', 5001)
 
     admin_logger.info(f"启动管理后台，端口: {ADMIN_PORT}")
     admin_logger.info(f"工作目录: {os.getcwd()}")
