@@ -662,24 +662,242 @@
         }
 
         /* ========== 系统监控卡片 ========== */
+        /* 监控模块布局 */
         .monitor-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: var(--space-lg);
             margin-bottom: var(--space-xl);
         }
 
         @media (max-width: 1200px) {
             .monitor-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .monitor-grid {
                 grid-template-columns: 1fr;
             }
         }
+
+        /* 监控模块 - 统一容器 */
+        .monitor-module {
+            background: var(--color-bg);
+            border-radius: var(--radius-xl);
+            padding: var(--space-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .monitor-module.disk-module {
+            grid-column: span 2;
+        }
+
+        @media (max-width: 1200px) {
+            .monitor-module.disk-module {
+                grid-column: span 1;
+            }
+        }
+
+        .module-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+
+        .module-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            font-size: 1.25rem;
+        }
+
+        .cpu-module .module-icon { background: var(--color-info-light); }
+        .memory-module .module-icon { background: var(--color-success-light); }
+        .disk-module .module-icon { background: var(--color-warning-light); }
+
+        .module-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .module-content {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        /* 模块概览区 - 左右布局 */
+        .module-overview {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xl);
+        }
+
+        .ring-container-large {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            flex-shrink: 0;
+        }
+
+        .ring-container-large .ring {
+            transform: rotate(-90deg);
+        }
+
+        .ring-container-large .ring-bg {
+            fill: none;
+            stroke: var(--color-bg-tertiary);
+            stroke-width: 12;
+        }
+
+        .ring-container-large .ring-progress {
+            fill: none;
+            stroke-width: 12;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+        }
+
+        .ring-container-large .ring-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .ring-value-large {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+            line-height: 1;
+        }
+
+        .ring-container-large .ring-label {
+            font-size: 0.85rem;
+            color: var(--color-text-tertiary);
+        }
+
+        /* 模块统计数值 */
+        .module-stats {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: var(--space-md);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid var(--color-border-light);
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-row .stat-label {
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+        }
+
+        .stat-row .stat-value {
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+        }
+
+        /* 模块详情区 */
+        .module-detail {
+            border-top: 1px solid var(--color-border-light);
+            padding-top: var(--space-md);
+        }
+
+        .detail-header {
+            font-size: 0.8rem;
+            color: var(--color-text-tertiary);
+            margin-bottom: var(--space-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* 进程列表样式 */
+        .process-list.compact {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .process-list.compact .process-item {
+            padding: 8px 10px;
+            margin-bottom: 0;
+            background: var(--color-bg-tertiary);
+        }
+
+        /* 磁盘列表样式 */
+        .disk-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .disk-item-horizontal {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+
+        .disk-item-horizontal .disk-name {
+            font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+            min-width: 50px;
+        }
+
+        .disk-item-horizontal .disk-progress {
+            flex: 1;
+            height: 12px;
+            background: var(--color-bg-tertiary);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .disk-item-horizontal .disk-progress-bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.3s ease;
+        }
+
+        .disk-item-horizontal .disk-progress-bar.normal { background: var(--color-success); }
+        .disk-item-horizontal .disk-progress-bar.warning { background: var(--color-warning); }
+        .disk-item-horizontal .disk-progress-bar.danger { background: var(--color-danger); }
+
+        .disk-item-horizontal .disk-info {
+            font-size: 0.85rem;
+            font-family: var(--font-mono);
+            color: var(--color-text-secondary);
+            min-width: 140px;
+            text-align: right;
+        }
+
+        .disk-item-horizontal .disk-percent {
+            font-weight: 600;
+            font-family: var(--font-mono);
+            min-width: 45px;
+            text-align: right;
+        }
+
+        .disk-item-horizontal .disk-percent.normal { color: var(--color-success); }
+        .disk-item-horizontal .disk-percent.warning { color: var(--color-warning); }
+        .disk-item-horizontal .disk-percent.danger { color: var(--color-danger); }
 
         .monitor-card {
             background: var(--color-bg);
@@ -951,6 +1169,55 @@
 
         .disk-item-progress-bar.normal {
             background: var(--color-success);
+        }
+
+        /* 进程列表样式 */
+        .process-card .monitor-icon {
+            background: var(--color-info-light);
+        }
+
+        .process-list {
+            margin-top: var(--space-md);
+        }
+
+        .process-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--color-bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .process-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .process-name {
+            flex: 1;
+            font-weight: 500;
+            color: var(--color-text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 12px;
+        }
+
+        .process-pid {
+            font-size: 0.75rem;
+            color: var(--color-text-tertiary);
+            margin-right: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .process-percent {
+            font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--color-text);
+            min-width: 50px;
+            text-align: right;
         }
 
         /* ========== 数据库统计 ========== */
@@ -1574,65 +1841,89 @@
         <!-- 系统监控标签页 -->
         <div class="tab-content" id="tab-monitor">
             <div class="monitor-grid">
-                <!-- CPU卡片 -->
-                <div class="monitor-card cpu-card">
-                    <div class="monitor-header">
-                        <div class="monitor-icon">💻</div>
-                        <div class="monitor-title">系统负载 (CPU)</div>
+                <!-- CPU监控模块 -->
+                <div class="monitor-module cpu-module">
+                    <div class="module-header">
+                        <div class="module-icon">💻</div>
+                        <div class="module-title">CPU</div>
                     </div>
-                    <!-- 环形进度条 -->
-                    <div class="cpu-ring-container">
-                        <svg class="cpu-ring" width="140" height="140" viewBox="0 0 140 140">
-                            <circle class="cpu-ring-bg" cx="70" cy="70" r="58"></circle>
-                            <circle class="cpu-ring-progress" id="cpuRingProgress" cx="70" cy="70" r="58"
-                                stroke-dasharray="364.4" stroke-dashoffset="364.4"></circle>
-                        </svg>
-                        <div class="cpu-ring-center">
-                            <div class="cpu-ring-value" id="cpuValue">--</div>
-                            <div class="cpu-ring-label">%</div>
+                    <div class="module-content">
+                        <div class="module-overview">
+                            <div class="ring-container-large">
+                                <svg class="ring" width="160" height="160" viewBox="0 0 160 160">
+                                    <circle class="ring-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle class="ring-progress" id="cpuRingProgress" cx="80" cy="80" r="70"
+                                        stroke-dasharray="439.8" stroke-dashoffset="439.8"></circle>
+                                </svg>
+                                <div class="ring-center">
+                                    <div class="ring-value-large" id="cpuValue">--</div>
+                                    <div class="ring-label">%</div>
+                                </div>
+                            </div>
+                            <div class="module-stats">
+                                <div class="stat-row">
+                                    <span class="stat-label">核心数</span>
+                                    <span class="stat-value" id="cpuCores">--</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">负载</span>
+                                    <span class="stat-value" id="cpuLoad">--</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="monitor-progress">
-                        <div class="monitor-progress-bar" id="cpuProgress" style="width: 0%"></div>
+                        <div class="module-detail">
+                            <div class="detail-header">占用进程</div>
+                            <div class="process-list compact" id="cpuProcessList"></div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 内存卡片 -->
-                <div class="monitor-card memory-card">
-                    <div class="monitor-header">
-                        <div class="monitor-icon">📊</div>
-                        <div class="monitor-title">内存使用</div>
+                <!-- 内存监控模块 -->
+                <div class="monitor-module memory-module">
+                    <div class="module-header">
+                        <div class="module-icon">📊</div>
+                        <div class="module-title">内存</div>
                     </div>
-                    <!-- 环形进度条 -->
-                    <div class="ring-container">
-                        <svg class="ring" width="120" height="120" viewBox="0 0 120 120">
-                            <circle class="ring-bg" cx="60" cy="60" r="50"></circle>
-                            <circle class="ring-progress" id="memoryRingProgress" cx="60" cy="60" r="50"
-                                stroke-dasharray="314" stroke-dashoffset="314"></circle>
-                        </svg>
-                        <div class="ring-center">
-                            <div class="ring-value" id="memoryPercent">--</div>
-                            <div class="ring-label">%</div>
+                    <div class="module-content">
+                        <div class="module-overview">
+                            <div class="ring-container-large">
+                                <svg class="ring" width="160" height="160" viewBox="0 0 160 160">
+                                    <circle class="ring-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle class="ring-progress" id="memoryRingProgress" cx="80" cy="80" r="70"
+                                        stroke-dasharray="439.8" stroke-dashoffset="439.8"></circle>
+                                </svg>
+                                <div class="ring-center">
+                                    <div class="ring-value-large" id="memoryPercent">--</div>
+                                    <div class="ring-label">%</div>
+                                </div>
+                            </div>
+                            <div class="module-stats">
+                                <div class="stat-row">
+                                    <span class="stat-label">已用</span>
+                                    <span class="stat-value"><span id="memoryUsed">--</span> GB</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">总量</span>
+                                    <span class="stat-value"><span id="memoryTotal">--</span> GB</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="memory-display">
-                        <div class="memory-used-total">
-                            <span id="memoryUsed">--</span> <span>/ <span id="memoryTotal">--</span> GB</span>
+                        <div class="module-detail">
+                            <div class="detail-header">占用进程</div>
+                            <div class="process-list compact" id="memoryProcessList"></div>
                         </div>
-                    </div>
-                    <div class="monitor-progress">
-                        <div class="monitor-progress-bar" id="memoryProgress" style="width: 0%"></div>
                     </div>
                 </div>
 
-                <!-- 磁盘卡片 -->
-                <div class="monitor-card disk-card" id="diskCard">
-                    <div class="monitor-header">
-                        <div class="monitor-icon">💾</div>
-                        <div class="monitor-title">磁盘使用</div>
+                <!-- 磁盘监控模块 -->
+                <div class="monitor-module disk-module" id="diskCard">
+                    <div class="module-header">
+                        <div class="module-icon">💾</div>
+                        <div class="module-title">磁盘</div>
                     </div>
-                    <!-- 磁盘多卡片容器 -->
-                    <div class="disks-grid" id="disksContainer"></div>
+                    <div class="module-content">
+                        <div class="disk-list" id="disksContainer"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1819,25 +2110,31 @@
                     // CPU环形进度条
                     const cpuPercent = sys.cpu_percent;
                     const cpuValueEl = document.getElementById('cpuValue');
-                    const cpuProgressEl = document.getElementById('cpuProgress');
                     const cpuRingEl = document.getElementById('cpuRingProgress');
 
                     cpuValueEl.textContent = cpuPercent.toFixed(1);
-                    cpuProgressEl.style.width = `${cpuPercent}%`;
 
-                    // 环形进度条计算
-                    const circumference = 2 * Math.PI * 58; // r=58
-                    const offset = circumference - (cpuPercent / 100) * circumference;
-                    cpuRingEl.style.strokeDashoffset = offset;
+                    // 环形进度条计算 (r=70, circumference ≈ 439.8)
+                    const cpuCircumference = 439.8;
+                    const cpuOffset = cpuCircumference - (cpuPercent / 100) * cpuCircumference;
+                    cpuRingEl.style.strokeDashoffset = cpuOffset;
 
                     // 根据CPU百分比设置颜色
-                    let cpuColor = '#3b82f6'; // 蓝色-低
+                    let cpuColor = 'var(--color-info)';
                     if (cpuPercent >= 80) {
-                        cpuColor = '#ef4444'; // 红色-高
+                        cpuColor = 'var(--color-danger)';
                     } else if (cpuPercent >= 50) {
-                        cpuColor = '#f59e0b'; // 黄色-中
+                        cpuColor = 'var(--color-warning)';
                     }
                     cpuRingEl.style.stroke = cpuColor;
+
+                    // CPU核心数和负载
+                    if (sys.cpu_cores) {
+                        document.getElementById('cpuCores').textContent = sys.cpu_cores;
+                    }
+                    if (sys.cpu_load) {
+                        document.getElementById('cpuLoad').textContent = sys.cpu_load.toFixed(2);
+                    }
 
                     // 内存显示
                     const memoryUsed = sys.memory_used_gb;
@@ -1847,11 +2144,10 @@
                     document.getElementById('memoryUsed').textContent = memoryUsed.toFixed(1);
                     document.getElementById('memoryTotal').textContent = memoryTotal.toFixed(1);
                     document.getElementById('memoryPercent').textContent = memoryPercent.toFixed(1);
-                    document.getElementById('memoryProgress').style.width = `${memoryPercent}%`;
 
-                    // 内存环形图
+                    // 内存环形图 (r=70, circumference ≈ 439.8)
                     const memoryRingEl = document.getElementById('memoryRingProgress');
-                    const memoryCircumference = 314; // 2 * PI * 50
+                    const memoryCircumference = 439.8;
                     const memoryOffset = memoryCircumference - (memoryCircumference * memoryPercent / 100);
                     memoryRingEl.style.strokeDashoffset = memoryOffset;
                     // 内存颜色：低<50%绿，中50-80%黄，高>80%红
@@ -1863,48 +2159,61 @@
                     }
                     memoryRingEl.style.stroke = memoryColor;
 
-                    // 磁盘多卡片显示（带环形图）
+                    // 磁盘横向进度条显示
                     if (sys.disks && sys.disks.length > 0) {
                         const disksContainer = document.getElementById('disksContainer');
-                        const diskCircumference = 220; // 2 * PI * 35
                         disksContainer.innerHTML = sys.disks.map(disk => {
                             const usedGb = disk.used;
                             const totalGb = disk.total;
                             const percent = disk.percent;
 
-                            // 环形图颜色：根据使用率阈值变化
-                            let ringColor = 'var(--color-success)';
+                            // 颜色根据使用率阈值变化
+                            let progressClass = 'normal';
                             if (percent >= 90) {
-                                ringColor = 'var(--color-danger)';
+                                progressClass = 'danger';
                             } else if (percent >= 70) {
-                                ringColor = 'var(--color-warning)';
+                                progressClass = 'warning';
                             }
 
-                            const ringOffset = diskCircumference - (diskCircumference * percent / 100);
-
-                            return `<div class="disk-item">
-                                <div class="disk-item-header">
-                                    <span class="disk-item-icon">💾</span>
-                                    <span class="disk-item-name">${disk.mountpoint}</span>
+                            return `<div class="disk-item-horizontal">
+                                <span class="disk-name">${disk.mountpoint}</span>
+                                <div class="disk-progress">
+                                    <div class="disk-progress-bar ${progressClass}" style="width: ${percent}%"></div>
                                 </div>
-                                <!-- 磁盘环形图 -->
-                                <div class="ring-container" style="width: 80px; height: 80px;">
-                                    <svg class="ring" width="80" height="80" viewBox="0 0 80 80">
-                                        <circle class="ring-bg" cx="40" cy="40" r="35"></circle>
-                                        <circle class="ring-progress" style="stroke: ${ringColor}; stroke-dasharray: ${diskCircumference}; stroke-dashoffset: ${ringOffset};" cx="40" cy="40" r="35"></circle>
-                                    </svg>
-                                    <div class="ring-center">
-                                        <div class="ring-value" style="font-size: 1rem;">${percent.toFixed(0)}</div>
-                                        <div class="ring-label">%</div>
-                                    </div>
-                                </div>
-                                <div class="disk-item-value">
-                                    ${usedGb.toFixed(1)} <span>/ ${totalGb.toFixed(1)} GB</span>
-                                </div>
+                                <span class="disk-info">${usedGb.toFixed(1)} / ${totalGb.toFixed(1)} GB</span>
+                                <span class="disk-percent ${progressClass}">${percent.toFixed(1)}%</span>
                             </div>`;
                         }).join('');
                     } else {
                         document.getElementById('disksContainer').innerHTML = '<div style="color: var(--color-text-tertiary);">暂无磁盘数据</div>';
+                    }
+
+                    // CPU占用Top5进程
+                    if (sys.top_cpu_processes && sys.top_cpu_processes.length > 0) {
+                        const cpuProcessList = document.getElementById('cpuProcessList');
+                        cpuProcessList.innerHTML = sys.top_cpu_processes.map(proc => `
+                            <div class="process-item">
+                                <span class="process-name">${proc.name}</span>
+                                <span class="process-pid">PID ${proc.pid}</span>
+                                <span class="process-percent">${proc.cpu_percent.toFixed(1)}%</span>
+                            </div>
+                        `).join('');
+                    } else {
+                        document.getElementById('cpuProcessList').innerHTML = '<div style="color: var(--color-text-tertiary); padding: 10px;">暂无数据</div>';
+                    }
+
+                    // 内存占用Top5进程
+                    if (sys.top_memory_processes && sys.top_memory_processes.length > 0) {
+                        const memoryProcessList = document.getElementById('memoryProcessList');
+                        memoryProcessList.innerHTML = sys.top_memory_processes.map(proc => `
+                            <div class="process-item">
+                                <span class="process-name">${proc.name}</span>
+                                <span class="process-pid">PID ${proc.pid}</span>
+                                <span class="process-percent">${proc.memory_percent.toFixed(1)}%</span>
+                            </div>
+                        `).join('');
+                    } else {
+                        document.getElementById('memoryProcessList').innerHTML = '<div style="color: var(--color-text-tertiary); padding: 10px;">暂无数据</div>';
                     }
                 }
             } catch (error) {

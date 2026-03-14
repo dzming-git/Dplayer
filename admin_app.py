@@ -41,6 +41,9 @@ services_status_cache = {
 cache_lock = threading.Lock()
 CACHE_INTERVAL = 2  # 缓存刷新间隔（秒）
 
+# CPU监控初始化标志（首次调用cpu_percent会返回0，需要两次调用才能获取正确值）
+_cpu_initialized = False
+
 # ========== 日志配置 ==========
 
 LOG_DIR = 'logs'
@@ -457,11 +460,33 @@ def get_main_app_status():
         }
 
 
+
+
 def get_system_stats():
     """获取系统统计信息"""
+    global _cpu_initialized
     try:
-        # 使用更长的采样间隔以获得更稳定的CPU使用率
-        cpu_percent = psutil.cpu_percent(interval=1.0)  # 增加到1秒
+        # 获取CPU核心数和负载
+        cpu_count = psutil.cpu_count()
+
+        # 使用 percpu=True 获取每个核心的使用率，然后取平均值
+        # psutil.cpu_percent()首次调用返回0，需要两次调用才能获取正确值
+        if not _cpu_initialized:
+            psutil.cpu_percent(interval=None, percpu=True)
+            _cpu_initialized = True
+            admin_logger.debug("CPU监控已初始化")
+        cpu_percents = psutil.cpu_percent(interval=0.1, percpu=True)
+        admin_logger.debug(f"CPU核心使用率: {cpu_percents}")
+        cpu_percent = sum(cpu_percents) / len(cpu_percents) if cpu_percents else 0
+        admin_logger.debug(f"CPU平均使用率: {cpu_percent}")
+
+        # 获取CPU负载（Linux/Windows都支持）
+        try:
+            load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None
+            cpu_load = load_avg[0] if load_avg else cpu_percent / 100 * cpu_count
+        except Exception:
+            cpu_load = cpu_percent / 100 * cpu_count if cpu_count else cpu_percent
+
         memory = psutil.virtual_memory()
 
         # 获取磁盘信息（只统计本地磁盘，排除移动硬盘）
@@ -501,12 +526,89 @@ def get_system_stats():
         except Exception as e:
             admin_logger.warning(f"获取磁盘信息失败: {e}")
 
+        # 获取进程信息（CPU和内存占用前5名）
+        processes = []
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+                try:
+                    pinfo = proc.info
+                    name = pinfo['name']
+                    # 使用cpu_percent()方法获取实际CPU使用率，需要interval参数
+                    proc_cpu_percent = proc.cpu_percent(interval=0.1)
+                    memory_percent = pinfo['memory_percent']
+
+                    # 跳过空闲进程和系统内核进程
+                    # 空闲进程：Idle, System Idle Process
+                    # 系统内核进程：System, Registry, csrss.exe, wininit.exe等
+                    if name and name.lower() in ['idle', 'system idle process',
+                        'system', 'registry', 'csrss.exe', 'wininit.exe',
+                        'smss.exe', 'smss', 'services.exe', 'services',
+                        'lsass.exe', 'lsass', 'svchost.exe', 'svchost']:
+                        continue
+
+                    # 跳过CPU占用为0的进程（对CPU排行没有意义）
+                    if proc_cpu_percent is None or proc_cpu_percent <= 0:
+                        continue
+
+                    if memory_percent is None:
+                        memory_percent = 0.0
+
+                    processes.append({
+                        'pid': pinfo['pid'],
+                        'name': name,
+                        'cpu_percent': proc_cpu_percent,
+                        'memory_percent': memory_percent
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception as e:
+            admin_logger.warning(f"获取进程信息失败: {e}")
+
+        # 按CPU占用排序，取前5名
+        top_cpu_processes = sorted(processes, key=lambda x: x['cpu_percent'], reverse=True)[:5]
+
+        # 内存占用排序：保留所有进程（内存占用0%也有意义），取前5名
+        # 但也需要排除一些系统进程以便更好地显示用户进程
+        user_processes = []
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+                try:
+                    pinfo = proc.info
+                    name = pinfo['name']
+                    memory_percent = pinfo['memory_percent']
+
+                    # 跳过系统关键进程
+                    if name and name.lower() in ['system', 'registry', 'csrss.exe',
+                        'wininit.exe', 'smss.exe', 'services.exe', 'lsass.exe',
+                        'svchost.exe', 'dwm.exe', 'winlogon.exe']:
+                        continue
+
+                    if memory_percent is None:
+                        memory_percent = 0.0
+
+                    user_processes.append({
+                        'pid': pinfo['pid'],
+                        'name': name,
+                        'memory_percent': memory_percent
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception as e:
+            admin_logger.warning(f"获取内存进程信息失败: {e}")
+
+        # 按内存占用排序，取前5名
+        top_memory_processes = sorted(user_processes, key=lambda x: x['memory_percent'], reverse=True)[:5]
+
         stats = {
             'cpu_percent': cpu_percent,
+            'cpu_cores': cpu_count,
+            'cpu_load': cpu_load,
             'memory_total_gb': memory.total / 1024 / 1024 / 1024,  # GB
             'memory_used_gb': memory.used / 1024 / 1024 / 1024,    # GB
             'memory_percent': memory.percent,
-            'disks': disks  # 磁盘数组，每个磁盘独立统计
+            'disks': disks,  # 磁盘数组，每个磁盘独立统计
+            'top_cpu_processes': top_cpu_processes,
+            'top_memory_processes': top_memory_processes
         }
 
         # 为了兼容性，添加第一个磁盘的信息作为默认磁盘
