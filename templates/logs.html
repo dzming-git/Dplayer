@@ -837,8 +837,9 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        let currentLogType = 'runtime'; // 默认显示运行日志
-        let currentLogFile = 'runtime.log';
+        // 从 localStorage 恢复保存的日志类型
+        let currentLogType = localStorage.getItem('dplayer_log_type') || 'runtime';
+        let currentLogFile = `${currentLogType}.log`;
         let currentLogs = [];
         let logTypes = {};
 
@@ -889,6 +890,8 @@
         function switchLogType(type) {
             currentLogType = type;
             currentLogFile = `${type}.log`;
+            // 保存到 localStorage
+            localStorage.setItem('dplayer_log_type', type);
             renderLogTypeSelector(logTypes);
             loadLogFiles();
             loadLogs();
@@ -972,7 +975,7 @@
             }
         }
 
-        // 渲染日志
+        // 渲染日志（后端已返回倒序数据，最新的在前面）
         function renderLogs(logs, searchTerm = '') {
             const container = document.getElementById('logLines');
 

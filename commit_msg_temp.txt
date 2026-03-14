@@ -1,0 +1,4 @@
+修复日志显示和记住日志类型：
+1. admin_app.py日志API返回倒序数据（最新在前）
+2. 删除前端的create_dual_app函数
+3. logs.html记住用户选择的日志类型（localStorage）

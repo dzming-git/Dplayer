@@ -2346,10 +2346,11 @@ def api_logs():
                 'total_lines': 0
             })
 
-        # 读取最后N行
+        # 读取最后N行，并倒序排列（最新的在前面）
         with open(log_file, 'r', encoding='utf-8') as f:
             lines_list = f.readlines()
-            last_lines = lines_list[-lines:] if len(lines_list) > lines else lines_list
+            last_n = lines_list[-lines:] if len(lines_list) > lines else lines_list
+            last_lines = list(reversed(last_n))
 
         return jsonify({
             'success': True,
