@@ -5,6 +5,74 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>视频管理 - DPlayer 视频站</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/manage.css') }}">
+    <style>
+        /* 用户区域样式 */
+        #userArea {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-info {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+        }
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .user-name {
+            color: white;
+            font-size: 14px;
+        }
+        .user-role {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.2);
+        }
+        .btn-login {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-logout {
+            padding: 5px 12px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.2);
+        }
+    </style>
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -19,6 +87,9 @@
                     <a href="/manage" class="nav-link active">视频管理</a>
                     <a href="/tags" class="nav-link">标签管理</a>
                     <a href="/logs" class="nav-link">日志管理</a>
+                    <span id="userArea">
+                        <!-- 用户状态将由JS动态填充 -->
+                    </span>
                 </div>
             </div>
         </div>
@@ -343,6 +414,90 @@
     </div>
 
     <script>
+        // ==================== 用户登录状态管理 ====================
+        let currentUser = null;
+
+        // 检查登录状态
+        async function checkLoginStatus() {
+            try {
+                const response = await fetch('/api/auth/me');
+                const data = await response.json();
+
+                if (data.success && data.is_logged_in) {
+                    currentUser = data.user;
+                    updateUserArea();
+                } else {
+                    currentUser = null;
+                    showLoginButton();
+                }
+            } catch (error) {
+                console.error('检查登录状态失败:', error);
+                showLoginButton();
+            }
+        }
+
+        // 更新用户区域显示
+        function updateUserArea() {
+            const userArea = document.getElementById('userArea');
+            if (!currentUser) {
+                showLoginButton();
+                return;
+            }
+
+            const roleClass = currentUser.role === 3 ? 'role-root' :
+                              currentUser.role === 2 ? 'role-admin' :
+                              currentUser.role === 1 ? 'role-user' : 'role-guest';
+
+            userArea.innerHTML = `
+                <div class="user-info">
+                    <div class="user-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <span class="user-name">${currentUser.username}</span>
+                    <span class="user-role ${roleClass}">${currentUser.role_name}</span>
+                </div>
+                <button class="btn-logout" onclick="performLogout()" title="退出登录">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>退出</span>
+                </button>
+            `;
+        }
+
+        // 显示登录按钮
+        function showLoginButton() {
+            const userArea = document.getElementById('userArea');
+            userArea.innerHTML = `<button class="btn-login" onclick="showLoginModal()">登录</button>`;
+        }
+
+        // 显示登录模态框
+        function showLoginModal() {
+            window.location.href = '/?login=true';
+        }
+
+        // 执行登出
+        async function performLogout() {
+            try {
+                const response = await fetch('/api/auth/logout', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentUser = null;
+                    showLoginButton();
+                    showToast('退出成功');
+                } else {
+                    showToast(data.message || '退出失败');
+                }
+            } catch (error) {
+                console.error('退出失败:', error);
+                showToast('退出失败，请稍后重试');
+            }
+        }
+
         // 当前查看的视频hash
         let currentVideoHash = null;
         let currentVideoData = null;
@@ -1232,6 +1387,8 @@
 
         // 在页面加载时初始化分页
         document.addEventListener('DOMContentLoaded', function() {
+            // 检查登录状态
+            checkLoginStatus();
             initPagination();
             // 初始化标签自动补全
             initTagAutocomplete();
