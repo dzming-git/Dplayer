@@ -4,8 +4,13 @@ from core.models import db, Video, Tag, VideoTag, UserInteraction, UserPreferenc
 from services.thumbnail_service_client import get_thumbnail_client, reset_thumbnail_client
 from services.auth_service import AuthService, init_root_user
 from api.auth_api import auth_bp
+
+# NodeManager集成
+from node_manager import NodeManager, FlaskAdapter
+from node_manager.nodes import register_all_routes
 from datetime import datetime, timedelta
 import random
+import asyncio
 import os
 import sys
 import hashlib
@@ -34,6 +39,80 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # 会话有效期7
 
 # 注册认证蓝图
 app.register_blueprint(auth_bp)
+
+# ========== NodeManager集成 ==========
+# 创建NodeManager实例并注册所有API路由
+print("[*] 初始化NodeManager...")
+node_manager = NodeManager()
+register_all_routes(node_manager)
+
+# 创建Flask适配器
+flask_adapter = FlaskAdapter(node_manager)
+
+# 将NodeManager路由注册到Flask应用
+# 使用catch-all路由处理所有API请求
+@app.route('/api/<path:fallback>')
+@app.route('/health')
+@app.route('/api/health')
+@app.route('/api/status')
+@app.route('/api/dependencies/check')
+def node_manager_handler(fallback=None):
+    """NodeManager统一请求处理"""
+    return asyncio.run(handle_node_request())
+
+async def handle_node_request():
+    """异步处理NodeManager请求"""
+    from flask import request, g
+    from node_manager.core import ContextPool
+
+    # 创建临时上下文池
+    context_pool = ContextPool(max_concurrent=1)
+
+    # 获取请求信息
+    method = request.method
+    path = request.path
+    headers = dict(request.headers)
+    body = request.get_json(silent=True) if request.is_json else None
+    params = request.args.to_dict()
+
+    # 获取上下文
+    context = context_pool.acquire(method, path, headers, body, params)
+    g.task_context = context
+
+    try:
+        # 查找Node
+        node, route_params = node_manager.find_node(method, path)
+
+        if node:
+            if route_params:
+                context.params.update(route_params)
+            await node.handle(context)
+        else:
+            context.set_response(404, body={'error': 'Not Found'})
+
+        # 转换响应
+        from flask import jsonify, Response
+        status = context.response_status or 200
+        response_headers = context.response_headers or {}
+
+        if context.response_body is not None:
+            if isinstance(context.response_body, dict):
+                response = jsonify(context.response_body)
+            else:
+                response = Response(str(context.response_body))
+        else:
+            response = Response('')
+
+        response.status_code = status
+        for key, value in response_headers.items():
+            response.headers[key] = value
+
+        return response
+
+    finally:
+        context_pool.release(context)
+
+print(f"[*] NodeManager已初始化，注册了 {len(node_manager.get_registered_routes())} 个路由")
 
 # 优化网络连接配置，解决局域网访问偶现失败问题
 # try:
@@ -507,11 +586,6 @@ def parse_log_line(line):
                 'level_code': level,
                 'filename': filename,
                 'lineno': lineno,
-                'message': message,
-                'raw': line
-            }
-    except Exception as e:
-        return {'raw': line}
                 'message': message,
                 'raw': line
             }
